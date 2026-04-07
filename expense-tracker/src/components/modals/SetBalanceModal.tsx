@@ -8,6 +8,12 @@ interface SetBalanceModalProps {
 
 export const SetBalanceModal = ({ onSetBalance, isLoading }: SetBalanceModalProps) => {
   const [amount, setAmount] = useState('');
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleSetBalance = (numAmount: number) => {
+    setIsClosing(true);
+    setTimeout(() => onSetBalance(numAmount), 300);
+  };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
@@ -18,15 +24,15 @@ export const SetBalanceModal = ({ onSetBalance, isLoading }: SetBalanceModalProp
   const handleSubmit = () => {
     const numAmount = parseFloat(amount);
     if (!isNaN(numAmount) && numAmount >= 0) {
-      onSetBalance(numAmount);
+      handleSetBalance(numAmount);
     }
   };
 
   const isValid = amount !== '' && parseFloat(amount) >= 0;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
+    <div className={`modal-overlay ${isClosing ? 'closing' : ''}`}>
+      <div className={`modal-content ${isClosing ? 'closing' : ''}`}>
         <div className="modal-header">
           <h2 className="modal-title">Начальный баланс</h2>
         </div>

@@ -16,6 +16,8 @@ import {
   subscribeToTransactions, 
   setMonthlyBalance,
   addTransaction,
+  updateTransaction,
+  deleteTransaction,
   type Transaction,
   type MonthData
 } from "../services/database";
@@ -26,6 +28,8 @@ import { SetBalanceModal } from "../components/modals/SetBalanceModal";
 import { SettingsModal } from "../components/modals/SettingsModal";
 import { HistoryModal } from "../components/modals/HistoryModal";
 import { QuickSpendModal } from "../components/modals/QuickSpendModal";
+import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
+import { AnimatedNumber } from "../components/AnimatedNumber";
 
 const CATEGORY_ICONS: Record<string, string> = {
   food: '🍔',
@@ -84,7 +88,9 @@ export const HomePage = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isQuickSpendOpen, setIsQuickSpendOpen] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTxActionLoading, setIsTxActionLoading] = useState(false);
 
   const navItems = [
     { icon: <HomeIcon />, id: 0 },
@@ -211,6 +217,21 @@ export const HomePage = () => {
     setIsQuickSpendOpen(false);
   };
 
+  const handleDeleteTransaction = async (id: string) => {
+    if (!user) return;
+    setIsTxActionLoading(true);
+    await deleteTransaction(user.id, id);
+    setIsTxActionLoading(false);
+    setSelectedTx(null);
+  };
+
+  const handleUpdateTransaction = async (id: string, data: Partial<Transaction>) => {
+    if (!user) return;
+    setIsTxActionLoading(true);
+    await updateTransaction(user.id, id, data);
+    setIsTxActionLoading(false);
+  };
+
   const monthName = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
   const getIndicatorLeft = () => `calc(4px + ${activeNav} * (100% - 8px) / 4)`;
 
@@ -228,8 +249,18 @@ export const HomePage = () => {
       {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} walletBalances={walletBalances} />}
       {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} walletBalances={walletBalances} />}
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
-      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} CATEGORY_ICONS={CATEGORY_ICONS} CATEGORY_NAMES={CATEGORY_NAMES} />}
+      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} CATEGORY_ICONS={CATEGORY_ICONS} CATEGORY_NAMES={CATEGORY_NAMES} walletBalances={walletBalances} />}
       {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} walletBalances={walletBalances} />}
+      {selectedTx && (
+        <TransactionDetailModal 
+          transaction={selectedTx}
+          onClose={() => setSelectedTx(null)}
+          onDelete={handleDeleteTransaction}
+          onUpdate={handleUpdateTransaction}
+          isLoading={isTxActionLoading}
+          walletBalances={walletBalances}
+        />
+      )}
 
       {/* Header */}
       <div className="header">
@@ -241,10 +272,11 @@ export const HomePage = () => {
 
       {/* Balance Display */}
       <div className="balance-section">
-        {/* We show the MAIN wallet balance in the center, or the Total capital? The user said "кнопка выбрать главный кошелёк который будет отсвечиваться в центре". */}
-        <div className="balance-amount">{formatValue(walletBalances[mainCurrency] || 0)}</div>
+        <div className="balance-amount">
+          <AnimatedNumber value={walletBalances[mainCurrency] || 0} formatter={formatValue} />
+        </div>
         <div className="balance-sub">
-          Общий капитал: {formatValue(currentBalance)}
+          Общий капитал: <AnimatedNumber value={currentBalance} formatter={formatValue} />
         </div>
       </div>
 
@@ -275,7 +307,7 @@ export const HomePage = () => {
               </div>
             ) : (
               todaysTransactions.map((item) => (
-                <div key={item.id} className="payment-item">
+                <div key={item.id} className="payment-item" onClick={() => setSelectedTx(item)}>
                   <PaymentIcon type={item.type} category={item.category} />
                   <div className="payment-info">
                     <span className="payment-name">

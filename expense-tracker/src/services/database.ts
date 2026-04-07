@@ -203,6 +203,24 @@ export async function getTransactions(
   }));
 }
 
+export async function updateTransaction(
+  userId: number,
+  txId: string,
+  data: Partial<Omit<Transaction, 'id'>>
+): Promise<void> {
+  const txRef = ref(database, `users/${userId}/transactions/${txId}`);
+  const { update } = await import('firebase/database');
+  await update(txRef, data);
+}
+
+export async function deleteTransaction(
+  userId: number,
+  txId: string
+): Promise<void> {
+  const txRef = ref(database, `users/${userId}/transactions/${txId}`);
+  await set(txRef, null);
+}
+
 // ====== Realtime Subscriptions ======
 
 export function subscribeToTransactions(

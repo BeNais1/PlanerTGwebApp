@@ -26,6 +26,12 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
   const [category, setCategory] = useState(CATEGORIES[0].id);
   const [description, setDescription] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(mainCurrency);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 300);
+  };
 
   // Sync if main currency takes time to load (ONLY if the selected currency is not yet set)
   useEffect(() => {
@@ -54,11 +60,11 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
   const availableWallets = Object.keys(walletBalances) as Currency[];
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-content">
+    <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className={`modal-content ${isClosing ? 'closing' : ''}`}>
         <div className="modal-header">
           <h2 className="modal-title">Расход</h2>
-          <div className="modal-close" onClick={onClose}>✕</div>
+          <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
         <input

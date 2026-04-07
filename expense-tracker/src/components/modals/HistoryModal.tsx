@@ -1,21 +1,32 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getAllTransactions, type Transaction } from '../../services/database';
-import { useCurrency } from '../../hooks/useCurrency';
+import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { ArrowDown } from '../icons/ArrowDown';
+import { TransactionDetailModal } from './TransactionDetailModal';
+import { deleteTransaction, updateTransaction } from '../../services/database';
 import './Modals.css';
 
 interface HistoryModalProps {
   onClose: () => void;
   CATEGORY_ICONS: Record<string, string>;
   CATEGORY_NAMES: Record<string, string>;
+  walletBalances: Record<string, number>;
 }
 
-export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES }: HistoryModalProps) => {
+export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES, walletBalances }: HistoryModalProps) => {
   const { user } = useAuth();
-  const { formatAmount } = useCurrency();
+  const { formatValue } = useCurrency();
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [isTxActionLoading, setIsTxActionLoading] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 300);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -27,6 +38,23 @@ export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES }: Histor
     };
     fetchHistory();
   }, [user]);
+
+  const handleDelete = async (id: string) => {
+    if (!user) return;
+    setIsTxActionLoading(true);
+    await deleteTransaction(user.id, id);
+    setHistory(prev => prev.filter(t => t.id !== id));
+    setIsTxActionLoading(false);
+    setSelectedTx(null);
+  };
+
+  const handleUpdate = async (id: string, data: Partial<Transaction>) => {
+    if (!user) return;
+    setIsTxActionLoading(true);
+    await updateTransaction(user.id, id, data);
+    setHistory(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+    setIsTxActionLoading(false);
+  };
 
   const PaymentIcon = ({ type, category }: { type: string, category: string }) => {
     if (type === 'income') {
@@ -53,12 +81,23 @@ export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES }: Histor
   }, {} as Record<string, Transaction[]>);
 
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-content history-modal-content" style={{ height: '85vh', maxHeight: '85vh' }}>
+    <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className={`modal-content history-modal-content ${isClosing ? 'closing' : ''}`} style={{ height: '85vh', maxHeight: '85vh' }}>
         <div className="modal-header" style={{ marginBottom: '10px' }}>
           <h2 className="modal-title">Вся история</h2>
-          <div className="modal-close" onClick={onClose}>✕</div>
+          <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
+
+        {selectedTx && (
+          <TransactionDetailModal 
+            transaction={selectedTx}
+            onClose={() => setSelectedTx(null)}
+            onDelete={handleDelete}
+            onUpdate={handleUpdate}
+            isLoading={isTxActionLoading}
+            walletBalances={walletBalances}
+          />
+        )}
 
         <div className="history-list-container" style={{ flex: 1, overflowY: 'auto', paddingTop: '10px' }}>
           {loading ? (
@@ -71,9 +110,9 @@ export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES }: Histor
                 <h3 style={{ fontSize: '15px', color: 'var(--apple-text-on-dark-secondary)', marginBottom: '8px', paddingLeft: '4px' }}>
                   {monthStr}
                 </h3>
-                <div className="payment-list" style={{ overflow: 'visible', gap: '8px' }}>
+                 <div className="payment-list" style={{ overflow: 'visible', gap: '8px' }}>
                   {txs.map((item) => (
-                    <div key={item.id} className="payment-item">
+                    <div key={item.id} className="payment-item" onClick={() => setSelectedTx(item)}>
                       <PaymentIcon type={item.type} category={item.category} />
                       <div className="payment-info">
                         <span className="payment-name">
@@ -84,7 +123,7 @@ export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES }: Histor
                         </span>
                       </div>
                       <span className={`payment-amount ${item.type === 'expense' ? 'expense' : 'income'}`} style={{ color: item.type === 'income' ? 'var(--apple-blue)' : 'var(--apple-text-on-dark)' }}>
-                        {item.type === 'expense' ? '-' : '+'}{formatAmount(item.amount)}
+                        {item.type === 'expense' ? '-' : '+'}{formatValue(item.amount, item.currency as Currency || 'EUR')}
                       </span>
                     </div>
                   ))}

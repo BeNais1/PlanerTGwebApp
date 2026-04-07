@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { updateUserSettings, addWalletBalance, deleteWalletData, getCurrentMonth } from '../../services/database';
+import { AnimatedNumber } from '../AnimatedNumber';
 import './Modals.css';
 
 interface SettingsModalProps {
@@ -15,6 +16,12 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
   const [isAddingWallet, setIsAddingWallet] = useState(false);
   const [newWalletCurrency, setNewWalletCurrency] = useState<Currency>('USD');
   const [newWalletAmount, setNewWalletAmount] = useState('');
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(onClose, 300);
+  };
 
   const handleCurrencyChange = async (newCurrency: Currency) => {
     if (!user) return;
@@ -57,12 +64,48 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     return inEur * EXCHANGE_RATES[to];
   };
 
+  // Calculate totals for summary popup
+  const totalEur = Object.entries(walletBalances).reduce((acc, [cur, amt]) => {
+    return acc + (amt / EXCHANGE_RATES[cur as Currency]);
+  }, 0);
+
+  const totalUsd = totalEur * EXCHANGE_RATES['USD'];
+  const totalUah = totalEur * EXCHANGE_RATES['UAH'];
+
   return (
-    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-content settings-modal-content" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+    <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      <div className={`modal-content settings-modal-content ${isClosing ? 'closing' : ''}`} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-header">
           <h2 className="modal-title">Настройки Кошельков</h2>
-          <div className="modal-close" onClick={onClose}>✕</div>
+          <div className="modal-close" onClick={handleClose}>✕</div>
+        </div>
+
+        {/* Total Summary Block */}
+        <div style={{ background: 'linear-gradient(135deg, var(--apple-surface-2) 0%, var(--apple-surface-3) 100%)', borderRadius: 'var(--radius-lg)', padding: '20px', marginBottom: '24px', position: 'relative', overflow: 'hidden', border: '1px solid var(--apple-surface-3)' }}>
+          <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '60px', opacity: 0.1, pointerEvents: 'none' }}>💰</div>
+          <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '16px' }}>
+            Общий баланс (все кошельки)
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Евро</span>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>
+                <AnimatedNumber value={totalEur} formatter={(v) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS['EUR']}`} />
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Долларах</span>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>
+                <AnimatedNumber value={totalUsd} formatter={(v) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS['USD']}`} />
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Гривне</span>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>
+                <AnimatedNumber value={totalUah} formatter={(v) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS['UAH']}`} />
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="modal-input-group" style={{ marginTop: '10px' }}>
