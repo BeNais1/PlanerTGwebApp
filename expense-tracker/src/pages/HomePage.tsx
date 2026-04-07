@@ -5,7 +5,7 @@ import { SettingsIcon } from "../components/icons/SettingsIcon";
 import { HomeIcon } from "../components/icons/HomeIcon";
 import { HistoryIcon } from "../components/icons/HistoryIcon";
 import { WalletIcon } from "../components/icons/WalletIcon";
-import { CardsIcon } from "../components/icons/CardsIcon";
+import { AnalyticsIcon } from "../components/icons/AnalyticsIcon";
 import { SearchIcon } from "../components/icons/SearchIcon";
 import { useTelegramPlatform } from "../hooks/useTelegramPlatform";
 import { useAuth } from "../context/AuthContext";
@@ -30,6 +30,7 @@ import { HistoryModal } from "../components/modals/HistoryModal";
 import { QuickSpendModal } from "../components/modals/QuickSpendModal";
 import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
 import { AnimatedNumber } from "../components/AnimatedNumber";
+import { AnalyticsView } from "../components/AnalyticsView";
 
 const CATEGORY_ICONS: Record<string, string> = {
   food: '🍔',
@@ -96,7 +97,7 @@ export const HomePage = () => {
     { icon: <HomeIcon />, id: 0 },
     { icon: <HistoryIcon />, id: 1 },
     { icon: <WalletIcon />, id: 2 },
-    { icon: <CardsIcon />, id: 3 },
+    { icon: <AnalyticsIcon />, id: 3 },
   ];
 
   useEffect(() => {
@@ -262,6 +263,14 @@ export const HomePage = () => {
         />
       )}
 
+      <AnalyticsView 
+        transactions={transactions}
+        walletBalances={walletBalances}
+        mainCurrency={mainCurrency}
+        isActive={activeNav === 3}
+      />
+
+      <div style={{ display: activeNav === 3 ? 'none' : 'contents' }}>
       {/* Header */}
       <div className="header">
         <span className="month-label">{monthName}</span>
@@ -340,6 +349,7 @@ export const HomePage = () => {
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Bottom Navigation */}
