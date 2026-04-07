@@ -1,0 +1,252 @@
+/* === Shared Styles for Modals (Slide-up iOS style) === */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: var(--apple-surface-1);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 20px calc(var(--safe-area-bottom, 50px) + 24px);
+  transform: translateY(100%);
+  animation: slideUp 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@keyframes slideUp {
+  to { transform: translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--apple-text-on-dark);
+}
+
+.modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: var(--apple-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--apple-text-on-dark-secondary);
+}
+
+.modal-close:active {
+  transform: scale(0.95);
+}
+
+/* Forms */
+.modal-amount-input {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 48px;
+  text-align: center;
+  color: var(--apple-text-on-dark);
+  padding: 10px 0;
+}
+
+.modal-amount-input::placeholder {
+  color: var(--apple-text-on-dark-tertiary);
+}
+
+.modal-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-label {
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--apple-text-on-dark-secondary);
+  padding-left: 4px;
+}
+
+.modal-input {
+  width: 100%;
+  background: var(--apple-surface-2);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  font-family: var(--font-text);
+  font-size: 16px;
+  color: var(--apple-text-on-dark);
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+.modal-input:focus {
+  box-shadow: 0 0 0 2px var(--apple-blue);
+}
+
+/* Categories Grid */
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.category-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.category-item.active {
+  opacity: 1;
+}
+
+.category-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--apple-surface-2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.category-item.active .category-icon {
+  background: var(--apple-blue);
+  transform: scale(1.05);
+}
+
+.category-name {
+  font-family: var(--font-text);
+  font-size: 11px;
+  text-align: center;
+  color: var(--apple-text-on-dark);
+  white-space: nowrap;
+}
+
+/* Primary Button */
+.modal-btn-primary {
+  width: 100%;
+  background: var(--apple-blue);
+  color: white;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  font-family: var(--font-text);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.modal-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Settings Modal */
+.settings-balance-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 0;
+  background: var(--apple-surface-2);
+  border-radius: var(--radius-lg);
+  margin-top: 10px;
+}
+
+.settings-balance-label {
+  font-family: var(--font-text);
+  font-size: 14px;
+  color: var(--apple-text-on-dark-secondary);
+}
+
+.settings-main-balance {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 36px;
+  color: var(--apple-text-on-dark);
+}
+
+.settings-other-balances {
+  display: flex;
+  gap: 16px;
+  margin-top: 5px;
+}
+
+.settings-small-balance {
+  font-family: var(--font-text);
+  font-size: 14px;
+  color: var(--apple-text-on-dark-tertiary);
+  background: var(--apple-surface-3);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.currency-selector {
+  display: flex;
+  gap: 10px;
+}
+
+.currency-btn {
+  flex: 1;
+  padding: 14px 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--apple-surface-2);
+  color: var(--apple-text-on-dark);
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.currency-btn.active {
+  background: var(--apple-blue);
+  color: white;
+  transform: scale(1.05);
+}
+
+/* History Modal */
+.history-month-group {
+  margin-bottom: 20px;
+}

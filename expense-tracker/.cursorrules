@@ -1,0 +1,18 @@
+# Project Design Rules (Apple Design System)
+
+You are an AI coding assistant working on this project (Expense Tracker). The user explicitly desires an interface that strictly follows Apple's design language and aesthetic.
+
+We have a centralized `DESIGN.md` in the project root which describes the Apple design aesthetics in detail. 
+For EVERY front-end and UI-related change you make in this project, you MUST:
+
+1. **Read `DESIGN.md`** for context on color palette, typography sizes, spacing, shadow configurations, and interaction logic.
+2. **Prioritize Cinematic Aesthetics**: Use stark contrasts, primarily `#000000` (black) and `#f5f5f7` (light gray) with `#ffffff` and `#1d1d1f` text respectively.
+3. **Typography is Key**: Use the `SF Pro Display` for headers (20px+) and `SF Pro Text` for body copy. Fallback strictly to `Inter` or `-apple-system`. Honor the specific font weights and extremely tight line sizing (e.g. `1.07` for headers). Include negative tracking (letter-spacing) precisely as described.
+4. **Single Accent Color**: The ONLY chromatic colour allowed for interactive elements (buttons, links, active states) is Apple Blue (`#0071e3`), or specific variations defined in `DESIGN.md`. Do not randomly throw in other colours unless requested.
+5. **Shapes & Shadows**:
+    - Use strict border radiuses: 5px to 12px for standard cards/elements. 980px (full pill) for primary links/CTAs.
+    - Exclude borders on generic containers and cards.
+    - DO NOT overdo shadows; Apple uses one diffuse shadow (`rgba(0, 0, 0, 0.22) 3px 5px 30px 0px`) to lift product cards. Keep it completely flat otherwise.
+6. **Whitespace & Rhythm**: Ensure large visual breaks between distinct sections to give UI elements "cinematic breathing room." No cramped container packing.
+
+Always verify that your structural changes (`.tsx`, `.css`, or Tailwind config) honor these rigorous guidelines to maintain the Apple-grade feel.

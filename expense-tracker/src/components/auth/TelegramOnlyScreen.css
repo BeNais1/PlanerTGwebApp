@@ -1,0 +1,120 @@
+/* === Telegram Only Screen — Apple Design System === */
+.telegram-only-screen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--apple-black);
+  padding: 20px;
+}
+
+.telegram-only-content {
+  max-width: 420px;
+  width: 100%;
+  background: var(--apple-surface-1);
+  border-radius: var(--radius-xl);
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.telegram-icon {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.telegram-only-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.14;
+  letter-spacing: 0.196px;
+  color: var(--apple-text-on-dark);
+  margin: 0 0 8px 0;
+}
+
+.telegram-only-description {
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+  color: var(--apple-text-on-dark-tertiary);
+  margin: 0 0 32px 0;
+}
+
+.qr-code-container {
+  background: var(--apple-surface-2);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.qr-code {
+  width: 180px;
+  height: 180px;
+  border-radius: var(--radius-md);
+  background: white;
+  padding: 8px;
+}
+
+.qr-code-hint {
+  margin-top: 12px;
+  font-family: var(--font-text);
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--apple-text-on-dark-tertiary);
+}
+
+.telegram-only-instructions {
+  text-align: left;
+  background: var(--apple-surface-2);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.telegram-only-instructions h3 {
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.224px;
+  color: var(--apple-text-on-dark);
+  margin: 0 0 10px 0;
+}
+
+.telegram-only-instructions ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.telegram-only-instructions li {
+  font-family: var(--font-text);
+  font-size: 14px;
+  color: var(--apple-text-on-dark-secondary);
+  margin-bottom: 6px;
+  line-height: 1.43;
+  letter-spacing: -0.224px;
+}
+
+.telegram-button {
+  display: inline-block;
+  background: var(--apple-blue);
+  color: var(--apple-white);
+  padding: 8px 24px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-text);
+  font-size: 17px;
+  font-weight: 400;
+  text-decoration: none;
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.telegram-button:hover {
+  filter: brightness(1.1);
+}
+
+.telegram-button:active {
+  transform: scale(0.97);
+}
