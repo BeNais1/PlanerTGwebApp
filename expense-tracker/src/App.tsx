@@ -1,10 +1,14 @@
 import { HomePage } from './pages/HomePage'
 import { TelegramOnlyScreen } from './components/auth/TelegramOnlyScreen'
 import { AuthProvider } from './context/AuthContext'
+import { useAutoUpdate } from './hooks/useAutoUpdate'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
 
 function App() {
+  // Инициализируем авто-обновления
+  useAutoUpdate();
+
   // Проверяем, открыто ли приложение в Telegram
   const isTelegramWebApp = () => {
     const tg = window.Telegram?.WebApp;
