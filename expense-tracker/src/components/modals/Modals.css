@@ -1,10 +1,12 @@
 /* === Shared Styles for Modals (Slide-up iOS style) === */
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  height: var(--viewport-height, 100vh);
+  height: 100dvh;
   background: rgba(0, 0, 0, 0.6);
   z-index: 1000;
   display: flex;
@@ -12,6 +14,12 @@
   justify-content: flex-end;
   opacity: 0;
   animation: fadeIn 0.3s ease forwards;
+}
+
+/* When keyboard is open, keep overlay at full viewport */
+html.keyboard-open .modal-overlay {
+  height: var(--viewport-height, 100vh);
+  bottom: auto;
 }
 
 @keyframes fadeIn {
@@ -27,12 +35,22 @@
 .modal-content {
   background: var(--apple-surface-1);
   border-radius: 32px 32px 0 0;
-  padding: 24px 20px calc(var(--safe-area-bottom, 50px) + 24px);
+  padding: 24px 20px calc(var(--safe-area-bottom, 20px) + 24px);
   transform: translateY(100%);
   animation: slideUp 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-height: 85vh;
+  max-height: 85dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* When keyboard is open, reduce bottom padding and adjust max height */
+html.keyboard-open .modal-content {
+  padding-bottom: 16px !important;
+  max-height: calc(var(--viewport-height, 100vh) - 40px) !important;
 }
 
 .modal-overlay.closing {

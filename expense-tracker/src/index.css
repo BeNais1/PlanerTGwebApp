@@ -90,11 +90,15 @@
   --radius-lg: 20px;
   --radius-xl: 32px;
   --radius-pill: 980px;
+  --radius-full: 9999px;
   --radius-circle: 50%;
 
   /* Typography */
   --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
   --font-text: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+
+  /* Keyboard */
+  --keyboard-height: 0px;
 }
 
 /* === Reset === */
@@ -114,11 +118,15 @@ body {
   line-height: 1.47;
   font-size: 17px;
   font-weight: 400;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }
 
 #root {
   width: 100%;
-  height: var(--tg-vh, 100vh);
+  height: 100%;
   display: flex;
   justify-content: center;
   align-items: stretch;

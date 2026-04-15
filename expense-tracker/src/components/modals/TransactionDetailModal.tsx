@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
+import { useCategories } from '../../hooks/useCategories';
 import { type Transaction, getMonthlyBalance, getTransactions } from '../../services/database';
 import { toPng } from 'html-to-image';
 import './Modals.css';
@@ -13,17 +14,6 @@ interface TransactionDetailModalProps {
   isLoading?: boolean;
   walletBalances: Record<string, number>;
 }
-
-const CATEGORIES = [
-  { id: 'food', icon: '🍔', name: 'Еда' },
-  { id: 'transport', icon: '🚗', name: 'Транспорт' },
-  { id: 'home', icon: '🏠', name: 'Жильё' },
-  { id: 'entertainment', icon: '🎮', name: 'Развлечения' },
-  { id: 'shopping', icon: '🛒', name: 'Покупки' },
-  { id: 'health', icon: '💊', name: 'Здоровье' },
-  { id: 'education', icon: '📚', name: 'Образование' },
-  { id: 'other', icon: '📦', name: 'Другое' },
-];
 
 const ReceiptIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -49,6 +39,7 @@ export const TransactionDetailModal = ({
   walletBalances
 }: TransactionDetailModalProps) => {
   const { formatValue } = useCurrency();
+  const { categories, names: CATEGORY_NAMES, icons: CATEGORY_ICONS } = useCategories();
   const [isEditing, setIsEditing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -66,7 +57,6 @@ export const TransactionDetailModal = ({
     if (!user || !transaction.month) return;
 
     const calculateBalanceAfter = async () => {
-      // 1. Get initial month balance
       const mData = await getMonthlyBalance(user.id, transaction.month);
       const txs = await getTransactions(user.id, transaction.month);
       
@@ -81,19 +71,14 @@ export const TransactionDetailModal = ({
         }
       }
 
-      // 2. Sort current month transactions by date
       const sortedTxs = [...txs].sort((a, b) => a.date - b.date);
 
-      // 3. sum up to the current transaction
       for (const tx of sortedTxs) {
         if ((tx.currency || 'EUR') === cur) {
           if (tx.type === 'income') runningBalance += tx.amount;
           else runningBalance -= tx.amount;
         }
-        
-        if (tx.id === transaction.id) {
-          break;
-        }
+        if (tx.id === transaction.id) break;
       }
 
       setBalanceAfter(runningBalance);
@@ -102,33 +87,17 @@ export const TransactionDetailModal = ({
     calculateBalanceAfter();
   }, [user, transaction]);
 
-  // Handle Share Receipt
   const handleShare = async () => {
     if (!receiptRef.current || isSharing) return;
-    
     try {
       setIsSharing(true);
-      
-      // Generate image
-      const dataUrl = await toPng(receiptRef.current, { 
-        quality: 0.95,
-        backgroundColor: '#fff',
-        pixelRatio: 2
-      });
-
-      // Convert data URL to Blob/File
+      const dataUrl = await toPng(receiptRef.current, { quality: 0.95, backgroundColor: '#fff', pixelRatio: 2 });
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], `receipt_${transaction.date}.png`, { type: 'image/png' });
 
-      // Check if sharing is supported
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Чек транзакции',
-          text: `Чек: ${transaction.type === 'expense' ? 'Расход' : 'Доход'} ${transaction.amount} ${transaction.currency}`
-        });
+        await navigator.share({ files: [file], title: 'Чек транзакции', text: `Чек: ${transaction.type === 'expense' ? 'Расход' : 'Доход'} ${transaction.amount} ${transaction.currency}` });
       } else {
-        // Fallback: Download
         const link = document.createElement('a');
         link.download = `receipt_${transaction.date}.png`;
         link.href = dataUrl;
@@ -136,16 +105,15 @@ export const TransactionDetailModal = ({
       }
     } catch (error) {
       console.error('Error sharing receipt:', error);
-      alert('Не удалось поделиться чеком. Попробуйте скачать его.');
+      alert('Не удалось поделиться чеком.');
     } finally {
       setIsSharing(false);
     }
   };
 
-  // Closing handler with delay for animation
   const handleClose = () => {
     setIsClosing(true);
-    setTimeout(onClose, 300); // Match CSS animation duration
+    setTimeout(onClose, 300);
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,12 +125,7 @@ export const TransactionDetailModal = ({
   const handleSave = async () => {
     const numAmount = parseFloat(amount);
     if (!isNaN(numAmount) && numAmount > 0) {
-      await onUpdate(transaction.id!, {
-        amount: numAmount,
-        category,
-        description,
-        currency: selectedCurrency
-      });
+      await onUpdate(transaction.id!, { amount: numAmount, category, description, currency: selectedCurrency });
       setIsEditing(false);
     }
   };
@@ -175,14 +138,11 @@ export const TransactionDetailModal = ({
   };
 
   const dateStr = new Date(transaction.date).toLocaleString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
   const availableWallets = Object.keys(walletBalances) as Currency[];
+  const catObj = categories.find(c => c.id === transaction.category);
 
   return (
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
@@ -191,11 +151,8 @@ export const TransactionDetailModal = ({
           <h2 className="modal-title">{isEditing ? 'Изменить' : 'Детали'}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             {!isEditing && (
-              <div 
-                className="modal-close" 
-                onClick={handleShare} 
-                style={{ cursor: 'pointer', opacity: isSharing ? 0.5 : 1, display: 'flex', alignItems: 'center' }}
-              >
+              <div className="modal-close" onClick={handleShare}
+                style={{ cursor: 'pointer', opacity: isSharing ? 0.5 : 1, display: 'flex', alignItems: 'center' }}>
                 {isSharing ? <SpinnerIcon /> : <ReceiptIcon />}
               </div>
             )}
@@ -218,12 +175,10 @@ export const TransactionDetailModal = ({
               <label className="modal-label">Кошелек</label>
               <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
                 {availableWallets.map((c) => (
-                  <button
-                    key={c}
+                  <button key={c}
                     className={`currency-btn ${selectedCurrency === c ? 'active' : ''}`}
                     style={{ padding: '8px 4px', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
-                    onClick={() => setSelectedCurrency(c)}
-                  >
+                    onClick={() => setSelectedCurrency(c)}>
                     <span>{c}</span>
                     <span style={{ fontSize: '11px', opacity: 0.8 }}>{formatValue(walletBalances[c], c)}</span>
                   </button>
@@ -235,12 +190,10 @@ export const TransactionDetailModal = ({
               <div className="modal-input-group">
                 <label className="modal-label">Категория</label>
                 <div className="categories-grid">
-                  {CATEGORIES.map((cat) => (
-                    <div
-                      key={cat.id}
+                  {categories.map((cat) => (
+                    <div key={cat.id}
                       className={`category-item ${category === cat.id ? 'active' : ''}`}
-                      onClick={() => setCategory(cat.id)}
-                    >
+                      onClick={() => setCategory(cat.id)}>
                       <div className="category-icon">{cat.icon}</div>
                       <span className="category-name">{cat.name}</span>
                     </div>
@@ -251,28 +204,14 @@ export const TransactionDetailModal = ({
 
             <div className="modal-input-group">
               <label className="modal-label">Комментарий</label>
-              <input
-                type="text"
-                className="modal-input"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
+              <input type="text" className="modal-input" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <button 
-                className="modal-btn-primary" 
-                style={{ flex: 1, background: 'var(--apple-surface-3)' }}
-                onClick={() => setIsEditing(false)}
-              >
+              <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--apple-surface-3)' }} onClick={() => setIsEditing(false)}>
                 Отмена
               </button>
-              <button 
-                className="modal-btn-primary" 
-                style={{ flex: 2 }}
-                onClick={handleSave}
-                disabled={isLoading}
-              >
+              <button className="modal-btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={isLoading}>
                 {isLoading ? 'Сохранение...' : 'Сохранить'}
               </button>
             </div>
@@ -298,8 +237,8 @@ export const TransactionDetailModal = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Категория</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>{CATEGORIES.find(c => c.id === transaction.category)?.icon}</span>
-                    <span style={{ fontWeight: '500' }}>{CATEGORIES.find(c => c.id === transaction.category)?.name}</span>
+                    <span>{catObj?.icon || CATEGORY_ICONS[transaction.category] || '📦'}</span>
+                    <span style={{ fontWeight: '500' }}>{catObj?.name || CATEGORY_NAMES[transaction.category] || transaction.category}</span>
                   </div>
                 </div>
               )}
@@ -327,19 +266,10 @@ export const TransactionDetailModal = ({
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <button 
-                className="modal-btn-primary" 
-                style={{ flex: 1, background: 'var(--apple-surface-2)', color: '#ff453a' }}
-                onClick={handleDelete}
-                disabled={isLoading}
-              >
+              <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--apple-surface-2)', color: '#ff453a' }} onClick={handleDelete} disabled={isLoading}>
                 Удалить
               </button>
-              <button 
-                className="modal-btn-primary" 
-                style={{ flex: 2 }}
-                onClick={() => setIsEditing(true)}
-              >
+              <button className="modal-btn-primary" style={{ flex: 2 }} onClick={() => setIsEditing(true)}>
                 Изменить
               </button>
             </div>
@@ -354,58 +284,43 @@ export const TransactionDetailModal = ({
             <div className="receipt-logo">PLANER</div>
             <div className="receipt-brand">Expense Tracker</div>
           </div>
-          
-          <div className="receipt-divider"></div>
-          
+          <div className="receipt-divider" />
           <div className="receipt-amount" style={{ color: transaction.type === 'income' ? '#007aff' : '#1c1c1e' }}>
             {transaction.type === 'expense' ? '-' : '+'}{formatValue(transaction.amount, transaction.currency as Currency || 'EUR')}
           </div>
-          
-          <div style={{ color: '#8e8e93', fontSize: '13px', marginBottom: '10px' }}>
-            {dateStr}
-          </div>
-
-          <div className="receipt-divider"></div>
-
+          <div style={{ color: '#8e8e93', fontSize: '13px', marginBottom: '10px' }}>{dateStr}</div>
+          <div className="receipt-divider" />
           <div className="receipt-details">
             <div className="receipt-row">
               <span className="receipt-label">Тип</span>
               <span className="receipt-value">{transaction.type === 'income' ? 'Доход' : 'Расход'}</span>
             </div>
-            
             {transaction.type === 'expense' && (
               <div className="receipt-row">
                 <span className="receipt-label">Категория</span>
-                <span className="receipt-value">
-                  {CATEGORIES.find(c => c.id === transaction.category)?.name}
-                </span>
+                <span className="receipt-value">{catObj?.name || CATEGORY_NAMES[transaction.category] || transaction.category}</span>
               </div>
             )}
-
             <div className="receipt-row">
               <span className="receipt-label">Кошелек</span>
               <span className="receipt-value">{transaction.currency}</span>
             </div>
-
             {balanceAfter !== null && (
               <div className="receipt-row">
                 <span className="receipt-label">Баланс после</span>
                 <span className="receipt-value">{formatValue(balanceAfter, transaction.currency as Currency || 'EUR')}</span>
               </div>
             )}
-
             {transaction.description && (
-              <div className="receipt-divider" style={{ margin: '15px 0' }}></div>
-            )}
-            
-            {transaction.description && (
-              <div style={{ width: '100%' }}>
-                <span className="receipt-label" style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Комментарий</span>
-                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>{transaction.description}</p>
-              </div>
+              <>
+                <div className="receipt-divider" style={{ margin: '15px 0' }} />
+                <div style={{ width: '100%' }}>
+                  <span className="receipt-label" style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Комментарий</span>
+                  <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>{transaction.description}</p>
+                </div>
+              </>
             )}
           </div>
-
           <div className="receipt-footer">
             Спасибо за использование Planer!<br/>
             t.me/planer0bot

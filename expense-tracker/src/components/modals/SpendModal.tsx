@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
+import { useCategories } from '../../hooks/useCategories';
 import './Modals.css';
 
 interface SpendModalProps {
@@ -9,33 +10,28 @@ interface SpendModalProps {
   walletBalances: Record<string, number>;
 }
 
-const CATEGORIES = [
-  { id: 'food', icon: '🍔', name: 'Еда' },
-  { id: 'transport', icon: '🚗', name: 'Транспорт' },
-  { id: 'home', icon: '🏠', name: 'Жильё' },
-  { id: 'entertainment', icon: '🎮', name: 'Развлечения' },
-  { id: 'shopping', icon: '🛒', name: 'Покупки' },
-  { id: 'health', icon: '💊', name: 'Здоровье' },
-  { id: 'education', icon: '📚', name: 'Образование' },
-  { id: 'other', icon: '📦', name: 'Другое' },
-];
-
 export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: SpendModalProps) => {
   const { currency: mainCurrency, CURRENCY_SYMBOLS, formatValue } = useCurrency();
+  const { categories } = useCategories();
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0].id);
+  const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(mainCurrency);
   const [isClosing, setIsClosing] = useState(false);
+
+  // Set default category once categories load
+  useEffect(() => {
+    if (categories.length > 0 && !category) {
+      setCategory(categories[0].id);
+    }
+  }, [categories]);
 
   const handleClose = () => {
     setIsClosing(true);
     setTimeout(onClose, 300);
   };
 
-  // Sync if main currency takes time to load (ONLY if the selected currency is not yet set)
   useEffect(() => {
-    // If the mainCurrency changes, and we hadn't manually picked, or if the mainCurrency wallet exists, we could default to it.
     if (walletBalances[mainCurrency] !== undefined) {
        setSelectedCurrency(mainCurrency);
     } else if (Object.keys(walletBalances).length > 0) {
@@ -96,7 +92,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
         <div className="modal-input-group">
           <label className="modal-label">Категория</label>
           <div className="categories-grid">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <div
                 key={cat.id}
                 className={`category-item ${category === cat.id ? 'active' : ''}`}

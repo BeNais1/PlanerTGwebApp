@@ -4,12 +4,14 @@ import {
   set,
   get,
   push,
+  remove,
   onValue,
   query,
   orderByChild,
   equalTo,
   type Unsubscribe,
 } from 'firebase/database';
+import type { Category } from '../config/categories';
 
 // ====== Types ======
 
@@ -34,6 +36,35 @@ export interface Transaction {
 export interface MonthData {
   initialBalance?: number; // legacy
   balances?: Record<string, number>; // Currency code -> amount
+}
+
+export interface Subscription {
+  id?: string;
+  name: string;
+  amount: number;
+  currency: string;
+  category: string;
+  icon: string;
+  period: 'weekly' | 'monthly' | 'yearly';
+  nextDate: number; // timestamp of next charge
+  createdAt: number;
+  isActive: boolean;
+}
+
+export interface CustomVendor {
+  id: string;
+  name: string;
+  category: string;
+  icon: string;
+}
+
+export interface UserSettings {
+  currency?: string;
+  walletNames?: Record<string, string>;
+  customCategories?: Category[];
+  hiddenCategories?: string[];
+  customVendors?: CustomVendor[];
+  vendorUsageCounts?: Record<string, number>; // vendorId -> usage count
 }
 
 // ====== Helpers ======
@@ -263,10 +294,6 @@ export function subscribeToMonthlyBalance(
 
 // ====== Settings ======
 
-export interface UserSettings {
-  currency?: string;
-  walletNames?: Record<string, string>;
-}
 export function subscribeToSettings(
   userId: number,
   callback: (settings: UserSettings | null) => void
@@ -327,4 +354,68 @@ export async function getAllTransactions(userId: number): Promise<Transaction[]>
   }));
   transactions.sort((a, b) => b.date - a.date);
   return transactions;
+}
+
+// ====== Subscriptions (Auto-charges) ======
+
+export async function addSubscription(
+  userId: number,
+  subscription: Omit<Subscription, 'id'>
+): Promise<string> {
+  const subRef = ref(database, `users/${userId}/subscriptions`);
+  const newRef = push(subRef);
+  await set(newRef, subscription);
+  return newRef.key!;
+}
+
+export async function updateSubscription(
+  userId: number,
+  subId: string,
+  data: Partial<Omit<Subscription, 'id'>>
+): Promise<void> {
+  const subRef = ref(database, `users/${userId}/subscriptions/${subId}`);
+  const { update } = await import('firebase/database');
+  await update(subRef, data);
+}
+
+export async function deleteSubscription(
+  userId: number,
+  subId: string
+): Promise<void> {
+  const subRef = ref(database, `users/${userId}/subscriptions/${subId}`);
+  await remove(subRef);
+}
+
+export function subscribeToSubscriptions(
+  userId: number,
+  callback: (subscriptions: Subscription[]) => void
+): Unsubscribe {
+  const subRef = ref(database, `users/${userId}/subscriptions`);
+  return onValue(subRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback([]);
+      return;
+    }
+    const data = snapshot.val();
+    const subs = Object.entries(data).map(([id, sub]) => ({
+      id,
+      ...(sub as Omit<Subscription, 'id'>),
+    }));
+    subs.sort((a, b) => a.nextDate - b.nextDate);
+    callback(subs);
+  });
+}
+
+// ====== Vendor Usage Tracking ======
+
+export async function incrementVendorUsage(
+  userId: number,
+  vendorId: string
+): Promise<void> {
+  const settingsRef = ref(database, `users/${userId}/settings`);
+  const snapshot = await get(settingsRef);
+  const current: UserSettings = snapshot.exists() ? snapshot.val() : {};
+  const counts = current.vendorUsageCounts || {};
+  counts[vendorId] = (counts[vendorId] || 0) + 1;
+  await set(settingsRef, { ...current, vendorUsageCounts: counts });
 }

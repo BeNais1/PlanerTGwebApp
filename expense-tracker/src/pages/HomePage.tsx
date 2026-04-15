@@ -8,8 +8,10 @@ import { WalletIcon } from "../components/icons/WalletIcon";
 import { AnalyticsIcon } from "../components/icons/AnalyticsIcon";
 import { SearchIcon } from "../components/icons/SearchIcon";
 import { useTelegramPlatform } from "../hooks/useTelegramPlatform";
+import { useKeyboardSafe } from "../hooks/useKeyboardSafe";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
+import { useCategories } from "../hooks/useCategories";
 import { 
   getCurrentMonth, 
   subscribeToMonthlyBalance, 
@@ -31,51 +33,15 @@ import { QuickSpendModal } from "../components/modals/QuickSpendModal";
 import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { AnalyticsView } from "../components/AnalyticsView";
-
-const CATEGORY_ICONS: Record<string, string> = {
-  food: '🍔',
-  transport: '🚗',
-  home: '🏠',
-  entertainment: '🎮',
-  shopping: '🛒',
-  health: '💊',
-  education: '📚',
-  other: '📦',
-};
-
-const CATEGORY_NAMES: Record<string, string> = {
-  food: 'Еда',
-  transport: 'Транспорт',
-  home: 'Жильё',
-  entertainment: 'Развлечения',
-  shopping: 'Покупки',
-  health: 'Здоровье',
-  education: 'Образование',
-  other: 'Другое',
-};
-
-const PaymentIcon = ({ type, category }: { type: string, category: string }) => {
-  if (type === 'income') {
-    return (
-      <div className="payment-icon" style={{ background: "var(--apple-blue)" }}>
-        <ArrowDown className="!w-5 !h-5 text-white" />
-      </div>
-    );
-  }
-  
-  const icon = CATEGORY_ICONS[category] || '📦';
-  return (
-    <div className="payment-icon" style={{ background: "var(--apple-surface-3)", fontSize: "20px" }}>
-      {icon}
-    </div>
-  );
-};
+import { SubscriptionsView } from "../components/SubscriptionsView";
 
 export const HomePage = () => {
   const [activeNav, setActiveNav] = useState(0);
   const { safeAreaInsets } = useTelegramPlatform();
+  useKeyboardSafe();
   const { user } = useAuth();
   const { currency: mainCurrency, formatValue, convertToMain, CURRENCY_SYMBOLS } = useCurrency();
+  const { icons: CATEGORY_ICONS, names: CATEGORY_NAMES } = useCategories();
   const currentMonth = getCurrentMonth();
 
   // State
@@ -131,7 +97,6 @@ export const HomePage = () => {
   }, [user, currentMonth]);
 
   // Calculations
-  // Calculate per-wallet balances
   const walletBalances: Record<string, number> = {};
   if (monthData) {
     if (monthData.initialBalance) {
@@ -143,12 +108,10 @@ export const HomePage = () => {
       });
     }
   }
-  // Make sure at least EUR exists if empty
   if (Object.keys(walletBalances).length === 0) {
     walletBalances['EUR'] = 0;
   }
 
-  // Handle transactions
   transactions.forEach(t => {
     const cur = t.currency || 'EUR';
     if (walletBalances[cur] === undefined) walletBalances[cur] = 0;
@@ -156,7 +119,6 @@ export const HomePage = () => {
     if (t.type === 'income') walletBalances[cur] += t.amount;
   });
 
-  // Calculate Total Capital in Main Currency
   let currentBalance = 0;
   Object.entries(walletBalances).forEach(([cur, amount]) => {
     currentBalance += convertToMain(amount, cur as Currency);
@@ -174,13 +136,8 @@ export const HomePage = () => {
     if (!user) return;
     setIsSaving(true);
     await addTransaction(user.id, {
-      type: 'expense',
-      amount,
-      category,
-      description,
-      date: Date.now(),
-      month: currentMonth,
-      currency
+      type: 'expense', amount, category, description,
+      date: Date.now(), month: currentMonth, currency
     });
     setIsSaving(false);
     setIsSpendOpen(false);
@@ -190,13 +147,8 @@ export const HomePage = () => {
     if (!user) return;
     setIsSaving(true);
     await addTransaction(user.id, {
-      type: 'income',
-      amount,
-      category: 'income',
-      description,
-      date: Date.now(),
-      month: currentMonth,
-      currency
+      type: 'income', amount, category: 'income', description,
+      date: Date.now(), month: currentMonth, currency
     });
     setIsSaving(false);
     setIsAddOpen(false);
@@ -206,13 +158,8 @@ export const HomePage = () => {
     if (!user) return;
     setIsSaving(true);
     await addTransaction(user.id, {
-      type: 'expense',
-      amount,
-      category,
-      description,
-      date: Date.now(),
-      month: currentMonth,
-      currency
+      type: 'expense', amount, category, description,
+      date: Date.now(), month: currentMonth, currency
     });
     setIsSaving(false);
     setIsQuickSpendOpen(false);
@@ -239,6 +186,22 @@ export const HomePage = () => {
   const todayDateStr = new Date().toLocaleDateString();
   const todaysTransactions = transactions.filter(t => new Date(t.date).toLocaleDateString() === todayDateStr);
 
+  const PaymentIcon = ({ type, category }: { type: string, category: string }) => {
+    if (type === 'income') {
+      return (
+        <div className="payment-icon" style={{ background: "var(--apple-blue)" }}>
+          <ArrowDown className="!w-5 !h-5 text-white" />
+        </div>
+      );
+    }
+    const icon = CATEGORY_ICONS[category] || '📦';
+    return (
+      <div className="payment-icon" style={{ background: "var(--apple-surface-3)", fontSize: "20px" }}>
+        {icon}
+      </div>
+    );
+  };
+
   if (!isDataLoaded) {
     return <div className="phone-frame"><div style={{ margin: 'auto', color: 'var(--apple-text-on-dark-secondary)' }}>Loading...</div></div>;
   }
@@ -250,7 +213,7 @@ export const HomePage = () => {
       {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} walletBalances={walletBalances} />}
       {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} walletBalances={walletBalances} />}
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
-      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} CATEGORY_ICONS={CATEGORY_ICONS} CATEGORY_NAMES={CATEGORY_NAMES} walletBalances={walletBalances} />}
+      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} walletBalances={walletBalances} />}
       {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} walletBalances={walletBalances} />}
       {selectedTx && (
         <TransactionDetailModal 
@@ -263,14 +226,21 @@ export const HomePage = () => {
         />
       )}
 
+      {/* Full-screen views */}
       <AnalyticsView 
-        transactions={transactions}
         walletBalances={walletBalances}
         mainCurrency={mainCurrency}
         isActive={activeNav === 3}
+        onClose={() => setActiveNav(0)}
       />
 
-      <div style={{ display: activeNav === 3 ? 'none' : 'contents' }}>
+      <SubscriptionsView
+        isActive={activeNav === 1}
+        onClose={() => setActiveNav(0)}
+        walletBalances={walletBalances}
+      />
+
+      <div style={{ display: (activeNav === 3 || activeNav === 1) ? 'none' : 'contents' }}>
       {/* Header */}
       <div className="header">
         <span className="month-label">{monthName}</span>
@@ -294,25 +264,25 @@ export const HomePage = () => {
         <div className="action-buttons">
           <div className="action-btn" onClick={() => setIsSpendOpen(true)}>
             <ArrowTop className="!relative !w-5 !h-5" />
-            <span>Spend</span>
+            <span>Расход</span>
           </div>
           <div className="action-btn" onClick={() => setIsAddOpen(true)}>
             <ArrowDown className="!relative !w-5 !h-5" />
-            <span>Add</span>
+            <span>Доход</span>
           </div>
         </div>
 
         {/* Payment History (Today) */}
         <div className="payment-history">
           <div className="payment-header">
-            <h3>Today</h3>
-            <span className="chevron">›</span>
+            <h3>Сегодня</h3>
+            <span className="chevron" onClick={() => setIsHistoryOpen(true)}>›</span>
           </div>
 
           <div className="payment-list">
             {todaysTransactions.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)', fontSize: '13px' }}>
-                No transactions today
+                Нет транзакций сегодня
               </div>
             ) : (
               todaysTransactions.map((item) => (
@@ -320,7 +290,7 @@ export const HomePage = () => {
                   <PaymentIcon type={item.type} category={item.category} />
                   <div className="payment-info">
                     <span className="payment-name">
-                      {item.type === 'income' ? 'Income' : CATEGORY_NAMES[item.category] || 'Expense'}
+                      {item.type === 'income' ? 'Доход' : CATEGORY_NAMES[item.category] || 'Расход'}
                     </span>
                     <span className="payment-category">{item.description || new Date(item.date).toLocaleDateString()}</span>
                   </div>
@@ -345,7 +315,7 @@ export const HomePage = () => {
                 cursor: 'pointer'
               }}
             >
-              See all history
+              Вся история
             </button>
           </div>
         </div>

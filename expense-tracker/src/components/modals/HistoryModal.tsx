@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getAllTransactions, type Transaction } from '../../services/database';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
+import { useCategories } from '../../hooks/useCategories';
 import { ArrowDown } from '../icons/ArrowDown';
 import { TransactionDetailModal } from './TransactionDetailModal';
 import { deleteTransaction, updateTransaction } from '../../services/database';
@@ -9,14 +10,13 @@ import './Modals.css';
 
 interface HistoryModalProps {
   onClose: () => void;
-  CATEGORY_ICONS: Record<string, string>;
-  CATEGORY_NAMES: Record<string, string>;
   walletBalances: Record<string, number>;
 }
 
-export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES, walletBalances }: HistoryModalProps) => {
+export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => {
   const { user } = useAuth();
   const { formatValue } = useCurrency();
+  const { icons: CATEGORY_ICONS, names: CATEGORY_NAMES } = useCategories();
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
@@ -72,7 +72,7 @@ export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES, walletBa
     );
   };
 
-  // Group by Month string (e.g. "April 2026")
+  // Group by Month string
   const groupedHistory = history.reduce((acc, tx) => {
     const monthName = new Date(tx.date).toLocaleString('en-US', { month: 'long', year: 'numeric' });
     if (!acc[monthName]) acc[monthName] = [];
@@ -116,7 +116,7 @@ export const HistoryModal = ({ onClose, CATEGORY_ICONS, CATEGORY_NAMES, walletBa
                       <PaymentIcon type={item.type} category={item.category} />
                       <div className="payment-info">
                         <span className="payment-name">
-                          {item.type === 'income' ? 'Income' : CATEGORY_NAMES[item.category] || 'Expense'}
+                          {item.type === 'income' ? 'Доход' : CATEGORY_NAMES[item.category] || 'Расход'}
                         </span>
                         <span className="payment-category">
                           {item.description || new Date(item.date).toLocaleDateString()}
