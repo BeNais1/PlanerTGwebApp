@@ -15,12 +15,12 @@ type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
 type TxTypeFilter = 'expense' | 'income' | 'all';
 
 const DATE_RANGE_LABELS: Record<DateRange, string> = {
-  today: 'Сегодня',
-  week: 'Неделя',
-  month: 'Месяц',
+  today: 'Сьогодні',
+  week: 'Тиждень',
+  month: 'Місяць',
   quarter: 'Квартал',
-  year: 'Год',
-  all: 'Всё время',
+  year: 'Рік',
+  all: 'Весь час',
 };
 
 function getDateRangeStart(range: DateRange): number {
@@ -183,7 +183,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
       `}</style>
 
       <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>Аналитика</h2>
+        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>Аналітика</h2>
         <button onClick={onClose} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
           borderRadius: 'var(--radius-full)', background: 'var(--apple-surface-2)',
@@ -194,20 +194,20 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-          Закрыть
+          Закрити
         </button>
       </div>
 
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
         <div style={{ background: 'var(--apple-surface-1)', borderRadius: '16px', padding: '16px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Расходы</span>
+          <span style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Витрати</span>
           <div style={{ fontSize: '20px', fontWeight: 700, color: 'white', marginTop: '4px' }}>
             {formatValue(totalExpenses)}
           </div>
         </div>
         <div style={{ background: 'var(--apple-surface-1)', borderRadius: '16px', padding: '16px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Доходы</span>
+          <span style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Доходи</span>
           <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--apple-blue)', marginTop: '4px' }}>
             {formatValue(totalIncome)}
           </div>
@@ -227,7 +227,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
 
       {/* Type Filter */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-        {([['expense', 'Расходы'], ['income', 'Доходы'], ['all', 'Всё']] as [TxTypeFilter, string][]).map(([type, label]) => (
+        {([['expense', 'Витрати'], ['income', 'Доходи'], ['all', 'Усе']] as [TxTypeFilter, string][]).map(([type, label]) => (
           <button key={type}
             className={`filter-chip ${txType === type ? 'active' : 'inactive'}`}
             onClick={() => { setTxType(type); setSelectedCategory(null); }}>
@@ -241,7 +241,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
         <button
           className={`filter-chip ${selectedCurrency === 'ALL' ? 'active' : 'inactive'}`}
           onClick={() => setSelectedCurrency('ALL')}>
-          Общий ({CURRENCY_SYMBOLS[mainCurrency]})
+          Загальний ({CURRENCY_SYMBOLS[mainCurrency]})
         </button>
         {availableCurrencies.filter(c => c !== 'ALL').map(cur => (
           <button key={cur}
@@ -256,7 +256,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
       <div ref={chartRef} style={{ background: 'var(--apple-surface-1)', borderRadius: '24px', padding: '24px', position: 'relative' }}>
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--apple-text-on-dark-secondary)' }}>
-            Загрузка...
+            Завантаження...
           </div>
         ) : totalAmount > 0 ? (
           <>
@@ -288,7 +288,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
               </svg>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: '14px', color: 'var(--apple-text-on-dark-secondary)' }}>
-                  {txType === 'expense' ? 'Расход' : txType === 'income' ? 'Доход' : 'Итого'}
+                  {txType === 'expense' ? 'Витрата' : txType === 'income' ? 'Дохід' : 'Разом'}
                 </span>
                 <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>
                   {formatValue(totalAmount)}
@@ -305,7 +305,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
                 <button
                   className={`filter-chip ${selectedCategory === null ? 'active' : 'inactive'}`}
                   onClick={() => setSelectedCategory(null)}>
-                  Все
+                  Усі
                 </button>
                 {sortedCategories.map(([category]) => (
                   <button key={category}
@@ -345,7 +345,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--apple-text-on-dark-secondary)' }}>
-            Нет данных за выбранный период
+            Немає даних за обраний період
           </div>
         )}
       </div>

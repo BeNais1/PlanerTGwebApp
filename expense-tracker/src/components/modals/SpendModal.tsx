@@ -59,7 +59,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content ${isClosing ? 'closing' : ''}`}>
         <div className="modal-header">
-          <h2 className="modal-title">Расход</h2>
+          <h2 className="modal-title">Витрата</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
@@ -73,7 +73,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
         />
 
         <div className="modal-input-group">
-          <label className="modal-label">Кошелек</label>
+          <label className="modal-label">Гаманець</label>
           <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
             {availableWallets.map((c) => (
               <button
@@ -90,7 +90,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
         </div>
 
         <div className="modal-input-group">
-          <label className="modal-label">Категория</label>
+          <label className="modal-label">Категорія</label>
           <div className="categories-grid">
             {categories.map((cat) => (
               <div
@@ -106,11 +106,11 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
         </div>
 
         <div className="modal-input-group">
-          <label className="modal-label">Комментарий (необязательно)</label>
+          <label className="modal-label">Коментар (необов'язково)</label>
           <input
             type="text"
             className="modal-input"
-            placeholder="Например, кофе с коллегами"
+            placeholder="Наприклад, кава з колегами"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -121,7 +121,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
           disabled={!isValid || isLoading}
           onClick={handleSubmit}
         >
-          {isLoading ? 'Сохранение...' : 'Потратить'}
+          {isLoading ? 'Збереження...' : 'Витратити'}
         </button>
       </div>
     </div>

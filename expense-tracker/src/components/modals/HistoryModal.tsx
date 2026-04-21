@@ -74,7 +74,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
 
   // Group by Month string
   const groupedHistory = history.reduce((acc, tx) => {
-    const monthName = new Date(tx.date).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    const monthName = new Date(tx.date).toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
     if (!acc[monthName]) acc[monthName] = [];
     acc[monthName].push(tx);
     return acc;
@@ -84,7 +84,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content history-modal-content ${isClosing ? 'closing' : ''}`} style={{ height: '85vh', maxHeight: '85vh' }}>
         <div className="modal-header" style={{ marginBottom: '10px' }}>
-          <h2 className="modal-title">Вся история</h2>
+          <h2 className="modal-title">Уся історія</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
@@ -101,9 +101,9 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
 
         <div className="history-list-container" style={{ flex: 1, overflowY: 'auto', paddingTop: '10px' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Загрузка...</div>
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Завантаження...</div>
           ) : history.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Нет транзакций</div>
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Немає транзакцій</div>
           ) : (
             Object.entries(groupedHistory).map(([monthStr, txs]) => (
               <div key={monthStr} className="history-month-group">
@@ -116,7 +116,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
                       <PaymentIcon type={item.type} category={item.category} />
                       <div className="payment-info">
                         <span className="payment-name">
-                          {item.type === 'income' ? 'Доход' : CATEGORY_NAMES[item.category] || 'Расход'}
+                          {item.type === 'income' ? 'Дохід' : CATEGORY_NAMES[item.category] || 'Витрата'}
                         </span>
                         <span className="payment-category">
                           {item.description || new Date(item.date).toLocaleDateString()}

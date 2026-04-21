@@ -96,7 +96,7 @@ export const TransactionDetailModal = ({
       const file = new File([blob], `receipt_${transaction.date}.png`, { type: 'image/png' });
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Чек транзакции', text: `Чек: ${transaction.type === 'expense' ? 'Расход' : 'Доход'} ${transaction.amount} ${transaction.currency}` });
+        await navigator.share({ files: [file], title: 'Чек транзакції', text: `Чек: ${transaction.type === 'expense' ? 'Витрата' : 'Дохід'} ${transaction.amount} ${transaction.currency}` });
       } else {
         const link = document.createElement('a');
         link.download = `receipt_${transaction.date}.png`;
@@ -105,7 +105,7 @@ export const TransactionDetailModal = ({
       }
     } catch (error) {
       console.error('Error sharing receipt:', error);
-      alert('Не удалось поделиться чеком.');
+      alert('Не вдалося поділитися чеком.');
     } finally {
       setIsSharing(false);
     }
@@ -131,13 +131,13 @@ export const TransactionDetailModal = ({
   };
 
   const handleDelete = async () => {
-    if (window.confirm('Вы уверены, что хотите удалить эту транзакцию?')) {
+    if (window.confirm('Ви впевнені, що хочете видалити цю транзакцію?')) {
       await onDelete(transaction.id!);
       handleClose();
     }
   };
 
-  const dateStr = new Date(transaction.date).toLocaleString('ru-RU', {
+  const dateStr = new Date(transaction.date).toLocaleString('uk-UA', {
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
@@ -148,7 +148,7 @@ export const TransactionDetailModal = ({
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-header">
-          <h2 className="modal-title">{isEditing ? 'Изменить' : 'Детали'}</h2>
+          <h2 className="modal-title">{isEditing ? 'Змінити' : 'Деталі'}</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             {!isEditing && (
               <div className="modal-close" onClick={handleShare}
@@ -172,7 +172,7 @@ export const TransactionDetailModal = ({
             />
 
             <div className="modal-input-group">
-              <label className="modal-label">Кошелек</label>
+              <label className="modal-label">Гаманець</label>
               <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
                 {availableWallets.map((c) => (
                   <button key={c}
@@ -188,7 +188,7 @@ export const TransactionDetailModal = ({
 
             {transaction.type === 'expense' && (
               <div className="modal-input-group">
-                <label className="modal-label">Категория</label>
+                <label className="modal-label">Категорія</label>
                 <div className="categories-grid">
                   {categories.map((cat) => (
                     <div key={cat.id}
@@ -203,16 +203,16 @@ export const TransactionDetailModal = ({
             )}
 
             <div className="modal-input-group">
-              <label className="modal-label">Комментарий</label>
+              <label className="modal-label">Коментар</label>
               <input type="text" className="modal-input" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
               <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--apple-surface-3)' }} onClick={() => setIsEditing(false)}>
-                Отмена
+                Скасувати
               </button>
               <button className="modal-btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={isLoading}>
-                {isLoading ? 'Сохранение...' : 'Сохранить'}
+                {isLoading ? 'Збереження...' : 'Зберегти'}
               </button>
             </div>
           </>
@@ -230,12 +230,12 @@ export const TransactionDetailModal = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--apple-surface-2)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Тип</span>
-                <span style={{ fontWeight: '500' }}>{transaction.type === 'income' ? 'Доход' : 'Расход'}</span>
+                <span style={{ fontWeight: '500' }}>{transaction.type === 'income' ? 'Дохід' : 'Витрата'}</span>
               </div>
               
               {transaction.type === 'expense' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Категория</span>
+                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Категорія</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>{catObj?.icon || CATEGORY_ICONS[transaction.category] || '📦'}</span>
                     <span style={{ fontWeight: '500' }}>{catObj?.name || CATEGORY_NAMES[transaction.category] || transaction.category}</span>
@@ -244,13 +244,13 @@ export const TransactionDetailModal = ({
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Кошелек</span>
+                <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Гаманець</span>
                 <span style={{ fontWeight: '500' }}>{selectedCurrency}</span>
               </div>
 
               {balanceAfter !== null && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Баланс после</span>
+                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Баланс після</span>
                   <span style={{ fontWeight: '600', color: 'var(--apple-text-on-dark)' }}>
                     {formatValue(balanceAfter, selectedCurrency as Currency)}
                   </span>
@@ -259,7 +259,7 @@ export const TransactionDetailModal = ({
 
               {transaction.description && (
                 <div style={{ borderTop: '1px solid var(--apple-surface-3)', paddingTop: '16px', marginTop: '4px' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', display: 'block', marginBottom: '4px' }}>Комментарий</span>
+                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', display: 'block', marginBottom: '4px' }}>Коментар</span>
                   <p style={{ fontSize: '16px', lineHeight: '1.4' }}>{transaction.description}</p>
                 </div>
               )}
@@ -267,10 +267,10 @@ export const TransactionDetailModal = ({
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
               <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--apple-surface-2)', color: '#ff453a' }} onClick={handleDelete} disabled={isLoading}>
-                Удалить
+                Видалити
               </button>
               <button className="modal-btn-primary" style={{ flex: 2 }} onClick={() => setIsEditing(true)}>
-                Изменить
+                Змінити
               </button>
             </div>
           </div>
@@ -293,21 +293,21 @@ export const TransactionDetailModal = ({
           <div className="receipt-details">
             <div className="receipt-row">
               <span className="receipt-label">Тип</span>
-              <span className="receipt-value">{transaction.type === 'income' ? 'Доход' : 'Расход'}</span>
+              <span className="receipt-value">{transaction.type === 'income' ? 'Дохід' : 'Витрата'}</span>
             </div>
             {transaction.type === 'expense' && (
               <div className="receipt-row">
-                <span className="receipt-label">Категория</span>
+                <span className="receipt-label">Категорія</span>
                 <span className="receipt-value">{catObj?.name || CATEGORY_NAMES[transaction.category] || transaction.category}</span>
               </div>
             )}
             <div className="receipt-row">
-              <span className="receipt-label">Кошелек</span>
+              <span className="receipt-label">Гаманець</span>
               <span className="receipt-value">{transaction.currency}</span>
             </div>
             {balanceAfter !== null && (
               <div className="receipt-row">
-                <span className="receipt-label">Баланс после</span>
+                <span className="receipt-label">Баланс після</span>
                 <span className="receipt-value">{formatValue(balanceAfter, transaction.currency as Currency || 'EUR')}</span>
               </div>
             )}
@@ -315,14 +315,14 @@ export const TransactionDetailModal = ({
               <>
                 <div className="receipt-divider" style={{ margin: '15px 0' }} />
                 <div style={{ width: '100%' }}>
-                  <span className="receipt-label" style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Комментарий</span>
+                  <span className="receipt-label" style={{ fontSize: '12px', display: 'block', marginBottom: '4px' }}>Коментар</span>
                   <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.4' }}>{transaction.description}</p>
                 </div>
               </>
             )}
           </div>
           <div className="receipt-footer">
-            Спасибо за использование Planer!<br/>
+            Дякуємо за використання Planer!<br/>
             t.me/planer0bot
           </div>
         </div>

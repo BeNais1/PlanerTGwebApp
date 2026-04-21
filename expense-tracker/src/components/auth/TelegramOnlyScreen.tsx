@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 
 export const TelegramOnlyScreen = () => {
-  const [botUrl] = useState('https://t.me/planer0bot'); // Имя вашего бота @planer0bot
+  const [botUrl] = useState('https://t.me/planer0bot'); // Ім'я бота @planer0bot
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
   useEffect(() => {
-    // Генерируем QR код через API
+    // Генеруємо QR код через API
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(botUrl)}`;
     setQrCodeUrl(qrUrl);
   }, [botUrl]);
@@ -22,29 +22,29 @@ export const TelegramOnlyScreen = () => {
           </svg>
         </div>
         
-        <h1 className="telegram-only-title">Откройте в Telegram</h1>
+        <h1 className="telegram-only-title">Відкрийте в Telegram</h1>
         <p className="telegram-only-description">
-          Это приложение доступно только в Telegram Mini App
+          Цей додаток доступний лише у Telegram Mini App
         </p>
 
         {qrCodeUrl && (
           <div className="qr-code-container">
             <img src={qrCodeUrl} alt="QR Code" className="qr-code" />
-            <p className="qr-code-hint">Отсканируйте QR код в Telegram</p>
+            <p className="qr-code-hint">Відскануйте QR код у Telegram</p>
           </div>
         )}
 
         <div className="telegram-only-instructions">
-          <h3>Как открыть:</h3>
+          <h3>Як відкрити:</h3>
           <ol>
-            <li>Откройте Telegram на телефоне</li>
-            <li>Найдите бота или отсканируйте QR код</li>
-            <li>Нажмите "Открыть приложение"</li>
+            <li>Відкрийте Telegram на телефоні</li>
+            <li>Знайдіть бота або відскануйте QR код</li>
+            <li>Натисніть "Відкрити додаток"</li>
           </ol>
         </div>
 
         <a href={botUrl} className="telegram-button" target="_blank" rel="noopener noreferrer">
-          Открыть в Telegram
+          Відкрити в Telegram
         </a>
       </div>
     </div>

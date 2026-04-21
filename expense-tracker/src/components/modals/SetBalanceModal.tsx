@@ -34,11 +34,11 @@ export const SetBalanceModal = ({ onSetBalance, isLoading }: SetBalanceModalProp
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`}>
       <div className={`modal-content ${isClosing ? 'closing' : ''}`}>
         <div className="modal-header">
-          <h2 className="modal-title">Начальный баланс</h2>
+          <h2 className="modal-title">Початковий баланс</h2>
         </div>
 
         <p className="modal-label" style={{ paddingLeft: 0, marginTop: '-10px', fontSize: '15px' }}>
-          Какой у вас бюджет на этот месяц?
+          Який у вас бюджет на цей місяць?
         </p>
 
         <input
@@ -55,7 +55,7 @@ export const SetBalanceModal = ({ onSetBalance, isLoading }: SetBalanceModalProp
           disabled={!isValid || isLoading}
           onClick={handleSubmit}
         >
-          {isLoading ? 'Сохранение...' : 'Начать'}
+          {isLoading ? 'Збереження...' : 'Почати'}
         </button>
       </div>
     </div>

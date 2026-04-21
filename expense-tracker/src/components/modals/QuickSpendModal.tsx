@@ -26,7 +26,7 @@ const DEFAULT_VENDORS: Vendor[] = [
   { id: 'kfc', name: 'KFC', category: 'food', icon: '🍗' },
   { id: 'starbucks', name: 'Starbucks', category: 'food', icon: '☕' },
   { id: 'pizza', name: 'Pizza', category: 'food', icon: '🍕' },
-  { id: 'sushi', name: 'Суши', category: 'food', icon: '🍣' },
+  { id: 'sushi', name: 'Суші', category: 'food', icon: '🍣' },
   { id: 'subway', name: 'Subway', category: 'food', icon: '🥪' },
   { id: 'burgerking', name: 'Burger King', category: 'food', icon: '🍔' },
   // Delivery
@@ -55,12 +55,12 @@ const DEFAULT_VENDORS: Vendor[] = [
   { id: 'netflix', name: 'Netflix', category: 'entertainment', icon: '🍿' },
   { id: 'spotify', name: 'Spotify', category: 'entertainment', icon: '🎵' },
   { id: 'steam', name: 'Steam', category: 'entertainment', icon: '🎮' },
-  { id: 'cinema', name: 'Кино', category: 'entertainment', icon: '🎬' },
+  { id: 'cinema', name: 'Кіно', category: 'entertainment', icon: '🎬' },
   // Transport
   { id: 'uber', name: 'Uber', category: 'transport', icon: '🚗' },
   { id: 'bolt', name: 'Bolt', category: 'transport', icon: '⚡' },
   { id: 'fuel', name: 'Заправка', category: 'transport', icon: '⛽' },
-  { id: 'parking', name: 'Парковка', category: 'transport', icon: '🅿️' },
+  { id: 'parking', name: 'Паркування', category: 'transport', icon: '🅿️' },
   // Tech
   { id: 'microsoft', name: 'Microsoft', category: 'shopping', icon: '💻' },
   { id: 'google', name: 'Google', category: 'other', icon: '🔍' },
@@ -178,7 +178,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
         <div className="modal-header">
-          <h2 className="modal-title">Быстрый доступ</h2>
+          <h2 className="modal-title">Швидкий доступ</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
@@ -187,7 +187,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
             <input
               type="text"
               className="modal-input"
-              placeholder="Поиск магазина или компании..."
+              placeholder="Пошук магазину або компанії..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               autoFocus
@@ -207,7 +207,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                     type="text"
                     value={newVendorName}
                     onChange={(e) => setNewVendorName(e.target.value)}
-                    placeholder="Название"
+                    placeholder="Назва"
                     autoFocus
                     style={{ flex: 1, padding: '10px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'white', fontSize: '15px', fontFamily: 'var(--font-text)', outline: 'none' }}
                   />
@@ -223,24 +223,24 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setIsAddingVendor(false)}
                     style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: 'var(--apple-surface-3)', color: 'var(--apple-text-on-dark)', fontSize: '14px', cursor: 'pointer' }}>
-                    Отмена
+                    Скасувати
                   </button>
                   <button onClick={handleAddCustomVendor} disabled={!newVendorName}
                     style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: 'var(--apple-blue)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', opacity: newVendorName ? 1 : 0.5 }}>
-                    Добавить
+                    Додати
                   </button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setIsAddingVendor(true)}
                 style={{ padding: '12px', background: 'none', border: '1px dashed var(--apple-surface-3)', borderRadius: '12px', color: 'var(--apple-blue)', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
-                + Создать свой магазин
+                + Створити свій магазин
               </button>
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <span className="modal-label">
-                {searchQuery ? 'Результаты поиска' : 'Часто используемые'}
+                {searchQuery ? 'Результати пошуку' : 'Часто використовувані'}
               </span>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 {filteredVendors.map(vendor => (
@@ -263,7 +263,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                       <span style={{ fontSize: '14px', fontWeight: 500, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{vendor.name}</span>
                       {(usageCounts[vendor.id] || 0) > 0 && (
                         <span style={{ fontSize: '11px', color: 'var(--apple-text-on-dark-tertiary)' }}>
-                          {usageCounts[vendor.id]}× использовано
+                          {usageCounts[vendor.id]}× використано
                         </span>
                       )}
                     </div>
@@ -284,7 +284,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                       gridColumn: 'span 2'
                     }}>
                     <span style={{ fontSize: '20px' }}>➕</span>
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: 'white' }}>Добавить "{searchQuery}"</span>
+                    <span style={{ fontSize: '14px', fontWeight: 500, color: 'white' }}>Додати "{searchQuery}"</span>
                   </div>
                 )}
               </div>
@@ -296,12 +296,12 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
               <span style={{ fontSize: '32px' }}>{selectedVendor.icon}</span>
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <span style={{ fontSize: '18px', fontWeight: 600, color: 'white' }}>{selectedVendor.name}</span>
-                <span style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)' }}>Расход в кошелек</span>
+                <span style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)' }}>Витрата з гаманця</span>
               </div>
               <button
                 onClick={() => { setSelectedVendor(null); setAmount(''); }}
                 style={{ background: 'none', border: 'none', color: 'var(--apple-blue)', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}>
-                Изменить
+                Змінити
               </button>
             </div>
 
@@ -317,7 +317,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
 
             {/* Category selector */}
             <div className="modal-input-group">
-              <label className="modal-label">Категория</label>
+              <label className="modal-label">Категорія</label>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {categories.map(cat => (
                   <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
@@ -333,7 +333,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
             </div>
 
             <div className="modal-input-group">
-              <label className="modal-label">Кошелек</label>
+              <label className="modal-label">Гаманець</label>
               <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
                 {availableWallets.map((c) => (
                   <button
@@ -354,7 +354,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
               onClick={handleSubmit}
               disabled={isLoading || !amount || parseFloat(amount) <= 0}
             >
-              {isLoading ? 'Загрузка...' : 'Подтвердить расход'}
+              {isLoading ? 'Завантаження...' : 'Підтвердити витрату'}
             </button>
           </div>
         )}

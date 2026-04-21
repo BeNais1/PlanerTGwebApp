@@ -6,10 +6,10 @@ import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
 
 function App() {
-  // Инициализируем авто-обновления
+  // Ініціалізуємо авто-оновлення
   useAutoUpdate();
 
-  // Проверяем, открыто ли приложение в Telegram
+  // Перевіряємо, чи відкрито додаток у Telegram
   const isTelegramWebApp = () => {
     const tg = window.Telegram?.WebApp;
     
@@ -17,15 +17,15 @@ function App() {
       return false;
     }
     
-    // Проверяем платформу
+    // Перевіряємо платформу
     const platform = tg.platform;
     
-    // Блокируем desktop и web версии
+    // Блокуємо desktop і web версії
     if (platform === 'unknown' || platform === 'web' || platform === 'weba') {
       return false;
     }
     
-    // Разрешаем только мобильные платформы
+    // Дозволяємо лише мобільні платформи
     return platform === 'ios' || platform === 'android' || platform === 'tdesktop' || platform === 'macos';
   };
 

@@ -180,7 +180,7 @@ export const HomePage = () => {
     setIsTxActionLoading(false);
   };
 
-  const monthName = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  const monthName = new Date().toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
   const getIndicatorLeft = () => `calc(4px + ${activeNav} * (100% - 8px) / 4)`;
 
   const todayDateStr = new Date().toLocaleDateString();
@@ -255,7 +255,7 @@ export const HomePage = () => {
           <AnimatedNumber value={walletBalances[mainCurrency] || 0} formatter={formatValue} />
         </div>
         <div className="balance-sub">
-          Общий капитал: <AnimatedNumber value={currentBalance} formatter={formatValue} />
+          Загальний капітал: <AnimatedNumber value={currentBalance} formatter={formatValue} />
         </div>
       </div>
 
@@ -264,25 +264,25 @@ export const HomePage = () => {
         <div className="action-buttons">
           <div className="action-btn" onClick={() => setIsSpendOpen(true)}>
             <ArrowTop className="!relative !w-5 !h-5" />
-            <span>Расход</span>
+            <span>Витрата</span>
           </div>
           <div className="action-btn" onClick={() => setIsAddOpen(true)}>
             <ArrowDown className="!relative !w-5 !h-5" />
-            <span>Доход</span>
+            <span>Дохід</span>
           </div>
         </div>
 
         {/* Payment History (Today) */}
         <div className="payment-history">
           <div className="payment-header">
-            <h3>Сегодня</h3>
+            <h3>Сьогодні</h3>
             <span className="chevron" onClick={() => setIsHistoryOpen(true)}>›</span>
           </div>
 
           <div className="payment-list">
             {todaysTransactions.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)', fontSize: '13px' }}>
-                Нет транзакций сегодня
+                Немає транзакцій сьогодні
               </div>
             ) : (
               todaysTransactions.map((item) => (
@@ -290,7 +290,7 @@ export const HomePage = () => {
                   <PaymentIcon type={item.type} category={item.category} />
                   <div className="payment-info">
                     <span className="payment-name">
-                      {item.type === 'income' ? 'Доход' : CATEGORY_NAMES[item.category] || 'Расход'}
+                      {item.type === 'income' ? 'Дохід' : CATEGORY_NAMES[item.category] || 'Витрата'}
                     </span>
                     <span className="payment-category">{item.description || new Date(item.date).toLocaleDateString()}</span>
                   </div>
@@ -315,7 +315,7 @@ export const HomePage = () => {
                 cursor: 'pointer'
               }}
             >
-              Вся история
+              Уся історія
             </button>
           </div>
         </div>

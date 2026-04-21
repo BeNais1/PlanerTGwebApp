@@ -98,7 +98,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content settings-modal-content ${isClosing ? 'closing' : ''}`} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
         <div className="modal-header">
-          <h2 className="modal-title">Настройки</h2>
+          <h2 className="modal-title">Налаштування</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
@@ -112,7 +112,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                 color: activeTab === tab ? 'white' : 'var(--apple-text-on-dark-secondary)',
                 transition: 'all 0.2s ease',
               }}>
-              {tab === 'wallets' ? 'Кошельки' : 'Категории'}
+              {tab === 'wallets' ? 'Гаманці' : 'Категорії'}
             </button>
           ))}
         </div>
@@ -123,23 +123,23 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
             <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, var(--apple-surface-2) 0%, var(--apple-surface-3) 100%)', borderRadius: 'var(--radius-lg)', padding: '20px', position: 'relative', overflow: 'hidden', border: '1px solid var(--apple-surface-3)' }}>
               <div style={{ position: 'absolute', top: '-10px', right: '-10px', fontSize: '60px', opacity: 0.1, pointerEvents: 'none' }}>💰</div>
               <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, display: 'block', marginBottom: '16px' }}>
-                Общий баланс
+                Загальний баланс
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Евро</span>
+                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Євро</span>
                   <span style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>
                     <AnimatedNumber value={totalEur} formatter={(v) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS['EUR']}`} />
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Долларах</span>
+                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Доларах</span>
                   <span style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>
                     <AnimatedNumber value={totalUsd} formatter={(v) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS['USD']}`} />
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Гривне</span>
+                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>В Гривні</span>
                   <span style={{ fontSize: '20px', fontWeight: '700', color: 'white' }}>
                     <AnimatedNumber value={totalUah} formatter={(v) => `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS['UAH']}`} />
                   </span>
@@ -151,7 +151,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {availableWallets.map((c) => {
                   const amount = walletBalances[c] || 0;
-                  const displayName = walletNames[c] || `Кошелек ${c}`;
+                  const displayName = walletNames[c] || `Гаманець ${c}`;
                   const otherCurrencies = ALL_CURRENCIES.filter(curr => curr !== c);
                   const isMain = c === currency;
 
@@ -172,7 +172,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                         )}
                         {walletToDelete === c ? (
                           <button onClick={() => handleDeleteWallet(c)} style={{ background: 'red', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', fontWeight: 'bold' }}>
-                            Да, удалить
+                            Так, видалити
                           </button>
                         ) : (
                           <button onClick={() => setWalletToDelete(c)} style={{ background: 'none', border: 'none', color: 'var(--apple-text-on-dark-tertiary)', cursor: 'pointer', padding: '0 4px' }}>✕</button>
@@ -193,12 +193,12 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                         </div>
                         {isMain ? (
                           <span style={{ color: '#FFD700', fontSize: '12px', fontWeight: 600, background: 'rgba(255,215,0,0.1)', padding: '4px 8px', borderRadius: '12px' }}>
-                            ⭐️ Главный
+                            ⭐️ Головний
                           </span>
                         ) : (
                           <button onClick={() => handleCurrencyChange(c)}
                             style={{ color: 'var(--apple-blue)', fontSize: '13px', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                            Сделать главным
+                            Зробити головним
                           </button>
                         )}
                       </div>
@@ -209,7 +209,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                 {!isAddingWallet ? (
                   <button onClick={() => setIsAddingWallet(true)}
                     style={{ padding: '12px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: 'var(--radius-md)', color: 'var(--apple-blue)', fontWeight: 600, cursor: 'pointer' }}>
-                    ➕ Добавить кошелек
+                    ➕ Додати гаманець
                   </button>
                 ) : (
                   <div style={{ background: 'var(--apple-surface-3)', padding: '14px', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -220,12 +220,12 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                         <option value="USD">USD</option>
                         <option value="UAH">UAH</option>
                       </select>
-                      <input type="number" placeholder="Сумма" value={newWalletAmount} onChange={(e) => setNewWalletAmount(e.target.value)}
+                      <input type="number" placeholder="Сума" value={newWalletAmount} onChange={(e) => setNewWalletAmount(e.target.value)}
                         style={{ flex: 1, background: 'var(--apple-surface-2)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', padding: '10px', outline: 'none' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '10px' }}>
-                      <button onClick={() => setIsAddingWallet(false)} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--apple-surface-2)', color: 'var(--apple-text-on-dark)' }}>Отмена</button>
-                      <button onClick={handleAddWallet} disabled={!newWalletAmount} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--apple-blue)', color: 'white' }}>Добавить</button>
+                      <button onClick={() => setIsAddingWallet(false)} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--apple-surface-2)', color: 'var(--apple-text-on-dark)' }}>Скасувати</button>
+                      <button onClick={handleAddWallet} disabled={!newWalletAmount} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--apple-blue)', color: 'white' }}>Додати</button>
                     </div>
                   </div>
                 )}
@@ -237,7 +237,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Active categories */}
             <span style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Активные категории
+              Активні категорії
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {categories.map(cat => (
@@ -249,7 +249,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                   <span style={{ fontSize: '20px' }}>{cat.icon}</span>
                   <span style={{ flex: 1, fontSize: '15px', fontWeight: 500, color: 'white' }}>{cat.name}</span>
                   {cat.isCustom && (
-                    <span style={{ fontSize: '11px', color: 'var(--apple-text-on-dark-tertiary)', background: 'var(--apple-surface-3)', padding: '2px 8px', borderRadius: '6px' }}>Своя</span>
+                    <span style={{ fontSize: '11px', color: 'var(--apple-text-on-dark-tertiary)', background: 'var(--apple-surface-3)', padding: '2px 8px', borderRadius: '6px' }}>Власна</span>
                   )}
                   <button onClick={() => removeCategory(cat.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--apple-text-on-dark-tertiary)', cursor: 'pointer', padding: '0 4px', fontSize: '14px' }}>
@@ -263,7 +263,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
             {hiddenDefaults.length > 0 && (
               <>
                 <span style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '8px' }}>
-                  Скрытые категории
+                  Приховані категорії
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {hiddenDefaults.map(cat => (
@@ -275,7 +275,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                       <span style={{ flex: 1, fontSize: '15px', fontWeight: 500, color: 'white' }}>{cat.name}</span>
                       <button onClick={() => restoreCategory(cat.id)}
                         style={{ background: 'var(--apple-blue)', border: 'none', color: 'white', cursor: 'pointer', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 600 }}>
-                        Вернуть
+                        Повернути
                       </button>
                     </div>
                   ))}
@@ -290,7 +290,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                   <input type="text" value={newCatIcon} onChange={(e) => setNewCatIcon(e.target.value)}
                     style={{ width: '42px', height: '42px', textAlign: 'center', fontSize: '20px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'white' }} />
                   <input type="text" value={newCatName} onChange={(e) => setNewCatName(e.target.value)}
-                    placeholder="Название категории" autoFocus
+                    placeholder="Назва категорії" autoFocus
                     style={{ flex: 1, padding: '10px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'white', fontSize: '15px', fontFamily: 'var(--font-text)', outline: 'none' }} />
                 </div>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -305,18 +305,18 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setIsAddingCategory(false)}
                     style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: 'var(--apple-surface-3)', color: 'var(--apple-text-on-dark)', fontSize: '14px', cursor: 'pointer' }}>
-                    Отмена
+                    Скасувати
                   </button>
                   <button onClick={handleAddCategory} disabled={!newCatName}
                     style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: 'var(--apple-blue)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', opacity: newCatName ? 1 : 0.5 }}>
-                    Создать
+                    Створити
                   </button>
                 </div>
               </div>
             ) : (
               <button onClick={() => setIsAddingCategory(true)}
                 style={{ padding: '12px', background: 'none', border: '1px dashed var(--apple-surface-3)', borderRadius: '14px', color: 'var(--apple-blue)', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
-                + Создать категорию
+                + Створити категорію
               </button>
             )}
           </div>

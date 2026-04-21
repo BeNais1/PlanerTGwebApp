@@ -49,7 +49,7 @@ export const AddModal = ({ onClose, onAdd, isLoading, walletBalances }: AddModal
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content ${isClosing ? 'closing' : ''}`}>
         <div className="modal-header">
-          <h2 className="modal-title">Доход</h2>
+          <h2 className="modal-title">Дохід</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
@@ -64,7 +64,7 @@ export const AddModal = ({ onClose, onAdd, isLoading, walletBalances }: AddModal
         />
 
         <div className="modal-input-group">
-          <label className="modal-label">Кошелек</label>
+          <label className="modal-label">Гаманець</label>
           <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
             {availableWallets.map((c) => (
               <button
@@ -81,11 +81,11 @@ export const AddModal = ({ onClose, onAdd, isLoading, walletBalances }: AddModal
         </div>
 
         <div className="modal-input-group">
-          <label className="modal-label">Комментарий (необязательно)</label>
+          <label className="modal-label">Коментар (необов'язково)</label>
           <input
             type="text"
             className="modal-input"
-            placeholder="Например, зарплата"
+            placeholder="Наприклад, зарплата"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -97,7 +97,7 @@ export const AddModal = ({ onClose, onAdd, isLoading, walletBalances }: AddModal
           disabled={!isValid || isLoading}
           onClick={handleSubmit}
         >
-          {isLoading ? 'Сохранение...' : 'Пополнить'}
+          {isLoading ? 'Збереження...' : 'Поповнити'}
         </button>
       </div>
     </div>

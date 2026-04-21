@@ -25,9 +25,9 @@ const PRESET_SUBSCRIPTIONS = [
 ];
 
 const PERIOD_LABELS: Record<string, string> = {
-  weekly: 'Еженедельно',
-  monthly: 'Ежемесячно',
-  yearly: 'Ежегодно',
+  weekly: 'Щотижня',
+  monthly: 'Щомісяця',
+  yearly: 'Щорічно',
 };
 
 interface SubscriptionsViewProps {
@@ -169,8 +169,8 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
   const getDaysUntil = (timestamp: number) => {
     const diff = timestamp - Date.now();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    if (days < 0) return 'Просрочено';
-    if (days === 0) return 'Сегодня';
+    if (days < 0) return 'Прострочено';
+    if (days === 0) return 'Сьогодні';
     if (days === 1) return 'Завтра';
     return `Через ${days} дн.`;
   };
@@ -186,7 +186,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
     }}>
       {/* Header */}
       <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>Подписки</h2>
+        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>Підписки</h2>
         <button
           onClick={onClose}
           style={{
@@ -200,7 +200,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-          Закрыть
+          Закрити
         </button>
       </div>
 
@@ -211,13 +211,13 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
         border: '1px solid var(--apple-surface-3)',
       }}>
         <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-          Расходы в месяц
+          Витрати на місяць
         </span>
         <div style={{ fontSize: '32px', fontWeight: '700', color: 'white', marginTop: '8px' }}>
           {formatValue(monthlyCost)}
         </div>
         <span style={{ color: 'var(--apple-text-on-dark-tertiary)', fontSize: '13px' }}>
-          {subscriptions.filter(s => s.isActive).length} активных подписок
+          {subscriptions.filter(s => s.isActive).length} активних підписок
         </span>
       </div>
 
@@ -229,7 +229,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 600 }}>
-              {editingSub ? 'Редактировать' : 'Новая подписка'}
+              {editingSub ? 'Редагувати' : 'Нова підписка'}
             </h3>
             <button onClick={() => { setIsAdding(false); setEditingSub(null); resetForm(); }}
               style={{ background: 'none', border: 'none', color: 'var(--apple-text-on-dark-tertiary)', fontSize: '24px', cursor: 'pointer' }}>
@@ -253,7 +253,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
               type="text"
               value={formName}
               onChange={(e) => setFormName(e.target.value)}
-              placeholder="Название подписки"
+              placeholder="Назва підписки"
               style={{
                 flex: 1, padding: '14px 16px', background: 'var(--apple-surface-2)',
                 border: 'none', borderRadius: '14px', color: 'white', fontSize: '16px',
@@ -310,7 +310,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
           {/* Next Date */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)', fontWeight: 500 }}>
-              Следующее списание
+              Наступне списання
             </label>
             <input
               type="date"
@@ -333,7 +333,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                   background: 'var(--apple-surface-2)', color: '#ff453a', fontWeight: 600,
                   fontSize: '16px', cursor: 'pointer',
                 }}>
-                Удалить
+                Видалити
               </button>
             )}
             <button onClick={handleSave} disabled={isSaving || !formName || !formAmount}
@@ -342,7 +342,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                 background: 'var(--apple-blue)', color: 'white', fontWeight: 600,
                 fontSize: '16px', cursor: 'pointer', opacity: (!formName || !formAmount) ? 0.5 : 1,
               }}>
-              {isSaving ? 'Сохранение...' : editingSub ? 'Сохранить' : 'Добавить'}
+              {isSaving ? 'Збереження...' : editingSub ? 'Зберегти' : 'Додати'}
             </button>
           </div>
         </div>
@@ -355,7 +355,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
             color: 'var(--apple-blue)', fontWeight: 600, fontSize: '15px',
             cursor: 'pointer', marginBottom: '20px',
           }}>
-          + Добавить подписку
+          + Додати підписку
         </button>
       )}
 
@@ -363,7 +363,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
       {subscriptions.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '15px', color: 'var(--apple-text-on-dark-secondary)', marginBottom: '12px', fontWeight: 600 }}>
-            Активные подписки
+            Активні підписки
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {subscriptions.filter(s => s.isActive).map(sub => (
@@ -402,7 +402,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
       {!isAdding && (
         <div>
           <h3 style={{ fontSize: '15px', color: 'var(--apple-text-on-dark-secondary)', marginBottom: '12px', fontWeight: 600 }}>
-            Популярные подписки
+            Популярні підписки
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {PRESET_SUBSCRIPTIONS
@@ -420,7 +420,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                       {preset.name}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)' }}>
-                      ~{preset.amount.toFixed(2)} €/мес
+                      ~{convertToMain(preset.amount, 'EUR' as Currency).toFixed(2)} {CURRENCY_SYMBOLS[mainCurrency]}/міс
                     </div>
                   </div>
                 </div>
