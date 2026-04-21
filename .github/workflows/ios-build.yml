@@ -1,0 +1,94 @@
+name: iOS Build (Simulator)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'expense-tracker-ios/**'
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS (Simulator)
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: expense-tracker-ios
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: expense-tracker-ios/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🔧 Setup Expo CLI
+        run: npm install -g expo-cli eas-cli
+
+      - name: 🍎 Prebuild iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: 📱 Install CocoaPods
+        run: |
+          cd ios
+          pod install
+
+      - name: 🔍 Find workspace and scheme
+        run: |
+          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
+          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | grep -A 1 "Schemes:" | tail -1 | xargs)
+          echo "WORKSPACE=$WORKSPACE" >> $GITHUB_ENV
+          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
+          echo "Found workspace: $WORKSPACE, scheme: $SCHEME"
+
+      - name: 🔨 Build for iOS Simulator
+        run: |
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -derivedDataPath build \
+            build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: 📁 Create .app archive
+        run: |
+          cd build/Build/Products/Release-iphonesimulator
+          zip -r ../../../../ExpenseTracker-Simulator.zip *.app
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExpenseTracker-iOS-Simulator
+          path: expense-tracker-ios/ExpenseTracker-Simulator.zip
+          retention-days: 30
+
+  # Alternative: EAS Cloud Build (uncomment to use instead of local build)
+  # eas-build:
+  #   name: EAS Build (Cloud)
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: expense-tracker-ios
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #     - run: npm install
+  #     - run: npm install -g eas-cli
+  #     - name: Build with EAS
+  #       env:
+  #         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  #       run: eas build --platform ios --profile simulator --non-interactive
