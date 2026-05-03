@@ -7,14 +7,24 @@ interface AnimatedNumberProps {
 }
 
 export const AnimatedNumber = ({ value, duration = 1000, formatter }: AnimatedNumberProps) => {
-  const [displayValue, setDisplayValue] = useState(0);
+  const [displayValue, setDisplayValue] = useState(value);
   const startTime = useRef<number | null>(null);
-  const prevValue = useRef(0);
+  const prevValue = useRef(value);
   const currentValue = useRef(value);
   const animationFrame = useRef<number | null>(null);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
-    // On value change, restart animation from current total
+    // Skip animation on first render — show value immediately
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      setDisplayValue(value);
+      prevValue.current = value;
+      currentValue.current = value;
+      return;
+    }
+
+    // On value change, restart animation from current display value
     prevValue.current = displayValue;
     currentValue.current = value;
     startTime.current = null;

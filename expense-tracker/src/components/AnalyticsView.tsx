@@ -173,21 +173,21 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
           font-family: var(--font-text);
         }
         .filter-chip.active {
-          background: var(--apple-blue);
+          background: var(--accent);
           color: white;
         }
         .filter-chip.inactive {
-          background: var(--apple-surface-2);
-          color: var(--apple-text-on-dark);
+          background: var(--card-bg-2);
+          color: var(--text-primary);
         }
       `}</style>
 
       <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>Аналітика</h2>
+        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--text-primary)', letterSpacing: '-1px' }}>Аналітика</h2>
         <button onClick={onClose} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
-          borderRadius: 'var(--radius-full)', background: 'var(--apple-surface-2)',
-          color: 'var(--apple-text-on-dark)', border: 'none', fontSize: '15px',
+          borderRadius: 'var(--radius-full)', background: 'var(--card-bg-2)',
+          color: 'var(--text-primary)', border: 'none', fontSize: '15px',
           fontWeight: '600', width: 'fit-content', cursor: 'pointer'
         }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -200,15 +200,15 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
 
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-        <div style={{ background: 'var(--apple-surface-1)', borderRadius: '16px', padding: '16px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Витрати</span>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: 'white', marginTop: '4px' }}>
+        <div style={{ background: 'var(--card-bg)', borderRadius: '18px', padding: '16px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>Витрати</span>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
             {formatValue(totalExpenses)}
           </div>
         </div>
-        <div style={{ background: 'var(--apple-surface-1)', borderRadius: '16px', padding: '16px' }}>
-          <span style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Доходи</span>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--apple-blue)', marginTop: '4px' }}>
+        <div style={{ background: 'var(--card-bg)', borderRadius: '18px', padding: '16px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>Доходи</span>
+          <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--accent)', marginTop: '4px' }}>
             {formatValue(totalIncome)}
           </div>
         </div>

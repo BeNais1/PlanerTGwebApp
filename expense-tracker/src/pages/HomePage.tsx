@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowDown } from "../components/icons/ArrowDown";
 import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
@@ -7,6 +7,7 @@ import { HistoryIcon } from "../components/icons/HistoryIcon";
 import { WalletIcon } from "../components/icons/WalletIcon";
 import { AnalyticsIcon } from "../components/icons/AnalyticsIcon";
 import { SearchIcon } from "../components/icons/SearchIcon";
+import { PaymentIcon } from "../components/PaymentIcon";
 import { useTelegramPlatform } from "../hooks/useTelegramPlatform";
 import { useKeyboardSafe } from "../hooks/useKeyboardSafe";
 import { useAuth } from "../context/AuthContext";
@@ -20,8 +21,11 @@ import {
   addTransaction,
   updateTransaction,
   deleteTransaction,
+  subscribeToUserSettings,
+  updateUserSettings,
   type Transaction,
-  type MonthData
+  type MonthData,
+  type UserSettings
 } from "../services/database";
 
 import { SpendModal } from "../components/modals/SpendModal";
@@ -34,6 +38,8 @@ import { TransactionDetailModal } from "../components/modals/TransactionDetailMo
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { AnalyticsView } from "../components/AnalyticsView";
 import { SubscriptionsView } from "../components/SubscriptionsView";
+import { BudgetBubble } from "../components/BudgetBubble";
+import { NumericKeypad, getKeypadNumericValue } from "../components/NumericKeypad";
 
 export const HomePage = () => {
   const [activeNav, setActiveNav] = useState(0);
@@ -41,13 +47,15 @@ export const HomePage = () => {
   useKeyboardSafe();
   const { user } = useAuth();
   const { currency: mainCurrency, formatValue, convertToMain, CURRENCY_SYMBOLS } = useCurrency();
-  const { icons: CATEGORY_ICONS, names: CATEGORY_NAMES } = useCategories();
+  const { names: CATEGORY_NAMES } = useCategories();
   const currentMonth = getCurrentMonth();
 
   // State
   const [monthData, setMonthData] = useState<MonthData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [budgetLimit, setBudgetLimit] = useState(0);
+  const [budgetLimitStartDate, setBudgetLimitStartDate] = useState<number | null | undefined>();
 
   // Modals state
   const [isSpendOpen, setIsSpendOpen] = useState(false);
@@ -58,6 +66,9 @@ export const HomePage = () => {
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isTxActionLoading, setIsTxActionLoading] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitInput, setLimitInput] = useState('');
+  const [limitIncludePriorInput, setLimitIncludePriorInput] = useState(true);
 
   const navItems = [
     { icon: <HomeIcon />, id: 0 },
@@ -89,19 +100,29 @@ export const HomePage = () => {
       }
     });
 
+    const unsubSettings = subscribeToUserSettings(user.id, (settings: UserSettings) => {
+      if (isSubscribed) {
+        setBudgetLimit(settings.budgetLimit || 0);
+        setBudgetLimitStartDate(settings.budgetLimitStartDate);
+      }
+    });
+
     return () => {
       isSubscribed = false;
       unsubBalance();
       unsubTx();
+      unsubSettings();
     };
   }, [user, currentMonth]);
 
-  // Calculations
+  // Calculations — Bug #4 fix: handle all currencies for initialBalance
   const walletBalances: Record<string, number> = {};
   if (monthData) {
+    // Legacy initialBalance — add to EUR
     if (monthData.initialBalance) {
       walletBalances['EUR'] = monthData.initialBalance;
     }
+    // Modern multi-currency balances
     if (monthData.balances) {
       Object.entries(monthData.balances).forEach(([cur, amount]) => {
         walletBalances[cur] = (walletBalances[cur] || 0) + amount;
@@ -109,11 +130,11 @@ export const HomePage = () => {
     }
   }
   if (Object.keys(walletBalances).length === 0) {
-    walletBalances['EUR'] = 0;
+    walletBalances[mainCurrency] = 0;
   }
 
   transactions.forEach(t => {
-    const cur = t.currency || 'EUR';
+    const cur = t.currency || mainCurrency;
     if (walletBalances[cur] === undefined) walletBalances[cur] = 0;
     if (t.type === 'expense') walletBalances[cur] -= t.amount;
     if (t.type === 'income') walletBalances[cur] += t.amount;
@@ -123,6 +144,17 @@ export const HomePage = () => {
   Object.entries(walletBalances).forEach(([cur, amount]) => {
     currentBalance += convertToMain(amount, cur as Currency);
   });
+
+  // Calculate total expenses this month (in main currency) for Bubble
+  const monthlyExpenses = useMemo(() => {
+    return transactions
+      .filter(t => {
+        if (t.type !== 'expense') return false;
+        if (budgetLimitStartDate && t.date < budgetLimitStartDate) return false;
+        return true;
+      })
+      .reduce((acc, t) => acc + convertToMain(t.amount, (t.currency || mainCurrency) as Currency), 0);
+  }, [transactions, mainCurrency, convertToMain, budgetLimitStartDate]);
 
   // Handlers
   const handleSetInitialBalance = async (amount: number, currency: Currency = mainCurrency) => {
@@ -180,30 +212,35 @@ export const HomePage = () => {
     setIsTxActionLoading(false);
   };
 
+  const handleSetBudgetLimit = async () => {
+    if (!user) return;
+    const num = getKeypadNumericValue(limitInput);
+    if (num > 0) {
+      await updateUserSettings(user.id, { 
+        budgetLimit: num,
+        budgetLimitIncludePrior: limitIncludePriorInput,
+        budgetLimitStartDate: limitIncludePriorInput ? null : Date.now()
+      } as any);
+      setShowLimitModal(false);
+      setLimitInput('');
+      setLimitIncludePriorInput(true);
+    }
+  };
+
   const monthName = new Date().toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
   const getIndicatorLeft = () => `calc(4px + ${activeNav} * (100% - 8px) / 4)`;
 
   const todayDateStr = new Date().toLocaleDateString();
   const todaysTransactions = transactions.filter(t => new Date(t.date).toLocaleDateString() === todayDateStr);
 
-  const PaymentIcon = ({ type, category }: { type: string, category: string }) => {
-    if (type === 'income') {
-      return (
-        <div className="payment-icon" style={{ background: "var(--apple-blue)" }}>
-          <ArrowDown className="!w-5 !h-5 text-white" />
-        </div>
-      );
-    }
-    const icon = CATEGORY_ICONS[category] || '📦';
+  if (!isDataLoaded) {
     return (
-      <div className="payment-icon" style={{ background: "var(--apple-surface-3)", fontSize: "20px" }}>
-        {icon}
+      <div className="phone-frame">
+        <div style={{ margin: 'auto', color: 'var(--text-secondary)', fontSize: '15px', fontWeight: 500 }}>
+          Завантаження...
+        </div>
       </div>
     );
-  };
-
-  if (!isDataLoaded) {
-    return <div className="phone-frame"><div style={{ margin: 'auto', color: 'var(--apple-text-on-dark-secondary)' }}>Loading...</div></div>;
   }
 
   return (
@@ -224,6 +261,59 @@ export const HomePage = () => {
           isLoading={isTxActionLoading}
           walletBalances={walletBalances}
         />
+      )}
+
+      {/* Budget Limit Set Modal */}
+      {showLimitModal && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowLimitModal(false); }}
+        >
+          <div className="modal-content" style={{ gap: '16px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Місячний ліміт</h2>
+              <div className="modal-close" onClick={() => setShowLimitModal(false)}>✕</div>
+            </div>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '-8px' }}>
+              Скільки ви хочете максимально витратити цього місяця?
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--card-bg-2)', borderRadius: '14px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>Враховувати минулі витрати</span>
+              <label className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  checked={limitIncludePriorInput} 
+                  onChange={(e) => setLimitIncludePriorInput(e.target.checked)} 
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            <NumericKeypad
+              value={limitInput}
+              onChange={setLimitInput}
+              currencySymbol={CURRENCY_SYMBOLS[mainCurrency]}
+              onSubmit={handleSetBudgetLimit}
+              submitLabel="Встановити"
+            />
+
+            {budgetLimit > 0 && (
+              <button
+                className="modal-btn-primary"
+                style={{ background: 'var(--card-bg-2)', color: 'var(--danger)', marginTop: '-8px' }}
+                onClick={async () => {
+                  if (user) {
+                    await updateUserSettings(user.id, { budgetLimit: 0 });
+                    setShowLimitModal(false);
+                  }
+                }}
+              >
+                Прибрати ліміт
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Full-screen views */}
@@ -255,9 +345,17 @@ export const HomePage = () => {
           <AnimatedNumber value={walletBalances[mainCurrency] || 0} formatter={formatValue} />
         </div>
         <div className="balance-sub">
-          Загальний капітал: <AnimatedNumber value={currentBalance} formatter={formatValue} />
+          Капітал: <AnimatedNumber value={currentBalance} formatter={formatValue} />
         </div>
       </div>
+
+      {/* Budget Bubble */}
+      <BudgetBubble
+        spent={monthlyExpenses}
+        limit={budgetLimit}
+        formatValue={formatValue}
+        onSetLimit={() => setShowLimitModal(true)}
+      />
 
       {/* Bottom Card */}
       <div className="bottom-card">
@@ -281,7 +379,7 @@ export const HomePage = () => {
 
           <div className="payment-list">
             {todaysTransactions.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)', fontSize: '13px' }}>
+              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                 Немає транзакцій сьогодні
               </div>
             ) : (
@@ -294,8 +392,8 @@ export const HomePage = () => {
                     </span>
                     <span className="payment-category">{item.description || new Date(item.date).toLocaleDateString()}</span>
                   </div>
-                  <span className={`payment-amount ${item.type === 'expense' ? 'expense' : 'income'}`} style={{ color: item.type === 'income' ? 'var(--apple-blue)' : 'var(--apple-text-on-dark)' }}>
-                    {item.type === 'expense' ? '-' : '+'}{item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {CURRENCY_SYMBOLS[item.currency as Currency || 'EUR']}
+                  <span className={`payment-amount ${item.type === 'expense' ? 'expense' : 'income'}`} style={{ color: item.type === 'income' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                    {item.type === 'expense' ? '-' : '+'}{item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {CURRENCY_SYMBOLS[item.currency as Currency || mainCurrency]}
                   </span>
                 </div>
               ))
@@ -304,15 +402,17 @@ export const HomePage = () => {
             <button 
               onClick={() => setIsHistoryOpen(true)}
               style={{
-                background: 'var(--apple-surface-2)',
-                color: 'var(--apple-text-on-dark-secondary)',
+                background: 'var(--card-bg)',
+                color: 'var(--text-secondary)',
                 border: 'none',
                 padding: '12px',
                 borderRadius: 'var(--radius-md)',
-                marginTop: '10px',
+                marginTop: '8px',
                 fontFamily: 'var(--font-text)',
-                fontSize: '14px',
-                cursor: 'pointer'
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'background 0.2s ease',
               }}
             >
               Уся історія

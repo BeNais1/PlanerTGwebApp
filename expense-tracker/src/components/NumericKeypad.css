@@ -1,0 +1,136 @@
+/* ===== Custom Numeric Keypad — Calculator Style ===== */
+
+.keypad-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* Amount Display */
+.keypad-display {
+  text-align: center;
+  padding: 16px 12px 8px;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.keypad-display-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: -1.5px;
+  color: var(--text-primary);
+  transition: font-size 0.15s ease;
+}
+
+.keypad-display-value.small {
+  font-size: 34px;
+}
+
+.keypad-display-value.empty {
+  color: var(--text-disabled);
+}
+
+.keypad-display-currency {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 28px;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+}
+
+/* Keypad Grid */
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.keypad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  border: none;
+  border-radius: 14px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.keypad-btn:active {
+  transform: scale(0.93);
+}
+
+/* Number keys */
+.keypad-btn.digit {
+  background: var(--card-bg-2);
+  color: var(--text-primary);
+}
+
+.keypad-btn.digit:active {
+  background: var(--card-bg-3);
+}
+
+/* Operation keys */
+.keypad-btn.op {
+  background: var(--card-bg-3);
+  color: var(--text-secondary);
+  font-size: 20px;
+}
+
+.keypad-btn.op:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Backspace key */
+.keypad-btn.backspace {
+  background: var(--card-bg-3);
+  color: var(--text-secondary);
+}
+
+.keypad-btn.backspace svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Submit button */
+.keypad-submit {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 16px;
+  font-family: var(--font-text);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s ease, opacity 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--text-primary);
+  color: var(--bg);
+  letter-spacing: -0.2px;
+}
+
+.keypad-submit:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.keypad-submit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.keypad-submit.loading {
+  opacity: 0.6;
+}

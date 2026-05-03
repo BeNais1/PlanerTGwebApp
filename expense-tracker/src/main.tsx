@@ -5,12 +5,18 @@ import App from './App.tsx'
 
 // Telegram types are declared in src/types/telegram.d.ts
 
+// Apply saved theme immediately to prevent flash
+const savedTheme = localStorage.getItem('app-theme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
+
 if (window.Telegram?.WebApp) {
   const tg = window.Telegram.WebApp;
   tg.ready();
   tg.expand();
-  if (tg.setHeaderColor) tg.setHeaderColor('#000000');
-  if (tg.setBackgroundColor) tg.setBackgroundColor('#000000');
+  const headerColor = savedTheme === 'light' ? '#F2F2F7' : '#000000';
+  const bgColor = savedTheme === 'light' ? '#F2F2F7' : '#000000';
+  if (tg.setHeaderColor) tg.setHeaderColor(headerColor);
+  if (tg.setBackgroundColor) tg.setBackgroundColor(bgColor);
 
   // Set CSS variable for viewport height
   const setVh = () => {

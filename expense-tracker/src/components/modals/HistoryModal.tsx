@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getAllTransactions, type Transaction } from '../../services/database';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
-import { ArrowDown } from '../icons/ArrowDown';
+import { PaymentIcon } from '../PaymentIcon';
 import { TransactionDetailModal } from './TransactionDetailModal';
 import { deleteTransaction, updateTransaction } from '../../services/database';
 import './Modals.css';
@@ -16,7 +16,7 @@ interface HistoryModalProps {
 export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => {
   const { user } = useAuth();
   const { formatValue } = useCurrency();
-  const { icons: CATEGORY_ICONS, names: CATEGORY_NAMES } = useCategories();
+  const { names: CATEGORY_NAMES } = useCategories();
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
@@ -56,21 +56,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
     setIsTxActionLoading(false);
   };
 
-  const PaymentIcon = ({ type, category }: { type: string, category: string }) => {
-    if (type === 'income') {
-      return (
-        <div className="payment-icon" style={{ background: "var(--apple-blue)" }}>
-          <ArrowDown className="!w-5 !h-5 text-white" />
-        </div>
-      );
-    }
-    const icon = CATEGORY_ICONS[category] || '📦';
-    return (
-      <div className="payment-icon" style={{ background: "var(--apple-surface-3)", fontSize: "20px" }}>
-        {icon}
-      </div>
-    );
-  };
+  // Using shared PaymentIcon component
 
   // Group by Month string
   const groupedHistory = history.reduce((acc, tx) => {

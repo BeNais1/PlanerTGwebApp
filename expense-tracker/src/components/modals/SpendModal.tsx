@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
+import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import './Modals.css';
 
 interface SpendModalProps {
@@ -19,7 +20,6 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(mainCurrency);
   const [isClosing, setIsClosing] = useState(false);
 
-  // Set default category once categories load
   useEffect(() => {
     if (categories.length > 0 && !category) {
       setCategory(categories[0].id);
@@ -39,90 +39,78 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
     }
   }, [mainCurrency]);
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-    if (val.split('.').length > 2) return;
-    setAmount(val);
-  };
-
   const handleSubmit = () => {
-    const numAmount = parseFloat(amount);
-    if (!isNaN(numAmount) && numAmount > 0) {
+    const numAmount = getKeypadNumericValue(amount);
+    if (numAmount > 0) {
       onSpend(numAmount, category, description, selectedCurrency);
     }
   };
 
-  const isValid = parseFloat(amount) > 0;
   const availableWallets = Object.keys(walletBalances) as Currency[];
 
   return (
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-      <div className={`modal-content ${isClosing ? 'closing' : ''}`}>
+      <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ gap: '12px' }}>
         <div className="modal-header">
           <h2 className="modal-title">Витрата</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
+        {/* Wallet selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {availableWallets.map((c) => (
+            <button
+              key={c}
+              className={`currency-btn ${selectedCurrency === c ? 'active' : ''}`}
+              style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '12px' }}
+              onClick={() => setSelectedCurrency(c)}
+            >
+              <span style={{ fontWeight: 600 }}>{c}</span>
+              <span style={{ opacity: 0.7, fontSize: '11px' }}>{formatValue(walletBalances[c], c)}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Description */}
         <input
           type="text"
-          className="modal-amount-input"
-          placeholder={`0.00 ${CURRENCY_SYMBOLS[selectedCurrency]}`}
-          value={amount}
-          onChange={handleAmountChange}
-          inputMode="decimal"
+          className="modal-input"
+          placeholder="Коментар..."
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          style={{ fontSize: '14px', padding: '10px 14px' }}
         />
 
-        <div className="modal-input-group">
-          <label className="modal-label">Гаманець</label>
-          <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
-            {availableWallets.map((c) => (
-              <button
-                key={c}
-                className={`currency-btn ${selectedCurrency === c ? 'active' : ''}`}
-                style={{ padding: '8px 4px', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
-                onClick={() => setSelectedCurrency(c)}
-              >
-                <span>{c}</span>
-                <span style={{ fontSize: '11px', opacity: 0.8 }}>{formatValue(walletBalances[c], c)}</span>
-              </button>
-            ))}
-          </div>
+        {/* Categories - horizontal scroll */}
+        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategory(cat.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '4px',
+                padding: '6px 10px', borderRadius: '12px', border: 'none',
+                background: category === cat.id ? 'var(--accent)' : 'var(--card-bg-2)',
+                color: 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
+                cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.name}</span>
+            </button>
+          ))}
         </div>
 
-        <div className="modal-input-group">
-          <label className="modal-label">Категорія</label>
-          <div className="categories-grid">
-            {categories.map((cat) => (
-              <div
-                key={cat.id}
-                className={`category-item ${category === cat.id ? 'active' : ''}`}
-                onClick={() => setCategory(cat.id)}
-              >
-                <div className="category-icon">{cat.icon}</div>
-                <span className="category-name">{cat.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="modal-input-group">
-          <label className="modal-label">Коментар (необов'язково)</label>
-          <input
-            type="text"
-            className="modal-input"
-            placeholder="Наприклад, кава з колегами"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </div>
-
-        <button
-          className="modal-btn-primary"
-          disabled={!isValid || isLoading}
-          onClick={handleSubmit}
-        >
-          {isLoading ? 'Збереження...' : 'Витратити'}
-        </button>
+        {/* Numeric Keypad */}
+        <NumericKeypad
+          value={amount}
+          onChange={setAmount}
+          currencySymbol={CURRENCY_SYMBOLS[selectedCurrency]}
+          onSubmit={handleSubmit}
+          submitLabel="Витратити"
+          isLoading={isLoading}
+        />
       </div>
     </div>
   );

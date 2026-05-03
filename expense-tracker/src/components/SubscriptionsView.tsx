@@ -213,7 +213,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
         <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
           Витрати на місяць
         </span>
-        <div style={{ fontSize: '32px', fontWeight: '700', color: 'white', marginTop: '8px' }}>
+        <div style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', marginTop: '8px' }}>
           {formatValue(monthlyCost)}
         </div>
         <span style={{ color: 'var(--apple-text-on-dark-tertiary)', fontSize: '13px' }}>
@@ -245,7 +245,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
               onChange={(e) => setFormIcon(e.target.value)}
               style={{
                 width: '48px', height: '48px', textAlign: 'center', fontSize: '24px',
-                background: 'var(--apple-surface-2)', border: 'none', borderRadius: '14px', color: 'white',
+                background: 'var(--apple-surface-2)', border: 'none', borderRadius: '14px', color: 'var(--text-primary)',
               }}
               placeholder="🔄"
             />
@@ -256,7 +256,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
               placeholder="Назва підписки"
               style={{
                 flex: 1, padding: '14px 16px', background: 'var(--apple-surface-2)',
-                border: 'none', borderRadius: '14px', color: 'white', fontSize: '16px',
+                border: 'none', borderRadius: '14px', color: 'var(--text-primary)', fontSize: '16px',
                 fontFamily: 'var(--font-text)', outline: 'none',
               }}
             />
@@ -274,7 +274,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
             placeholder={`0.00 ${CURRENCY_SYMBOLS[formCurrency]}`}
             style={{
               width: '100%', padding: '14px 16px', background: 'var(--apple-surface-2)',
-              border: 'none', borderRadius: '14px', color: 'white', fontSize: '24px',
+              border: 'none', borderRadius: '14px', color: 'var(--text-primary)', fontSize: '24px',
               fontWeight: 600, textAlign: 'center', fontFamily: 'var(--font-display)', outline: 'none',
             }}
           />
@@ -286,7 +286,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                 style={{
                   flex: 1, padding: '10px', border: 'none', borderRadius: '12px',
                   background: formCurrency === c ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
-                  color: 'white', fontWeight: 600, fontSize: '14px', cursor: 'pointer',
+                  color: 'var(--text-primary)', fontWeight: 600, fontSize: '14px', cursor: 'pointer',
                 }}>
                 {c}
               </button>
@@ -300,7 +300,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                 style={{
                   flex: 1, padding: '10px', border: 'none', borderRadius: '12px',
                   background: formPeriod === p ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
-                  color: 'white', fontWeight: 500, fontSize: '13px', cursor: 'pointer',
+                  color: 'var(--text-primary)', fontWeight: 500, fontSize: '13px', cursor: 'pointer',
                 }}>
                 {PERIOD_LABELS[p]}
               </button>
@@ -318,7 +318,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
               onChange={(e) => setFormNextDate(e.target.value)}
               style={{
                 padding: '12px 16px', background: 'var(--apple-surface-2)', border: 'none',
-                borderRadius: '14px', color: 'white', fontSize: '15px', fontFamily: 'var(--font-text)',
+                borderRadius: '14px', color: 'var(--text-primary)', fontSize: '15px', fontFamily: 'var(--font-text)',
                 outline: 'none', colorScheme: 'dark',
               }}
             />
@@ -339,7 +339,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
             <button onClick={handleSave} disabled={isSaving || !formName || !formAmount}
               style={{
                 flex: 2, padding: '14px', border: 'none', borderRadius: '14px',
-                background: 'var(--apple-blue)', color: 'white', fontWeight: 600,
+                background: 'var(--apple-blue)', color: 'var(--text-primary)', fontWeight: 600,
                 fontSize: '16px', cursor: 'pointer', opacity: (!formName || !formAmount) ? 0.5 : 1,
               }}>
               {isSaving ? 'Збереження...' : editingSub ? 'Зберегти' : 'Додати'}
@@ -382,13 +382,13 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                   {sub.icon}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '16px', fontWeight: 500, color: 'white' }}>{sub.name}</div>
+                  <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' }}>{sub.name}</div>
                   <div style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-tertiary)' }}>
                     {PERIOD_LABELS[sub.period]} · {getDaysUntil(sub.nextDate)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'white' }}>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
                     {formatValue(sub.amount, sub.currency as Currency)}
                   </div>
                 </div>
@@ -416,7 +416,7 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
                   }}>
                   <span style={{ fontSize: '20px' }}>{preset.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 500, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {preset.name}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)' }}>

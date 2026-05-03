@@ -1,0 +1,264 @@
+/* ===== Budget Bubble — Liquid Animated Limit Indicator ===== */
+
+.bubble-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 0;
+  position: relative;
+  min-height: 140px;
+}
+
+/* The bubble wrapper */
+.bubble-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Glow behind bubble */
+.bubble-glow {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  filter: blur(20px);
+  opacity: 0.3;
+  transition: background 0.8s ease, opacity 0.8s ease;
+}
+
+/* Main bubble SVG */
+.bubble-svg {
+  position: relative;
+  z-index: 2;
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+              height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Text inside bubble */
+.bubble-text {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.bubble-percent {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+  transition: font-size 0.6s ease;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.3);
+}
+
+.bubble-label {
+  font-family: var(--font-text);
+  font-weight: 500;
+  font-size: 10px;
+  color: rgba(255,255,255,0.8);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 2px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+/* ===== Breathing Animation ===== */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes breathe-fast {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.bubble-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+.bubble-breathe-fast {
+  animation: breathe-fast 1.8s ease-in-out infinite;
+}
+
+/* ===== Wobble Animation ===== */
+@keyframes wobble {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  15% { transform: scale(1.03) rotate(-1.5deg); }
+  30% { transform: scale(0.98) rotate(1.5deg); }
+  45% { transform: scale(1.04) rotate(-1deg); }
+  60% { transform: scale(0.97) rotate(1deg); }
+  75% { transform: scale(1.02) rotate(-0.5deg); }
+}
+
+.bubble-wobble {
+  animation: wobble 1.2s ease-in-out infinite;
+}
+
+/* ===== Critical Shake ===== */
+@keyframes shake {
+  0%, 100% { transform: scale(1) translateX(0); }
+  10% { transform: scale(1.02) translateX(-3px) rotate(-1deg); }
+  20% { transform: scale(0.98) translateX(3px) rotate(1deg); }
+  30% { transform: scale(1.03) translateX(-2px) rotate(-0.5deg); }
+  40% { transform: scale(0.97) translateX(2px) rotate(0.5deg); }
+  50% { transform: scale(1.02) translateX(-1px); }
+  60% { transform: scale(0.99) translateX(1px); }
+}
+
+.bubble-shake {
+  animation: shake 0.8s ease-in-out infinite;
+}
+
+/* ===== Pop Animation ===== */
+@keyframes pop-burst {
+  0% { transform: scale(1); opacity: 1; }
+  30% { transform: scale(1.3); opacity: 0.8; }
+  60% { transform: scale(0.2); opacity: 0.3; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+.bubble-popped .bubble-wrap {
+  animation: pop-burst 0.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+}
+
+/* ===== Particles ===== */
+.bubble-particles {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  opacity: 0;
+}
+
+@keyframes particle-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.particle.active {
+  animation: particle-fly 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* ===== Overspend message ===== */
+.bubble-overspend {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  animation: fade-scale-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation-delay: 0.4s;
+  opacity: 0;
+}
+
+@keyframes fade-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.overspend-emoji {
+  font-size: 36px;
+  animation: bounce-emoji 0.6s ease-in-out infinite alternate;
+  animation-delay: 0.8s;
+}
+
+@keyframes bounce-emoji {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+.overspend-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: #ff453a;
+  text-align: center;
+}
+
+.overspend-amount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: #ff453a;
+  text-align: center;
+}
+
+/* ===== Limit badge under bubble ===== */
+.bubble-info {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.bubble-info-spent {
+  font-family: var(--font-text);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--apple-text-on-dark-secondary);
+}
+
+.bubble-info-limit {
+  font-family: var(--font-text);
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--apple-text-on-dark-tertiary);
+}
+
+/* No limit set — prompt */
+.bubble-set-limit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  cursor: pointer;
+  border-radius: 20px;
+  background: var(--card-bg);
+  border: 1px dashed var(--card-bg-2);
+  transition: all 0.2s ease;
+}
+
+.bubble-set-limit:active {
+  transform: scale(0.97);
+}
+
+.bubble-set-limit-icon {
+  font-size: 28px;
+  opacity: 0.6;
+}
+
+.bubble-set-limit-text {
+  font-family: var(--font-text);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--accent);
+}

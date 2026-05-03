@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { subscribeToSettings, updateUserSettings, incrementVendorUsage, type UserSettings, type CustomVendor } from '../../services/database';
+import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import './Modals.css';
 
 interface QuickSpendModalProps {
@@ -71,7 +72,7 @@ const DEFAULT_VENDORS: Vendor[] = [
 
 export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }: QuickSpendModalProps) => {
   const { user } = useAuth();
-  const { currency: mainCurrency, CURRENCY_SYMBOLS, formatValue } = useCurrency();
+  const { currency: mainCurrency, CURRENCY_SYMBOLS } = useCurrency();
   const { categories } = useCategories();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
@@ -129,25 +130,19 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
     );
   }, [searchQuery, allVendors]);
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-    if (val.split('.').length > 2) return;
-    setAmount(val);
-  };
-
   const handleSelectVendor = (vendor: Vendor) => {
     setSelectedVendor(vendor);
     setSelectedCategory(vendor.category);
   };
 
   const handleSubmit = async () => {
-    const numAmount = parseFloat(amount);
+    const numAmount = getKeypadNumericValue(amount);
     const vendorName = selectedVendor ? selectedVendor.name : searchQuery;
     const category = selectedCategory || (selectedVendor ? selectedVendor.category : 'other');
 
-    if (!isNaN(numAmount) && numAmount > 0 && vendorName) {
+    if (numAmount > 0 && vendorName) {
       // Track vendor usage
-      if (user && selectedVendor) {
+      if (user && selectedVendor && !selectedVendor.isCustom) {
         incrementVendorUsage(user.id, selectedVendor.id);
       }
       onSpend(numAmount, category, vendorName, selectedCurrency);
@@ -171,8 +166,6 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
     // Auto-select the newly added vendor
     handleSelectVendor(newVendor);
   };
-
-  const availableWallets = Object.keys(walletBalances) as Currency[];
 
   return (
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
@@ -201,7 +194,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                     type="text"
                     value={newVendorIcon}
                     onChange={(e) => setNewVendorIcon(e.target.value)}
-                    style={{ width: '42px', height: '42px', textAlign: 'center', fontSize: '20px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'white' }}
+                    style={{ width: '42px', height: '42px', textAlign: 'center', fontSize: '20px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'var(--text-primary)' }}
                   />
                   <input
                     type="text"
@@ -209,13 +202,13 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                     onChange={(e) => setNewVendorName(e.target.value)}
                     placeholder="Назва"
                     autoFocus
-                    style={{ flex: 1, padding: '10px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'white', fontSize: '15px', fontFamily: 'var(--font-text)', outline: 'none' }}
+                    style={{ flex: 1, padding: '10px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '15px', fontFamily: 'var(--font-text)', outline: 'none' }}
                   />
                 </div>
                 <select
                   value={newVendorCategory}
                   onChange={(e) => setNewVendorCategory(e.target.value)}
-                  style={{ padding: '10px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'white', fontSize: '14px', outline: 'none' }}>
+                  style={{ padding: '10px', background: 'var(--apple-surface-3)', border: 'none', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none' }}>
                   {categories.map(cat => (
                     <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
                   ))}
@@ -226,7 +219,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                     Скасувати
                   </button>
                   <button onClick={handleAddCustomVendor} disabled={!newVendorName}
-                    style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: 'var(--apple-blue)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', opacity: newVendorName ? 1 : 0.5 }}>
+                    style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '10px', background: 'var(--apple-blue)', color: 'var(--text-primary)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', opacity: newVendorName ? 1 : 0.5 }}>
                     Додати
                   </button>
                 </div>
@@ -260,7 +253,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                     }}>
                     <span style={{ fontSize: '20px' }}>{vendor.icon}</span>
                     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: '14px', fontWeight: 500, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{vendor.name}</span>
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{vendor.name}</span>
                       {(usageCounts[vendor.id] || 0) > 0 && (
                         <span style={{ fontSize: '11px', color: 'var(--apple-text-on-dark-tertiary)' }}>
                           {usageCounts[vendor.id]}× використано
@@ -284,7 +277,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
                       gridColumn: 'span 2'
                     }}>
                     <span style={{ fontSize: '20px' }}>➕</span>
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: 'white' }}>Додати "{searchQuery}"</span>
+                    <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>Додати "{searchQuery}"</span>
                   </div>
                 )}
               </div>
@@ -295,7 +288,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--apple-surface-2)', padding: '12px', borderRadius: '16px' }}>
               <span style={{ fontSize: '32px' }}>{selectedVendor.icon}</span>
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <span style={{ fontSize: '18px', fontWeight: 600, color: 'white' }}>{selectedVendor.name}</span>
+                <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>{selectedVendor.name}</span>
                 <span style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)' }}>Витрата з гаманця</span>
               </div>
               <button
@@ -305,57 +298,16 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
               </button>
             </div>
 
-            <input
-              type="text"
-              className="modal-amount-input"
-              placeholder={`0.00 ${CURRENCY_SYMBOLS[selectedCurrency]}`}
-              value={amount}
-              onChange={handleAmountChange}
-              inputMode="decimal"
-              autoFocus
-            />
-
-            {/* Category selector */}
-            <div className="modal-input-group">
-              <label className="modal-label">Категорія</label>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {categories.map(cat => (
-                  <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
-                    style={{
-                      padding: '6px 12px', borderRadius: '980px', border: 'none', fontSize: '13px',
-                      background: selectedCategory === cat.id ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
-                      color: 'white', cursor: 'pointer', fontWeight: 500,
-                    }}>
-                    {cat.icon} {cat.name}
-                  </button>
-                ))}
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <NumericKeypad
+                value={amount}
+                onChange={setAmount}
+                currencySymbol={CURRENCY_SYMBOLS[selectedCurrency]}
+                onSubmit={handleSubmit}
+                submitLabel="Підтвердити витрату"
+                isLoading={isLoading}
+              />
             </div>
-
-            <div className="modal-input-group">
-              <label className="modal-label">Гаманець</label>
-              <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
-                {availableWallets.map((c) => (
-                  <button
-                    key={c}
-                    className={`currency-btn ${selectedCurrency === c ? 'active' : ''}`}
-                    style={{ padding: '8px 4px', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
-                    onClick={() => setSelectedCurrency(c)}
-                  >
-                    <span>{c}</span>
-                    <span style={{ fontSize: '11px', opacity: 0.8 }}>{formatValue(walletBalances[c], c)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              className="modal-btn-primary"
-              onClick={handleSubmit}
-              disabled={isLoading || !amount || parseFloat(amount) <= 0}
-            >
-              {isLoading ? 'Завантаження...' : 'Підтвердити витрату'}
-            </button>
           </div>
         )}
       </div>

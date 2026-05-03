@@ -1,7 +1,6 @@
 /* ============================================
-   EXPENSE TRACKER — Apple Design System
-   Cinematic dark theme, SF Pro typography,
-   single accent blue (#0071e3)
+   EXPENSE TRACKER — SwiftUI-Inspired Design
+   Clean, spacious, premium dark UI
    ============================================ */
 
 /* === Phone Frame Container === */
@@ -13,27 +12,28 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--apple-black);
+  background: var(--bg);
 }
 
-/* === Header === */
+/* === Header — Minimal === */
 .header {
   position: relative;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: calc(var(--safe-area-top, 50px) + 12px) 20px 0;
+  padding: calc(var(--safe-area-top, 50px) + 8px) 24px 0;
   flex-shrink: 0;
 }
 
 .month-label {
   font-family: var(--font-text);
   font-weight: 600;
-  font-size: 17px;
-  line-height: 1.24;
-  letter-spacing: -0.374px;
-  color: var(--apple-text-on-dark);
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: -0.2px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
 }
 
 .settings-btn {
@@ -44,16 +44,16 @@
   justify-content: center;
   cursor: pointer;
   border-radius: var(--radius-circle);
-  background: var(--apple-surface-1);
+  background: var(--card-bg);
   transition: background 0.2s ease, transform 0.15s ease;
 }
 
 .settings-btn:hover {
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
 }
 
 .settings-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .settings-btn svg {
@@ -61,7 +61,7 @@
   height: 20px;
 }
 
-/* === Balance Section === */
+/* === Balance Section — Hero style === */
 .balance-section {
   position: relative;
   z-index: 1;
@@ -69,39 +69,39 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 1;
-  min-height: 0;
-  gap: 8px;
+  padding: 24px 0 8px;
+  flex-shrink: 0;
+  gap: 4px;
 }
 
 .balance-amount {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(36px, 10vw, 56px);
-  line-height: 1.07;
-  letter-spacing: -0.28px;
-  color: var(--apple-text-on-dark);
+  font-weight: 700;
+  font-size: clamp(36px, 10vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -1px;
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .balance-sub {
   font-family: var(--font-text);
   font-weight: 400;
-  font-size: 14px;
-  line-height: 1.29;
-  letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark-tertiary);
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: -0.1px;
+  color: var(--text-tertiary);
   white-space: nowrap;
 }
 
-/* === Bottom Card === */
+/* === Bottom Card — Main content area === */
 .bottom-card {
   position: relative;
   z-index: 1;
   padding: 16px;
-  background: var(--apple-surface-1);
-  border-radius: var(--radius-xl);
-  margin: 0 12px;
+  background: var(--card-bg);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -110,7 +110,7 @@
   overflow: hidden;
 }
 
-/* === Action Buttons === */
+/* === Action Buttons — Pill style === */
 .action-buttons {
   display: flex;
   gap: 10px;
@@ -119,19 +119,18 @@
 .action-btn {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   padding: 14px 0;
   cursor: pointer;
   border-radius: var(--radius-lg);
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
   transition: background 0.2s ease, transform 0.15s ease;
 }
 
 .action-btn:hover {
-  background: var(--apple-surface-3);
+  background: var(--card-bg-3);
 }
 
 .action-btn:active {
@@ -139,22 +138,22 @@
 }
 
 .action-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 .action-btn span {
   font-family: var(--font-text);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 14px;
-  line-height: 1.29;
-  letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark);
+  line-height: 1;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
 }
 
 /* === Payment History === */
 .payment-history {
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
   border-radius: var(--radius-lg);
   padding: 14px;
   display: flex;
@@ -173,9 +172,9 @@
   padding-right: 4px;
 }
 
-/* Стилизация скроллбара для iOS-подобного вида */
+/* Scrollbar — thin iOS style */
 .payment-list::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
 
 .payment-list::-webkit-scrollbar-track {
@@ -183,7 +182,7 @@
 }
 
 .payment-list::-webkit-scrollbar-thumb {
-  background: var(--apple-surface-3);
+  background: var(--card-bg-3);
   border-radius: 4px;
 }
 
@@ -198,30 +197,30 @@
   font-family: var(--font-text);
   font-weight: 600;
   font-size: 14px;
-  line-height: 1.29;
-  letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark);
+  line-height: 1.3;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
 }
 
 .payment-header .chevron {
   font-weight: 400;
-  font-size: 14px;
-  color: var(--apple-text-on-dark-tertiary);
+  font-size: 18px;
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: color 0.2s ease;
 }
 
 .payment-header .chevron:hover {
-  color: var(--apple-bright-blue);
+  color: var(--accent);
 }
 
-/* === Payment Item === */
+/* === Payment Item — Clean card === */
 .payment-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px 10px 10px;
-  background: var(--apple-surface-1);
+  padding: 10px 12px;
+  background: var(--card-bg);
   border-radius: var(--radius-md);
   overflow: hidden;
   transition: background 0.2s ease;
@@ -229,19 +228,19 @@
 }
 
 .payment-item:hover {
-  background: var(--apple-surface-elevated);
+  background: var(--card-hover);
 }
 
 .payment-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--apple-surface-3);
+  background: var(--card-bg-3);
 }
 
 .payment-icon img {
@@ -259,9 +258,9 @@
   font-family: var(--font-text);
   font-weight: 500;
   font-size: 15px;
-  line-height: 1.33;
-  letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark);
+  line-height: 1.3;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,9 +270,9 @@
   font-family: var(--font-text);
   font-weight: 400;
   font-size: 12px;
-  line-height: 1.33;
-  letter-spacing: -0.12px;
-  color: var(--apple-text-on-dark-tertiary);
+  line-height: 1.3;
+  letter-spacing: -0.1px;
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -285,35 +284,36 @@
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 15px;
-  line-height: 1.33;
-  letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark);
+  line-height: 1.3;
+  letter-spacing: -0.2px;
+  color: var(--text-primary);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .payment-amount.expense {
-  color: var(--apple-text-on-dark);
+  color: var(--text-primary);
 }
 
-/* === Bottom Navigation — Enlarged Apple Style === */
+/* === Bottom Navigation — Clean iOS Tab Bar === */
 .bottom-nav {
   position: relative;
   z-index: 10;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px calc(var(--safe-area-bottom, 50px) + 6px);
+  padding: 8px 16px calc(var(--safe-area-bottom, 50px) + 4px);
   flex-shrink: 0;
+  background: var(--bg);
 }
 
 .nav-pills {
   flex: 1;
   display: flex;
   align-items: center;
-  background: var(--apple-surface-1);
+  background: var(--card-bg);
   border-radius: var(--radius-pill);
-  height: 56px;
+  height: 52px;
   padding: 4px;
   position: relative;
 }
@@ -323,44 +323,45 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 48px;
+  height: 44px;
   cursor: pointer;
   position: relative;
   z-index: 2;
   transition: all 0.2s ease;
-  border-radius: 24px;
+  border-radius: 22px;
 }
 
 .nav-item svg {
-  width: 26px;
-  height: 26px;
-  opacity: 0.4;
+  width: 24px;
+  height: 24px;
+  opacity: 0.35;
   transition: opacity 0.25s ease;
 }
 
 .nav-item:hover svg {
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .nav-item.active svg {
   opacity: 1;
 }
 
-/* Active indicator — subtle Apple style */
+/* Active indicator — subtle */
 .nav-active-indicator {
   position: absolute;
   top: 4px;
-  height: 48px;
-  border-radius: 24px;
+  height: 44px;
+  border-radius: 22px;
   transition: left 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   z-index: 1;
   width: calc((100% - 8px) / 4);
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
 }
 
+/* FAB — Quick spend button */
 .search-btn {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -368,7 +369,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: var(--radius-circle);
-  background: var(--apple-blue);
+  background: var(--accent);
 }
 
 .search-btn:hover {
@@ -376,12 +377,51 @@
 }
 
 .search-btn:active {
-  transform: scale(0.94);
+  transform: scale(0.92);
 }
 
 .search-btn svg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   opacity: 1;
   color: var(--apple-white);
+}
+
+/* Custom Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--card-bg-3);
+  transition: .3s;
+  border-radius: 34px;
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 24px;
+  width: 24px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+input:checked + .toggle-slider {
+  background-color: var(--accent);
+}
+input:checked + .toggle-slider:before {
+  transform: translateX(22px);
 }

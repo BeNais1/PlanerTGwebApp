@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { type Transaction, getMonthlyBalance, getTransactions } from '../../services/database';
+import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { toPng } from 'html-to-image';
 import './Modals.css';
 
@@ -38,7 +39,7 @@ export const TransactionDetailModal = ({
   isLoading,
   walletBalances
 }: TransactionDetailModalProps) => {
-  const { formatValue } = useCurrency();
+  const { formatValue, CURRENCY_SYMBOLS } = useCurrency();
   const { categories, names: CATEGORY_NAMES, icons: CATEGORY_ICONS } = useCategories();
   const [isEditing, setIsEditing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -116,16 +117,11 @@ export const TransactionDetailModal = ({
     setTimeout(onClose, 300);
   };
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-    if (val.split('.').length > 2) return;
-    setAmount(val);
-  };
-
-  const handleSave = async () => {
-    const numAmount = parseFloat(amount);
-    if (!isNaN(numAmount) && numAmount > 0) {
-      await onUpdate(transaction.id!, { amount: numAmount, category, description, currency: selectedCurrency });
+  const handleSave = () => {
+    const numAmount = getKeypadNumericValue(amount);
+    if (numAmount > 0) {
+      onUpdate(transaction.id!, {
+        amount: numAmount, category, description, currency: selectedCurrency });
       setIsEditing(false);
     }
   };
@@ -162,13 +158,13 @@ export const TransactionDetailModal = ({
 
         {isEditing ? (
           <>
-            <input
-              type="text"
-              className="modal-amount-input"
-              style={{ color: transaction.type === 'income' ? 'var(--apple-blue)' : 'var(--apple-text-on-dark)' }}
+            <NumericKeypad
               value={amount}
-              onChange={handleAmountChange}
-              inputMode="decimal"
+              onChange={setAmount}
+              currencySymbol={CURRENCY_SYMBOLS[selectedCurrency]}
+              onSubmit={handleSave}
+              submitLabel="Зберегти"
+              isLoading={isLoading}
             />
 
             <div className="modal-input-group">
@@ -189,14 +185,20 @@ export const TransactionDetailModal = ({
             {transaction.type === 'expense' && (
               <div className="modal-input-group">
                 <label className="modal-label">Категорія</label>
-                <div className="categories-grid">
+                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
                   {categories.map((cat) => (
-                    <div key={cat.id}
-                      className={`category-item ${category === cat.id ? 'active' : ''}`}
-                      onClick={() => setCategory(cat.id)}>
-                      <div className="category-icon">{cat.icon}</div>
-                      <span className="category-name">{cat.name}</span>
-                    </div>
+                    <button key={cat.id}
+                      onClick={() => setCategory(cat.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '4px',
+                        padding: '6px 10px', borderRadius: '12px', border: 'none',
+                        background: category === cat.id ? 'var(--accent)' : 'var(--card-bg-2)',
+                        color: 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
+                        cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                      }}>
+                      <span>{cat.icon}</span>
+                      <span>{cat.name}</span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -207,14 +209,9 @@ export const TransactionDetailModal = ({
               <input type="text" className="modal-input" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--apple-surface-3)' }} onClick={() => setIsEditing(false)}>
-                Скасувати
-              </button>
-              <button className="modal-btn-primary" style={{ flex: 2 }} onClick={handleSave} disabled={isLoading}>
-                {isLoading ? 'Збереження...' : 'Зберегти'}
-              </button>
-            </div>
+            <button className="modal-btn-primary" style={{ background: 'var(--card-bg-3)', marginTop: '8px' }} onClick={() => setIsEditing(false)}>
+              Скасувати
+            </button>
           </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '10px 0' }}>

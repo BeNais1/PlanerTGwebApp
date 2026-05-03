@@ -7,7 +7,9 @@
   bottom: 0;
   height: var(--viewport-height, 100vh);
   height: 100dvh;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -33,11 +35,11 @@ html.keyboard-open .modal-overlay {
 }
 
 .modal-content {
-  background: var(--apple-surface-1);
-  border-radius: 32px 32px 0 0;
+  background: var(--card-bg);
+  border-radius: 28px 28px 0 0;
   padding: 24px 20px calc(var(--safe-area-bottom, 20px) + 24px);
   transform: translateY(100%);
-  animation: slideUp 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation: slideUp 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -168,25 +170,29 @@ html.keyboard-open .modal-content {
 
 .modal-title {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 20px;
-  color: var(--apple-text-on-dark);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
 }
 
 .modal-close {
-  width: 30px;
-  height: 30px;
-  border-radius: 15px;
-  background: var(--apple-surface-3);
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--card-bg-3);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--apple-text-on-dark-secondary);
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: transform 0.15s ease, background 0.15s ease;
 }
 
 .modal-close:active {
-  transform: scale(0.95);
+  transform: scale(0.9);
+  background: var(--card-bg-2);
 }
 
 /* Forms */
@@ -196,15 +202,16 @@ html.keyboard-open .modal-content {
   border: none;
   outline: none;
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 48px;
+  font-weight: 700;
+  font-size: 44px;
   text-align: center;
-  color: var(--apple-text-on-dark);
-  padding: 10px 0;
+  color: var(--text-primary);
+  padding: 8px 0;
+  letter-spacing: -1px;
 }
 
 .modal-amount-input::placeholder {
-  color: var(--apple-text-on-dark-tertiary);
+  color: var(--text-disabled);
 }
 
 .modal-input-group {
@@ -215,43 +222,45 @@ html.keyboard-open .modal-content {
 
 .modal-label {
   font-family: var(--font-text);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--apple-text-on-dark-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
   padding-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .modal-input {
   width: 100%;
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
   border: none;
   border-radius: var(--radius-md);
   padding: 14px 16px;
   font-family: var(--font-text);
   font-size: 16px;
-  color: var(--apple-text-on-dark);
+  color: var(--text-primary);
   outline: none;
   transition: box-shadow 0.2s ease;
 }
 
 .modal-input:focus {
-  box-shadow: 0 0 0 2px var(--apple-blue);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 /* Categories Grid */
 .categories-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 
 .category-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.5;
   transition: all 0.2s ease;
 }
 
@@ -260,34 +269,35 @@ html.keyboard-open .modal-content {
 }
 
 .category-icon {
-  width: 48px;
-  height: 48px;
-  background: var(--apple-surface-2);
-  border-radius: 50%;
+  width: 46px;
+  height: 46px;
+  background: var(--card-bg-2);
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 22px;
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .category-item.active .category-icon {
-  background: var(--apple-blue);
+  background: var(--accent);
   transform: scale(1.05);
 }
 
 .category-name {
   font-family: var(--font-text);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 500;
   text-align: center;
-  color: var(--apple-text-on-dark);
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 /* Primary Button */
 .modal-btn-primary {
   width: 100%;
-  background: var(--apple-blue);
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: var(--radius-lg);
@@ -296,11 +306,13 @@ html.keyboard-open .modal-content {
   font-size: 17px;
   font-weight: 600;
   cursor: pointer;
-  margin-top: 10px;
+  margin-top: 8px;
+  letter-spacing: -0.2px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .modal-btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -315,7 +327,7 @@ html.keyboard-open .modal-content {
   align-items: center;
   gap: 8px;
   padding: 20px 0;
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
   border-radius: var(--radius-lg);
   margin-top: 10px;
 }
@@ -323,14 +335,14 @@ html.keyboard-open .modal-content {
 .settings-balance-label {
   font-family: var(--font-text);
   font-size: 14px;
-  color: var(--apple-text-on-dark-secondary);
+  color: var(--text-secondary);
 }
 
 .settings-main-balance {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 36px;
-  color: var(--apple-text-on-dark);
+  color: var(--text-primary);
 }
 
 .settings-other-balances {
@@ -342,35 +354,35 @@ html.keyboard-open .modal-content {
 .settings-small-balance {
   font-family: var(--font-text);
   font-size: 14px;
-  color: var(--apple-text-on-dark-tertiary);
-  background: var(--apple-surface-3);
+  color: var(--text-tertiary);
+  background: var(--card-bg-3);
   padding: 4px 10px;
   border-radius: 12px;
 }
 
 .currency-selector {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .currency-btn {
   flex: 1;
-  padding: 14px 0;
+  padding: 12px 0;
   border: none;
   border-radius: var(--radius-md);
-  background: var(--apple-surface-2);
-  color: var(--apple-text-on-dark);
+  background: var(--card-bg-2);
+  color: var(--text-primary);
   font-family: var(--font-text);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .currency-btn.active {
-  background: var(--apple-blue);
+  background: var(--accent);
   color: white;
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 /* History Modal */

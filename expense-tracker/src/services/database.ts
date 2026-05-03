@@ -58,6 +58,14 @@ export interface CustomVendor {
   icon: string;
 }
 
+export interface OnboardingData {
+  gender: 'male' | 'female';
+  ageGroup: '<18' | '18+' | '25+' | '50+';
+  married: boolean;
+  pets: ('cat' | 'dog')[];
+  theme: 'dark' | 'light';
+}
+
 export interface UserSettings {
   currency?: string;
   walletNames?: Record<string, string>;
@@ -65,6 +73,12 @@ export interface UserSettings {
   hiddenCategories?: string[];
   customVendors?: CustomVendor[];
   vendorUsageCounts?: Record<string, number>; // vendorId -> usage count
+  budgetLimit?: number; // Monthly spending limit in main currency
+  budgetLimitIncludePrior?: boolean; // Whether to count expenses made before limit was set
+  budgetLimitStartDate?: number | null; // Timestamp when limit was set (if not including prior)
+  onboardingCompleted?: boolean;
+  onboarding?: OnboardingData;
+  theme?: 'dark' | 'light';
 }
 
 // ====== Helpers ======
@@ -418,4 +432,9 @@ export async function incrementVendorUsage(
   const counts = current.vendorUsageCounts || {};
   counts[vendorId] = (counts[vendorId] || 0) + 1;
   await set(settingsRef, { ...current, vendorUsageCounts: counts });
+}
+
+export async function deleteUserAccount(userId: number): Promise<void> {
+  const userRef = ref(database, `users/${userId}`);
+  await remove(userRef);
 }

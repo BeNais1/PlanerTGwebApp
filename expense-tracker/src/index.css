@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-/* === Apple Design System — SF Pro Font Stack === */
+/* === Design System — SF Pro + Inter Fallback === */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @font-face {
   font-family: 'SF Pro Display';
   src: local('SF Pro Display'), local('SFProDisplay-Regular'),
@@ -45,35 +47,38 @@
   font-style: normal;
 }
 
-/* === Apple Design Tokens as CSS Custom Properties === */
+/* === Design Tokens === */
 :root {
-  /* Colors — Primary */
-  --apple-black: #000000;
-  --apple-light-gray: #f5f5f7;
-  --apple-near-black: #1d1d1f;
-  --apple-white: #ffffff;
-
-  /* Colors — Interactive */
-  --apple-blue: #0071e3;
-  --apple-link-blue: #0066cc;
-  --apple-bright-blue: #2997ff;
-
-  /* Colors — Text */
-  --apple-text-primary: #1d1d1f;
-  --apple-text-secondary: rgba(0, 0, 0, 0.56);
-  --apple-text-tertiary: rgba(0, 0, 0, 0.48);
-  --apple-text-on-dark: #ffffff;
-  --apple-text-on-dark-secondary: rgba(255, 255, 255, 0.7);
-  --apple-text-on-dark-tertiary: rgba(255, 255, 255, 0.48);
-
-  /* Colors — Surfaces (Dark Mode) */
-  --apple-surface-1: #1c1c1e;
-  --apple-surface-2: #2c2c2e;
-  --apple-surface-3: #3a3a3c;
-  --apple-surface-elevated: #272729;
+  /* Colors — Core Palette (dark, muted, premium) */
+  --bg: #000000;
+  --bg-elevated: #0a0a0a;
   
+  /* Card surfaces — subtle and layered */
+  --card-bg: #141416;
+  --card-bg-2: #1e1e22;
+  --card-bg-3: #2a2a2e;
+  --card-hover: #222226;
+  
+  /* Accent — iOS blue */
+  --accent: #0a84ff;
+  --accent-dim: rgba(10, 132, 255, 0.15);
+  --accent-bright: #3da0ff;
+  
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --text-disabled: rgba(255, 255, 255, 0.2);
+
+  /* Semantic */
+  --success: #30d158;
+  --warning: #ffd60a;
+  --danger: #ff453a;
+  --income-color: #30d158;
+
   /* Shadows */
-  --apple-shadow-card: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
+  --shadow-card: 0 2px 20px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -82,13 +87,12 @@
   --spacing-lg: 20px;
   --spacing-xl: 24px;
   --spacing-2xl: 32px;
-  --spacing-3xl: 40px;
 
-  /* Border Radius — Apple Style (Softer) */
+  /* Border Radius — SwiftUI generous rounds */
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 20px;
-  --radius-xl: 32px;
+  --radius-xl: 28px;
   --radius-pill: 980px;
   --radius-full: 9999px;
   --radius-circle: 50%;
@@ -99,6 +103,66 @@
 
   /* Keyboard */
   --keyboard-height: 0px;
+
+  /* Legacy aliases for backward compat */
+  --apple-black: #000000;
+  --apple-white: #ffffff;
+  --apple-blue: #0a84ff;
+  --apple-bright-blue: #3da0ff;
+  --apple-link-blue: #0a84ff;
+  --apple-light-gray: #f5f5f7;
+  --apple-near-black: #1d1d1f;
+  --apple-text-primary: #1d1d1f;
+  --apple-text-secondary: rgba(0, 0, 0, 0.56);
+  --apple-text-tertiary: rgba(0, 0, 0, 0.48);
+  --apple-text-on-dark: #ffffff;
+  --apple-text-on-dark-secondary: rgba(255, 255, 255, 0.65);
+  --apple-text-on-dark-tertiary: rgba(255, 255, 255, 0.4);
+  --apple-surface-1: #141416;
+  --apple-surface-2: #1e1e22;
+  --apple-surface-3: #2a2a2e;
+  --apple-surface-elevated: #222226;
+  --apple-shadow-card: 0 2px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* === Light Theme === */
+[data-theme="light"] {
+  --bg: #F2F2F7;
+  --bg-elevated: #FFFFFF;
+
+  --card-bg: #FFFFFF;
+  --card-bg-2: #F2F2F7;
+  --card-bg-3: #E5E5EA;
+  --card-hover: #E8E8ED;
+
+  --accent: #007AFF;
+  --accent-dim: rgba(0, 122, 255, 0.12);
+  --accent-bright: #3da0ff;
+
+  --text-primary: #1C1C1E;
+  --text-secondary: rgba(60, 60, 67, 0.6);
+  --text-tertiary: rgba(60, 60, 67, 0.3);
+  --text-disabled: rgba(60, 60, 67, 0.15);
+
+  --success: #34C759;
+  --warning: #FF9F0A;
+  --danger: #FF3B30;
+  --income-color: #34C759;
+
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Legacy aliases — light overrides */
+  --apple-black: #1C1C1E;
+  --apple-white: #FFFFFF;
+  --apple-surface-1: #FFFFFF;
+  --apple-surface-2: #F2F2F7;
+  --apple-surface-3: #E5E5EA;
+  --apple-surface-elevated: #FFFFFF;
+  --apple-shadow-card: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --apple-text-on-dark: #1C1C1E;
+  --apple-text-on-dark-secondary: rgba(60, 60, 67, 0.6);
+  --apple-text-on-dark-tertiary: rgba(60, 60, 67, 0.3);
 }
 
 /* === Reset === */
@@ -112,8 +176,8 @@ body {
   font-family: var(--font-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--apple-black);
-  color: var(--apple-text-on-dark);
+  background: var(--bg);
+  color: var(--text-primary);
   letter-spacing: -0.374px;
   line-height: 1.47;
   font-size: 17px;
