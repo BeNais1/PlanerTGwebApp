@@ -204,7 +204,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
               style={{
                 flex: 1, padding: '8px', border: 'none', borderRadius: '11px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
                 background: activeTab === tab.id ? 'var(--card-bg-3)' : 'transparent',
-                color: activeTab === tab.id ? 'white' : 'var(--text-tertiary)',
+                color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 transition: 'all 0.2s ease',
               }}>
               {tab.label}

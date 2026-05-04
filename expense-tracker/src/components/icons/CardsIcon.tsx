@@ -6,14 +6,14 @@ export const CardsIcon = () => (
       width="15"
       height="13"
       rx="2"
-      stroke="white"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
     <path
       d="M7 21H19C20.1046 21 21 20.1046 21 19V8"
-      stroke="white"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -23,7 +23,7 @@ export const CardsIcon = () => (
       y1="7"
       x2="13"
       y2="7"
-      stroke="white"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
     />
@@ -32,7 +32,7 @@ export const CardsIcon = () => (
       y1="10.5"
       x2="10"
       y2="10.5"
-      stroke="white"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
     />

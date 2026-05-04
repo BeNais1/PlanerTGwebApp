@@ -14,7 +14,7 @@ export const ArrowTop = ({ className = "" }: ArrowTopProps) => {
     >
       <path
         d="M12 19V5M12 5L5 12M12 5L19 12"
-        stroke="white"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"

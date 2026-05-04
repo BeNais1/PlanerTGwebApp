@@ -3,15 +3,15 @@ export const SearchIcon = () => (
     <circle
       cx="11"
       cy="11"
-      r="8"
-      stroke="white"
+      r="7"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
     <path
-      d="M21 21L16.65 16.65"
-      stroke="white"
+      d="M20 20L16 16"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"

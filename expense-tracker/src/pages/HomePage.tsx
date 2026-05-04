@@ -321,7 +321,6 @@ export const HomePage = () => {
         walletBalances={walletBalances}
         mainCurrency={mainCurrency}
         isActive={activeNav === 3}
-        onClose={() => setActiveNav(0)}
       />
 
       <SubscriptionsView

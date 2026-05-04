@@ -8,7 +8,6 @@ interface AnalyticsViewProps {
   walletBalances: Record<string, number>;
   mainCurrency: Currency;
   isActive: boolean;
-  onClose: () => void;
 }
 
 type DateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'all';
@@ -51,7 +50,7 @@ function getDateRangeStart(range: DateRange): number {
   }
 }
 
-export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose }: AnalyticsViewProps) => {
+export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: AnalyticsViewProps) => {
   const { user } = useAuth();
   const { formatValue, CURRENCY_SYMBOLS, convertToMain } = useCurrency();
   const { colors: CATEGORY_COLORS, names: CATEGORY_NAMES } = useCategories();
@@ -184,18 +183,6 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive, onClose 
 
       <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--text-primary)', letterSpacing: '-1px' }}>Аналітика</h2>
-        <button onClick={onClose} style={{
-          display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
-          borderRadius: 'var(--radius-full)', background: 'var(--card-bg-2)',
-          color: 'var(--text-primary)', border: 'none', fontSize: '15px',
-          fontWeight: '600', width: 'fit-content', cursor: 'pointer'
-        }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-          Закрити
-        </button>
       </div>
 
       {/* Summary Cards */}

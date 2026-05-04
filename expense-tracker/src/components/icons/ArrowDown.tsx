@@ -14,7 +14,7 @@ export const ArrowDown = ({ className = "" }: ArrowDownProps) => {
     >
       <path
         d="M12 5V19M12 19L19 12M12 19L5 12"
-        stroke="white"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
