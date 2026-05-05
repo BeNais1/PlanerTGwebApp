@@ -6,6 +6,7 @@ interface BudgetBubbleProps {
   limit: number;
   formatValue: (amount: number) => string;
   onSetLimit: () => void;
+  period?: 'day' | 'week' | 'month';
 }
 
 // Particle data for pop effect
@@ -28,7 +29,7 @@ const generateParticles = (count: number, color: string): Particle[] => {
   }));
 };
 
-export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit }: BudgetBubbleProps) => {
+export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit, period = 'month' }: BudgetBubbleProps) => {
   const [hasPopped, setHasPopped] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const prevPercent = useRef(0);
@@ -96,27 +97,13 @@ export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit }: BudgetBu
 
   const particles = useMemo(() => generateParticles(12, bubbleColor), [bubbleColor]);
 
-  // SVG blob path (organic shape)
+  // SVG simple circle path
   const blobPath = useMemo(() => {
-    const cx = 50, cy = 50, r = 38;
-    const points = 8;
-    let d = '';
-    for (let i = 0; i <= points; i++) {
-      const angle = (i / points) * Math.PI * 2;
-      const variance = (i % 2 === 0) ? 2 : -1.5;
-      const px = cx + (r + variance) * Math.cos(angle);
-      const py = cy + (r + variance) * Math.sin(angle);
-      if (i === 0) {
-        d += `M ${px} ${py} `;
-      } else {
-        const prevAngle = ((i - 0.5) / points) * Math.PI * 2;
-        const cpx = cx + (r + 3) * Math.cos(prevAngle);
-        const cpy = cy + (r + 3) * Math.sin(prevAngle);
-        d += `Q ${cpx} ${cpy} ${px} ${py} `;
-      }
-    }
-    d += 'Z';
-    return d;
+    // A perfect circle using standard SVG path commands:
+    // M cx-r cy
+    // a r,r 0 1,0 (r*2),0
+    // a r,r 0 1,0 -(r*2),0
+    return 'M 12 50 a 38,38 0 1,0 76,0 a 38,38 0 1,0 -76,0';
   }, []);
 
   // === RENDER ===
@@ -210,7 +197,9 @@ export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit }: BudgetBu
           >
             {Math.round(percent)}%
           </span>
-          <span className="bubble-label">ліміт</span>
+          <span className="bubble-label">
+            ліміт {period === 'day' ? 'на день' : period === 'week' ? 'на тиждень' : 'на місяць'}
+          </span>
         </div>
       </div>
 

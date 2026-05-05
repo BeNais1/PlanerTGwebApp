@@ -73,12 +73,20 @@ export interface UserSettings {
   hiddenCategories?: string[];
   customVendors?: CustomVendor[];
   vendorUsageCounts?: Record<string, number>; // vendorId -> usage count
-  budgetLimit?: number; // Monthly spending limit in main currency
+  budgetLimit?: number; // Spending limit in main currency
+  budgetLimitPeriod?: 'day' | 'week' | 'month'; // the period for the limit
   budgetLimitIncludePrior?: boolean; // Whether to count expenses made before limit was set
   budgetLimitStartDate?: number | null; // Timestamp when limit was set (if not including prior)
   onboardingCompleted?: boolean;
   onboarding?: OnboardingData;
   theme?: 'dark' | 'light';
+}
+
+export interface SharedReceipt {
+  id: string;
+  creatorId: string;
+  transaction: Transaction;
+  createdAt: number;
 }
 
 // ====== Helpers ======
@@ -264,6 +272,33 @@ export async function deleteTransaction(
 ): Promise<void> {
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
   await set(txRef, null);
+}
+
+// ====== Shared Receipts ======
+
+export async function createSharedReceipt(
+  creatorId: string | number,
+  transaction: Transaction
+): Promise<string> {
+  const receiptsRef = ref(database, `shared_receipts`);
+  const newRef = push(receiptsRef);
+  const receiptId = newRef.key!;
+  
+  const receiptData: SharedReceipt = {
+    id: receiptId,
+    creatorId: String(creatorId),
+    transaction,
+    createdAt: Date.now()
+  };
+  
+  await set(newRef, receiptData);
+  return receiptId;
+}
+
+export async function getSharedReceipt(receiptId: string): Promise<SharedReceipt | null> {
+  const receiptRef = ref(database, `shared_receipts/${receiptId}`);
+  const snapshot = await get(receiptRef);
+  return snapshot.exists() ? (snapshot.val() as SharedReceipt) : null;
 }
 
 // ====== Realtime Subscriptions ======

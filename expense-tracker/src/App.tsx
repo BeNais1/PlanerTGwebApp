@@ -4,7 +4,8 @@ import { TelegramOnlyScreen } from './components/auth/TelegramOnlyScreen'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
-import { getUserSettings } from './services/database'
+import { getUserSettings, type SharedReceipt } from './services/database'
+import { SharedReceiptView } from './components/SharedReceiptView'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
 
@@ -12,6 +13,36 @@ function AppContent() {
   const { user, isLoading: authLoading } = useAuth();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [sharedReceipt, setSharedReceipt] = useState<SharedReceipt | null>(null);
+  const [checkingReceipt, setCheckingReceipt] = useState(false);
+
+  // Check for receipt deep link (either via Telegram start_param or direct URL query)
+  useEffect(() => {
+    const tg = (window as any).Telegram?.WebApp;
+    const startParam = tg?.initDataUnsafe?.start_param;
+    const urlParams = new URLSearchParams(window.location.search);
+    const receiptQuery = urlParams.get('receipt');
+    
+    let receiptId = '';
+    if (startParam && startParam.startsWith('receipt_')) {
+      receiptId = startParam.replace('receipt_', '');
+    } else if (receiptQuery) {
+      receiptId = receiptQuery;
+    }
+
+    if (receiptId) {
+      setCheckingReceipt(true);
+      import('./services/database').then(({ getSharedReceipt }) => {
+        getSharedReceipt(receiptId).then(receipt => {
+          if (receipt) setSharedReceipt(receipt);
+          setCheckingReceipt(false);
+        }).catch(err => {
+          console.error(err);
+          setCheckingReceipt(false);
+        });
+      });
+    }
+  }, []);
 
   // Check onboarding status once user is authenticated
   useEffect(() => {
@@ -58,8 +89,8 @@ function AppContent() {
     setOnboardingDone(true);
   };
 
-  // Show loading while checking auth or onboarding
-  if (authLoading || checkingOnboarding) {
+  // Show loading while checking auth or onboarding or receipt
+  if (authLoading || checkingOnboarding || checkingReceipt) {
     return (
       <div className="phone-frame">
         <div style={{ margin: 'auto', color: 'var(--text-secondary)', fontSize: '15px', fontWeight: 500 }}>
@@ -74,7 +105,14 @@ function AppContent() {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
   }
 
-  return <HomePage />;
+  return (
+    <>
+      <HomePage />
+      {sharedReceipt && (
+        <SharedReceiptView receipt={sharedReceipt} onClose={() => setSharedReceipt(null)} />
+      )}
+    </>
+  );
 }
 
 function App() {

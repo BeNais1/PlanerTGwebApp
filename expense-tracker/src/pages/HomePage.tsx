@@ -56,6 +56,7 @@ export const HomePage = () => {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [budgetLimit, setBudgetLimit] = useState(0);
   const [budgetLimitStartDate, setBudgetLimitStartDate] = useState<number | null | undefined>();
+  const [budgetLimitPeriod, setBudgetLimitPeriod] = useState<'day' | 'week' | 'month'>('month');
 
   // Modals state
   const [isSpendOpen, setIsSpendOpen] = useState(false);
@@ -69,6 +70,7 @@ export const HomePage = () => {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitInput, setLimitInput] = useState('');
   const [limitIncludePriorInput, setLimitIncludePriorInput] = useState(true);
+  const [limitPeriodInput, setLimitPeriodInput] = useState<'day' | 'week' | 'month'>('month');
 
   const navItems = [
     { icon: <HomeIcon />, id: 0 },
@@ -104,6 +106,8 @@ export const HomePage = () => {
       if (isSubscribed) {
         setBudgetLimit(settings.budgetLimit || 0);
         setBudgetLimitStartDate(settings.budgetLimitStartDate);
+        setBudgetLimitPeriod(settings.budgetLimitPeriod || 'month');
+        setLimitPeriodInput(settings.budgetLimitPeriod || 'month');
       }
     });
 
@@ -145,16 +149,31 @@ export const HomePage = () => {
     currentBalance += convertToMain(amount, cur as Currency);
   });
 
-  // Calculate total expenses this month (in main currency) for Bubble
-  const monthlyExpenses = useMemo(() => {
+  // Calculate total expenses for the selected period (in main currency) for Bubble
+  const periodExpenses = useMemo(() => {
+    let periodStart = 0;
+    const now = new Date();
+    
+    if (budgetLimitPeriod === 'day') {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    } else if (budgetLimitPeriod === 'week') {
+      const d = new Date(now);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+      periodStart = new Date(d.setDate(diff)).setHours(0,0,0,0);
+    } else {
+      periodStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    }
+
     return transactions
       .filter(t => {
         if (t.type !== 'expense') return false;
+        if (t.date < periodStart) return false;
         if (budgetLimitStartDate && t.date < budgetLimitStartDate) return false;
         return true;
       })
       .reduce((acc, t) => acc + convertToMain(t.amount, (t.currency || mainCurrency) as Currency), 0);
-  }, [transactions, mainCurrency, convertToMain, budgetLimitStartDate]);
+  }, [transactions, mainCurrency, convertToMain, budgetLimitStartDate, budgetLimitPeriod]);
 
   // Handlers
   const handleSetInitialBalance = async (amount: number, currency: Currency = mainCurrency) => {
@@ -218,6 +237,7 @@ export const HomePage = () => {
     if (num > 0) {
       await updateUserSettings(user.id, { 
         budgetLimit: num,
+        budgetLimitPeriod: limitPeriodInput,
         budgetLimitIncludePrior: limitIncludePriorInput,
         budgetLimitStartDate: limitIncludePriorInput ? null : Date.now()
       } as any);
@@ -290,6 +310,19 @@ export const HomePage = () => {
               </label>
             </div>
 
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              {(['day', 'week', 'month'] as const).map(period => (
+                <button key={period} onClick={() => setLimitPeriodInput(period)} style={{
+                  flex: 1, padding: '10px 0', border: 'none', borderRadius: '12px',
+                  background: limitPeriodInput === period ? 'var(--accent)' : 'var(--card-bg-2)',
+                  color: limitPeriodInput === period ? 'white' : 'var(--text-secondary)',
+                  fontWeight: 600, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s ease'
+                }}>
+                  {period === 'day' ? 'День' : period === 'week' ? 'Тиждень' : 'Місяць'}
+                </button>
+              ))}
+            </div>
+
             <NumericKeypad
               value={limitInput}
               onChange={setLimitInput}
@@ -350,10 +383,11 @@ export const HomePage = () => {
 
       {/* Budget Bubble */}
       <BudgetBubble
-        spent={monthlyExpenses}
+        spent={periodExpenses}
         limit={budgetLimit}
         formatValue={formatValue}
         onSetLimit={() => setShowLimitModal(true)}
+        period={budgetLimitPeriod}
       />
 
       {/* Bottom Card */}

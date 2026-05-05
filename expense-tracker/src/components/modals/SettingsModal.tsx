@@ -27,6 +27,8 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
   const [budgetLimit, setBudgetLimit] = useState(0);
   const [limitInput, setLimitInput] = useState('');
   const [limitIncludePriorInput, setLimitIncludePriorInput] = useState(true);
+  const [budgetLimitPeriod, setBudgetLimitPeriod] = useState<'day' | 'week' | 'month'>('month');
+  const [limitPeriodInput, setLimitPeriodInput] = useState<'day' | 'week' | 'month'>('month');
 
   // Category add form
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -39,6 +41,8 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     if (!user) return;
     const unsub = subscribeToUserSettings(user.id, (settings: UserSettings) => {
       setBudgetLimit(settings.budgetLimit || 0);
+      setBudgetLimitPeriod(settings.budgetLimitPeriod || 'month');
+      setLimitPeriodInput(settings.budgetLimitPeriod || 'month');
     });
     return () => unsub();
   }, [user]);
@@ -100,6 +104,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     if (num > 0) {
       await updateUserSettings(user.id, { 
         budgetLimit: num,
+        budgetLimitPeriod: limitPeriodInput,
         budgetLimitIncludePrior: limitIncludePriorInput,
         budgetLimitStartDate: limitIncludePriorInput ? null : Date.now()
       } as any);
@@ -340,7 +345,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                     {formatValue(budgetLimit)}
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                    на місяць
+                    на {budgetLimitPeriod === 'day' ? 'день' : budgetLimitPeriod === 'week' ? 'тиждень' : 'місяць'}
                   </div>
                 </>
               ) : (
@@ -370,6 +375,19 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
                   />
                   <span className="toggle-slider"></span>
                 </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                {(['day', 'week', 'month'] as const).map(period => (
+                  <button key={period} onClick={() => setLimitPeriodInput(period)} style={{
+                    flex: 1, padding: '10px 0', border: 'none', borderRadius: '12px',
+                    background: limitPeriodInput === period ? 'var(--accent)' : 'var(--card-bg-2)',
+                    color: limitPeriodInput === period ? 'white' : 'var(--text-secondary)',
+                    fontWeight: 600, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s ease'
+                  }}>
+                    {period === 'day' ? 'День' : period === 'week' ? 'Тиждень' : 'Місяць'}
+                  </button>
+                ))}
               </div>
 
               <NumericKeypad

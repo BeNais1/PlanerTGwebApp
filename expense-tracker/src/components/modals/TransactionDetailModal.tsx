@@ -112,6 +112,33 @@ export const TransactionDetailModal = ({
     }
   };
 
+  const handleShareLink = async () => {
+    if (!user || isSharing) return;
+    try {
+      setIsSharing(true);
+      const { createSharedReceipt } = await import('../../services/database');
+      const receiptId = await createSharedReceipt(user.id, transaction);
+      const botUsername = 'planer0bot'; // Your bot username
+      const link = `https://t.me/${botUsername}?start=receipt_${receiptId}`;
+      
+      const text = `🧾 Чек: ${transaction.type === 'expense' ? 'Витрата' : 'Дохід'} ${transaction.amount} ${transaction.currency}`;
+      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+      
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg && tg.openTelegramLink) {
+        tg.openTelegramLink(shareUrl);
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${link}`);
+        alert('Посилання на чек скопійовано в буфер обміну!');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Помилка при створенні чеку');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const handleClose = () => {
     setIsClosing(true);
     setTimeout(onClose, 300);
@@ -270,6 +297,14 @@ export const TransactionDetailModal = ({
                 Змінити
               </button>
             </div>
+            <button 
+              className="modal-btn-primary" 
+              style={{ width: '100%', background: 'var(--accent)', color: 'white', marginTop: '4px' }} 
+              onClick={handleShareLink} 
+              disabled={isSharing}
+            >
+              {isSharing ? 'Створення...' : 'Поділитися чеком'}
+            </button>
           </div>
         )}
       </div>
