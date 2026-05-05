@@ -37,7 +37,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
     } else if (Object.keys(walletBalances).length > 0) {
        setSelectedCurrency(Object.keys(walletBalances)[0] as Currency);
     }
-  }, [mainCurrency]);
+  }, [mainCurrency, walletBalances]);
 
   const handleSubmit = () => {
     const numAmount = getKeypadNumericValue(amount);

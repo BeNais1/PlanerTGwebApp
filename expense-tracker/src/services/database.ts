@@ -270,8 +270,8 @@ export async function addTransaction(
   const txRef = ref(database, `users/${userId}/transactions`);
   const newRef = push(txRef);
   // Default legacy currency to EUR if not provided
-  if (!transaction.currency) transaction.currency = 'EUR';
-  await set(newRef, transaction);
+  const txToSave = transaction.currency ? transaction : { ...transaction, currency: 'EUR' };
+  await set(newRef, txToSave);
   return newRef.key!;
 }
 

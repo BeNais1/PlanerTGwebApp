@@ -99,7 +99,9 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
       setUsageCounts(settings?.vendorUsageCounts || {});
       setCustomVendors(settings?.customVendors || []);
     });
-    return () => unsub();
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, [user]);
 
   useEffect(() => {

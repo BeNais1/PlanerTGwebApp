@@ -19,6 +19,8 @@ export const useTelegramAuth = () => {
   });
 
   useEffect(() => {
+    let isMounted = true;
+
     const authenticate = async () => {
       try {
         const tg = window.Telegram?.WebApp;
@@ -34,14 +36,12 @@ export const useTelegramAuth = () => {
           throw new Error('User data not available');
         }
 
-        // Проверяем, есть ли сохраненный токен
-        const savedToken = localStorage.getItem('authToken');
-        
         let validUser = initDataUnsafe.user as TelegramUser;
 
         // Bypass Vercel backend validation since Vercel is protected by SSO
         // This makes the app rely solely on Telegram data and Firebase directly.
-        localStorage.setItem('authToken', 'telegram-valid-session');
+        const token = 'telegram-valid-session';
+        localStorage.setItem('authToken', token);
 
         // Регистрируем пользователя в Firebase
         const { registerUser } = await import('../services/database');
@@ -52,27 +52,35 @@ export const useTelegramAuth = () => {
           validUser.username || ''
         );
 
-        setAuthState({
-          isAuthenticated: true,
-          user: validUser,
-          token: savedToken || localStorage.getItem('authToken'),
-          isLoading: false,
-          error: null,
-        });
+        if (isMounted) {
+          setAuthState({
+            isAuthenticated: true,
+            user: validUser,
+            token,
+            isLoading: false,
+            error: null,
+          });
+        }
 
       } catch (error) {
         console.error('Authentication error:', error);
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          isLoading: false,
-          error: error instanceof Error ? error.message : 'Authentication failed',
-        });
+        if (isMounted) {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            token: null,
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'Authentication failed',
+          });
+        }
       }
     };
 
     authenticate();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const logout = () => {

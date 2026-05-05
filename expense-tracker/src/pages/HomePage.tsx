@@ -190,49 +190,79 @@ export const HomePage = () => {
   const handleSpend = async (amount: number, category: string, description: string, currency: Currency) => {
     if (!user) return;
     setIsSaving(true);
-    await addTransaction(user.id, {
-      type: 'expense', amount, category, description,
-      date: Date.now(), month: currentMonth, currency
-    });
-    setIsSaving(false);
-    setIsSpendOpen(false);
+    try {
+      await addTransaction(user.id, {
+        type: 'expense', amount, category, description,
+        date: Date.now(), month: currentMonth, currency
+      });
+      setIsSpendOpen(false);
+    } catch (error) {
+      console.error('Failed to add spend transaction:', error);
+      alert('Помилка при додаванні видатків. Спробуйте ще раз.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAdd = async (amount: number, description: string, currency: Currency) => {
     if (!user) return;
     setIsSaving(true);
-    await addTransaction(user.id, {
-      type: 'income', amount, category: 'income', description,
-      date: Date.now(), month: currentMonth, currency
-    });
-    setIsSaving(false);
-    setIsAddOpen(false);
+    try {
+      await addTransaction(user.id, {
+        type: 'income', amount, category: 'income', description,
+        date: Date.now(), month: currentMonth, currency
+      });
+      setIsAddOpen(false);
+    } catch (error) {
+      console.error('Failed to add income transaction:', error);
+      alert('Помилка при додаванні доходу. Спробуйте ще раз.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleQuickSpend = async (amount: number, category: string, description: string, currency: Currency) => {
     if (!user) return;
     setIsSaving(true);
-    await addTransaction(user.id, {
-      type: 'expense', amount, category, description,
-      date: Date.now(), month: currentMonth, currency
-    });
-    setIsSaving(false);
-    setIsQuickSpendOpen(false);
+    try {
+      await addTransaction(user.id, {
+        type: 'expense', amount, category, description,
+        date: Date.now(), month: currentMonth, currency
+      });
+      setIsQuickSpendOpen(false);
+    } catch (error) {
+      console.error('Failed to add quick spend transaction:', error);
+      alert('Помилка при додаванні видатків. Спробуйте ще раз.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteTransaction = async (id: string) => {
     if (!user) return;
     setIsTxActionLoading(true);
-    await deleteTransaction(user.id, id);
-    setIsTxActionLoading(false);
-    setSelectedTx(null);
+    try {
+      await deleteTransaction(user.id, id);
+      setSelectedTx(null);
+    } catch (error) {
+      console.error('Failed to delete transaction:', error);
+      alert('Помилка при видаленні транзакції. Спробуйте ще раз.');
+    } finally {
+      setIsTxActionLoading(false);
+    }
   };
 
   const handleUpdateTransaction = async (id: string, data: Partial<Transaction>) => {
     if (!user) return;
     setIsTxActionLoading(true);
-    await updateTransaction(user.id, id, data);
-    setIsTxActionLoading(false);
+    try {
+      await updateTransaction(user.id, id, data);
+    } catch (error) {
+      console.error('Failed to update transaction:', error);
+      alert('Помилка при оновленні транзакції. Спробуйте ще раз.');
+    } finally {
+      setIsTxActionLoading(false);
+    }
   };
 
   const handleSetBudgetLimit = async () => {
