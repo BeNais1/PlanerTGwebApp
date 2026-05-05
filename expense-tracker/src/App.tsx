@@ -4,7 +4,7 @@ import { TelegramOnlyScreen } from './components/auth/TelegramOnlyScreen'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
-import { getUserSettings, type SharedReceipt } from './services/database'
+import { getUserSettings, getReceiptShare, getSharedReceipt, type ReceiptShare } from './services/database'
 import { SharedReceiptView } from './components/SharedReceiptView'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
@@ -13,8 +13,9 @@ function AppContent() {
   const { user, isLoading: authLoading } = useAuth();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
-  const [sharedReceipt, setSharedReceipt] = useState<SharedReceipt | null>(null);
+  const [activeShare, setActiveShare] = useState<ReceiptShare | null>(null);
   const [checkingReceipt, setCheckingReceipt] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
 
   // Check for receipt deep link (either via Telegram start_param or direct URL query)
   useEffect(() => {
@@ -23,23 +24,46 @@ function AppContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const receiptQuery = urlParams.get('receipt');
     
-    let receiptId = '';
+    let shareCode = '';
     if (startParam && startParam.startsWith('receipt_')) {
-      receiptId = startParam.replace('receipt_', '');
+      shareCode = startParam.replace('receipt_', '');
     } else if (receiptQuery) {
-      receiptId = receiptQuery;
+      shareCode = receiptQuery;
     }
 
-    if (receiptId) {
+    if (shareCode) {
       setCheckingReceipt(true);
-      import('./services/database').then(({ getSharedReceipt }) => {
-        getSharedReceipt(receiptId).then(receipt => {
-          if (receipt) setSharedReceipt(receipt);
-          setCheckingReceipt(false);
-        }).catch(err => {
-          console.error(err);
-          setCheckingReceipt(false);
-        });
+      // Try new system first, then fall back to legacy
+      getReceiptShare(shareCode).then(async (share) => {
+        if (share) {
+          if (!share.isActive) {
+            setReceiptError('Це посилання було вимкнено автором.');
+          } else {
+            setActiveShare(share);
+          }
+        } else {
+          // Fallback: try old shared_receipts (legacy)
+          const legacy = await getSharedReceipt(shareCode);
+          if (legacy) {
+            // Convert legacy to ReceiptShare-like object
+            const fakeShare: ReceiptShare = {
+              id: legacy.id,
+              receiptId: '',
+              ownerId: legacy.creatorId,
+              shareCode: legacy.id,
+              isActive: true,
+              privacyMode: 'anonymous',
+              transaction: legacy.transaction,
+              createdAt: legacy.createdAt,
+              updatedAt: legacy.createdAt,
+            };
+            setActiveShare(fakeShare);
+          }
+        }
+        setCheckingReceipt(false);
+      }).catch(err => {
+        console.error(err);
+        setCheckingReceipt(false);
       });
     }
   }, []);
@@ -108,8 +132,34 @@ function AppContent() {
   return (
     <>
       <HomePage />
-      {sharedReceipt && (
-        <SharedReceiptView receipt={sharedReceipt} onClose={() => setSharedReceipt(null)} />
+      {activeShare && (
+        <SharedReceiptView share={activeShare} onClose={() => setActiveShare(null)} />
+      )}
+      {receiptError && (
+        <div className="shared-receipt-overlay">
+          <div style={{
+            background: 'var(--card-bg)', borderRadius: '24px', padding: '32px 24px',
+            textAlign: 'center', maxWidth: '320px', margin: '0 20px',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>
+              Посилання недоступне
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+              {receiptError}
+            </p>
+            <button
+              onClick={() => setReceiptError('')}
+              style={{
+                padding: '12px 32px', borderRadius: '14px', border: 'none',
+                background: 'var(--accent)', color: 'white', fontWeight: 600,
+                fontSize: '15px', cursor: 'pointer',
+              }}
+            >
+              Зрозуміло
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

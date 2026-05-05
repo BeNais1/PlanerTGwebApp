@@ -38,7 +38,8 @@ const bot = new Telegraf(token);
 
 bot.start(async (ctx) => {
   const { id, first_name, last_name, username } = ctx.from;
-  console.log(`User ${id} started the bot`);
+  const payload = ctx.startPayload; // Получаем параметр из ссылки (например, receipt_-O12345)
+  console.log(`User ${id} started the bot with payload: ${payload || 'none'}`);
 
   if (db) {
     try {
@@ -61,6 +62,45 @@ bot.start(async (ctx) => {
     console.error('❌ Database not initialized - registration skipped');
   }
 
+  // Если пользователь перешел по ссылке чека
+  if (payload && payload.startsWith('receipt_')) {
+    const shareCode = payload.replace('receipt_', '');
+    
+    // Check if share exists and is active
+    let shareActive = true;
+    if (db) {
+      try {
+        const shareSnap = await db.ref(`shared_receipts/${shareCode}`).get();
+        if (shareSnap.exists()) {
+          const shareData = shareSnap.val();
+          shareActive = shareData.isActive !== false;
+        }
+        // Also check legacy shared_receipts if not found
+        if (!shareSnap.exists()) {
+          const legacySnap = await db.ref(`shared_receipts/${shareCode}`).get();
+          if (!legacySnap.exists()) {
+            return ctx.reply('❌ Чек не знайдено. Можливо, посилання застаріло.');
+          }
+        }
+      } catch (err) {
+        console.error('Error checking receipt share:', err);
+      }
+    }
+    
+    if (!shareActive) {
+      return ctx.reply('🔒 Автор вимкнув це посилання на чек.');
+    }
+    
+    return ctx.reply(`🧾 Вам прислали чек!\nНажмите кнопку ниже, чтобы посмотреть детали.`, {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Посмотреть чек 🧾", web_app: { url: `https://planer-app-3a0f2.web.app/?receipt=${shareCode}` } }]
+        ]
+      }
+    });
+  }
+
+  // Обычный запуск бота
   ctx.reply(`Привет, ${first_name}! Я твой Трекер Расходов 💰\n\nНажми кнопку ниже, чтобы открыть приложение.`, {
     reply_markup: {
       inline_keyboard: [

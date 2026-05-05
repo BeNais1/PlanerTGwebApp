@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
-import { type Transaction, getMonthlyBalance, getTransactions } from '../../services/database';
+import { type Transaction, getMonthlyBalance, getTransactions, type PrivacyMode, createReceiptShare, toggleReceiptShare, getShareStatus } from '../../services/database';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { toPng } from 'html-to-image';
 import './Modals.css';
@@ -44,6 +44,13 @@ export const TransactionDetailModal = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isSharingOptionsOpen, setIsSharingOptionsOpen] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState<PrivacyMode>('public');
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [activeShareCode, setActiveShareCode] = useState('');
+  const [isShareActive, setIsShareActive] = useState(true);
+  const [shareExists, setShareExists] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(true);
   const receiptRef = useRef<HTMLDivElement>(null);
   
   // Edit State
@@ -53,6 +60,30 @@ export const TransactionDetailModal = ({
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(transaction.currency as Currency || 'EUR');
   const { user } = useAuth();
   const [balanceAfter, setBalanceAfter] = useState<number | null>(null);
+
+  // Load share status on mount (not on button click)
+  useEffect(() => {
+    if (!user || !transaction.id) {
+      setLoadingStatus(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingStatus(true);
+    getShareStatus(user.id, transaction.id).then((status) => {
+      if (cancelled) return;
+      if (status) {
+        setShareExists(true);
+        setGeneratedLink(status.shareUrl);
+        setActiveShareCode(status.shareCode);
+        setIsShareActive(status.isActive);
+        setPrivacyMode(status.privacyMode);
+      }
+      setLoadingStatus(false);
+    }).catch(() => {
+      if (!cancelled) setLoadingStatus(false);
+    });
+    return () => { cancelled = true; };
+  }, [user, transaction.id]);
 
   useEffect(() => {
     if (!user || !transaction.month) return;
@@ -116,27 +147,50 @@ export const TransactionDetailModal = ({
     if (!user || isSharing) return;
     try {
       setIsSharing(true);
-      const { createSharedReceipt } = await import('../../services/database');
-      const receiptId = await createSharedReceipt(user.id, transaction);
-      const botUsername = 'planer0bot'; // Your bot username
-      const link = `https://t.me/${botUsername}?start=receipt_${receiptId}`;
-      
-      const text = `🧾 Чек: ${transaction.type === 'expense' ? 'Витрата' : 'Дохід'} ${transaction.amount} ${transaction.currency}`;
-      const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
-      
-      const tg = (window as any).Telegram?.WebApp;
-      if (tg && tg.openTelegramLink) {
-        tg.openTelegramLink(shareUrl);
-      } else {
-        await navigator.clipboard.writeText(`${text}\n${link}`);
-        alert('Посилання на чек скопійовано в буфер обміну!');
-      }
+      const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+      const share = await createReceiptShare(
+        user.id, transaction, privacyMode, displayName, user.username
+      );
+      const botUsername = 'planer0bot';
+      const link = `https://t.me/${botUsername}?start=receipt_${share.shareCode}`;
+      setGeneratedLink(link);
+      setActiveShareCode(share.shareCode);
+      setIsShareActive(share.isActive);
+      setShareExists(true);
     } catch (error) {
       console.error(error);
       alert('Помилка при створенні чеку');
     } finally {
       setIsSharing(false);
     }
+  };
+
+  const handleSendToChat = () => {
+    const text = `🧾 Чек: ${transaction.type === 'expense' ? 'Витрата' : 'Дохід'} ${transaction.amount} ${transaction.currency}`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(generatedLink)}&text=${encodeURIComponent(text)}`;
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg && tg.openTelegramLink) {
+      tg.openTelegramLink(shareUrl);
+    } else {
+      window.open(shareUrl, '_blank');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      alert('Посилання скопійовано!');
+    } catch (e) {
+      console.error(e);
+      alert('Не вдалося скопіювати');
+    }
+  };
+
+  const handleToggleActive = async () => {
+    if (!activeShareCode) return;
+    const newActive = !isShareActive;
+    await toggleReceiptShare(activeShareCode, newActive);
+    setIsShareActive(newActive);
   };
 
   const handleClose = () => {
@@ -297,14 +351,148 @@ export const TransactionDetailModal = ({
                 Змінити
               </button>
             </div>
-            <button 
-              className="modal-btn-primary" 
-              style={{ width: '100%', background: 'var(--accent)', color: 'white', marginTop: '4px' }} 
-              onClick={handleShareLink} 
-              disabled={isSharing}
-            >
-              {isSharing ? 'Створення...' : 'Поділитися чеком'}
-            </button>
+
+            {/* Share Link Section */}
+            {loadingStatus ? (
+              <div style={{ textAlign: 'center', padding: '8px', color: 'var(--text-tertiary)', fontSize: '12px' }}>
+                ···
+              </div>
+            ) : (
+              <>
+                {/* Smart Share Button */}
+                {!isSharingOptionsOpen && (
+                  <button 
+                    className="modal-btn-primary" 
+                    style={{ 
+                      width: '100%', marginTop: '4px',
+                      background: shareExists && isShareActive 
+                        ? 'var(--accent)' 
+                        : shareExists && !isShareActive 
+                          ? 'var(--card-bg-3)' 
+                          : 'var(--accent)',
+                      color: shareExists && !isShareActive ? 'var(--text-secondary)' : 'white',
+                    }} 
+                    onClick={() => setIsSharingOptionsOpen(true)} 
+                  >
+                    {shareExists && isShareActive 
+                      ? '🔗 Посилання на чек' 
+                      : shareExists && !isShareActive 
+                        ? '🔒 Посилання вимкнено' 
+                        : '📤 Створити посилання'}
+                  </button>
+                )}
+
+                {/* Expanded Share Panel */}
+                {isSharingOptionsOpen && (
+                  <div style={{ background: 'var(--apple-surface-2)', borderRadius: '16px', padding: '16px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    
+                    {/* Privacy Mode (only when creating new) */}
+                    {!shareExists && (
+                      <>
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Приватність
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {(['public', 'anonymous'] as const).map(mode => (
+                            <button
+                              key={mode}
+                              onClick={() => setPrivacyMode(mode)}
+                              style={{
+                                flex: 1, padding: '10px 8px', border: 'none', borderRadius: '12px',
+                                background: privacyMode === mode ? 'var(--accent)' : 'var(--card-bg-3)',
+                                color: privacyMode === mode ? 'white' : 'var(--text-secondary)',
+                                fontWeight: 600, fontSize: '12px', cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              {mode === 'public' ? '👤 Показати імʼя' : '🕵️ Анонімно'}
+                            </button>
+                          ))}
+                        </div>
+                        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '-4px 0 0 0' }}>
+                          {privacyMode === 'public'
+                            ? 'Ваше імʼя та username будуть видні отримувачу'
+                            : 'Ваші дані будуть приховані від отримувача'}
+                        </p>
+                        <button 
+                          className="modal-btn-primary" 
+                          style={{ width: '100%', background: 'var(--accent)', color: 'white' }} 
+                          onClick={handleShareLink} 
+                          disabled={isSharing}
+                        >
+                          {isSharing ? 'Генерація...' : 'Створити посилання'}
+                        </button>
+                      </>
+                    )}
+
+                    {/* Existing link management */}
+                    {shareExists && (
+                      <>
+                        {/* Status badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '8px', height: '8px', borderRadius: '50%',
+                            background: isShareActive ? '#34c759' : 'var(--danger)',
+                          }} />
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {isShareActive ? 'Посилання активне' : 'Посилання вимкнено'}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
+                            {privacyMode === 'public' ? '👤 Публічне' : '🕵️ Анонімне'}
+                          </span>
+                        </div>
+
+                        {isShareActive && (
+                          <>
+                            {/* Link + copy */}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <input 
+                                type="text" 
+                                readOnly 
+                                value={generatedLink} 
+                                style={{ flex: 1, padding: '10px 12px', background: 'var(--card-bg-3)', border: 'none', borderRadius: '10px', color: 'var(--text-primary)', fontSize: '11px' }}
+                              />
+                              <button onClick={handleCopyLink} style={{ padding: '0 14px', background: 'var(--card-bg-3)', color: 'var(--accent)', border: 'none', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>
+                                📋
+                              </button>
+                            </div>
+                            {/* Send to Telegram */}
+                            <button 
+                              className="modal-btn-primary" 
+                              style={{ width: '100%', background: 'var(--apple-blue)', color: 'white' }} 
+                              onClick={handleSendToChat} 
+                            >
+                              Відправити в Telegram
+                            </button>
+                          </>
+                        )}
+
+                        {/* Toggle active */}
+                        <button
+                          onClick={handleToggleActive}
+                          style={{
+                            padding: '10px', border: 'none', borderRadius: '10px',
+                            background: isShareActive ? 'rgba(255,59,48,0.1)' : 'rgba(52,199,89,0.1)',
+                            color: isShareActive ? 'var(--danger)' : '#34c759',
+                            fontWeight: 600, fontSize: '13px', cursor: 'pointer',
+                          }}
+                        >
+                          {isShareActive ? '🔒 Вимкнути посилання' : '🔓 Увімкнути посилання'}
+                        </button>
+                      </>
+                    )}
+
+                    {/* Collapse */}
+                    <button
+                      onClick={() => setIsSharingOptionsOpen(false)}
+                      style={{ padding: '6px', border: 'none', background: 'none', color: 'var(--text-tertiary)', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      Згорнути
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

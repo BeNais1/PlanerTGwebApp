@@ -6,6 +6,7 @@ import {
   push,
   remove,
   onValue,
+  update,
   query,
   orderByChild,
   equalTo,
@@ -82,11 +83,46 @@ export interface UserSettings {
   theme?: 'dark' | 'light';
 }
 
+// Legacy — kept for backward compat with old deep links
 export interface SharedReceipt {
   id: string;
   creatorId: string;
   transaction: Transaction;
   createdAt: number;
+  allowSave?: boolean;
+}
+
+// ====== New Receipt Sharing System ======
+
+export type PrivacyMode = 'public' | 'anonymous';
+
+export interface ReceiptShare {
+  id: string;               // === shareCode
+  receiptId: string;        // transaction.id
+  ownerId: string;
+  shareCode: string;        // 8-char code
+  isActive: boolean;
+  privacyMode: PrivacyMode;
+  transaction: Transaction;  // snapshot at creation time
+  ownerName?: string | null;       // shown if privacyMode === 'public'
+  ownerUsername?: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SavedSharedReceipt {
+  id: string;               // === shareCode
+  userId: string;
+  shareCode: string;
+  receiptId: string;
+  ownerId: string;
+  savedAt: number;
+}
+
+export interface ReceiptSaver {
+  userId: string;
+  displayName: string;
+  savedAt: number;
 }
 
 // ====== Helpers ======
@@ -272,33 +308,279 @@ export async function deleteTransaction(
 ): Promise<void> {
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
   await set(txRef, null);
+  
+  // Deactivate any shared receipt link for this transaction
+  try {
+    const mappingRef = ref(database, `user_shares/${userId}/${txId}`);
+    const mappingSnap = await get(mappingRef);
+    if (mappingSnap.exists()) {
+      const shareCode = mappingSnap.val() as string;
+      const shareRef = ref(database, `shared_receipts/${shareCode}`);
+      await update(shareRef, {
+        isActive: false,
+        disabledReason: 'receipt_deleted',
+        updatedAt: Date.now(),
+      });
+      // Remove the mapping
+      await set(mappingRef, null);
+    }
+  } catch (err) {
+    console.warn('Failed to deactivate share on delete:', err);
+  }
 }
 
-// ====== Shared Receipts ======
-
-export async function createSharedReceipt(
-  creatorId: string | number,
-  transaction: Transaction
-): Promise<string> {
-  const receiptsRef = ref(database, `shared_receipts`);
-  const newRef = push(receiptsRef);
-  const receiptId = newRef.key!;
-  
-  const receiptData: SharedReceipt = {
-    id: receiptId,
-    creatorId: String(creatorId),
-    transaction,
-    createdAt: Date.now()
-  };
-  
-  await set(newRef, receiptData);
-  return receiptId;
-}
+// ====== Legacy Shared Receipts (backward compat) ======
 
 export async function getSharedReceipt(receiptId: string): Promise<SharedReceipt | null> {
   const receiptRef = ref(database, `shared_receipts/${receiptId}`);
   const snapshot = await get(receiptRef);
   return snapshot.exists() ? (snapshot.val() as SharedReceipt) : null;
+}
+
+// ====== New Receipt Sharing System ======
+
+function generateShareCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/** Find an existing active share for a transaction via user_shares mapping */
+export async function getExistingShare(
+  ownerId: string | number,
+  transactionId: string
+): Promise<ReceiptShare | null> {
+  try {
+    // Look up shareCode from the user_shares mapping
+    const mappingRef = ref(database, `user_shares/${String(ownerId)}/${transactionId}`);
+    const mappingSnap = await get(mappingRef);
+    if (!mappingSnap.exists()) return null;
+    
+    const shareCode = mappingSnap.val() as string;
+    // Fetch the actual share data
+    const shareRef = ref(database, `shared_receipts/${shareCode}`);
+    const shareSnap = await get(shareRef);
+    if (!shareSnap.exists()) return null;
+    
+    return shareSnap.val() as ReceiptShare;
+  } catch (err) {
+    console.warn('getExistingShare failed:', err);
+    return null;
+  }
+}
+
+/** Create a new share link, or return existing active one */
+export async function createReceiptShare(
+  userId: string | number,
+  transaction: Transaction,
+  privacyMode: PrivacyMode,
+  displayName?: string,
+  username?: string
+): Promise<ReceiptShare> {
+  // Try to find existing share via mapping
+  if (transaction.id) {
+    try {
+      const existing = await getExistingShare(userId, transaction.id);
+      if (existing) {
+        // Update privacy mode if changed
+        if (existing.privacyMode !== privacyMode) {
+          const shareRef = ref(database, `shared_receipts/${existing.shareCode}`);
+          await update(shareRef, {
+            privacyMode,
+            ownerName: privacyMode === 'public' ? (displayName || '') : null,
+            ownerUsername: privacyMode === 'public' ? (username || '') : null,
+            updatedAt: Date.now(),
+          });
+          existing.privacyMode = privacyMode;
+        }
+        return existing;
+      }
+    } catch (err) {
+      console.warn('Existing share lookup failed, creating new:', err);
+    }
+  }
+  
+  const shareCode = generateShareCode();
+  const now = Date.now();
+  
+  const shareData: ReceiptShare = {
+    id: shareCode,
+    receiptId: transaction.id || '',
+    ownerId: String(userId),
+    shareCode,
+    isActive: true,
+    privacyMode,
+    transaction,
+    ownerName: privacyMode === 'public' ? (displayName || '') : null,
+    ownerUsername: privacyMode === 'public' ? (username || '') : null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  
+  // Write the share data
+  await set(ref(database, `shared_receipts/${shareCode}`), shareData);
+  
+  // Write the mapping: user_shares/{userId}/{transactionId} → shareCode
+  if (transaction.id) {
+    await set(ref(database, `user_shares/${String(userId)}/${transaction.id}`), shareCode);
+  }
+  
+  return shareData;
+}
+
+/** Get a receipt share by shareCode (validates original transaction still exists) */
+export async function getReceiptShare(shareCode: string): Promise<ReceiptShare | null> {
+  const shareRef = ref(database, `shared_receipts/${shareCode}`);
+  const snapshot = await get(shareRef);
+  if (!snapshot.exists()) return null;
+  
+  const share = snapshot.val() as ReceiptShare;
+  
+  // Variant A: validate original transaction still exists
+  if (share.isActive && share.ownerId && share.receiptId) {
+    try {
+      const txRef = ref(database, `users/${share.ownerId}/transactions/${share.receiptId}`);
+      const txSnap = await get(txRef);
+      if (!txSnap.exists()) {
+        // Transaction was deleted — auto-deactivate
+        await update(shareRef, {
+          isActive: false,
+          disabledReason: 'receipt_deleted',
+          updatedAt: Date.now(),
+        });
+        share.isActive = false;
+      }
+    } catch (err) {
+      // If we can't verify, still return the share (snapshot data exists)
+      console.warn('Could not verify transaction existence:', err);
+    }
+  }
+  
+  return share;
+}
+
+/** Quick status check for TransactionDetailModal (no heavy validation) */
+export async function getShareStatus(
+  userId: string | number,
+  transactionId: string
+): Promise<{ exists: boolean; isActive: boolean; privacyMode: PrivacyMode; shareCode: string; shareUrl: string } | null> {
+  try {
+    const mappingRef = ref(database, `user_shares/${String(userId)}/${transactionId}`);
+    const mappingSnap = await get(mappingRef);
+    if (!mappingSnap.exists()) return null;
+    
+    const shareCode = mappingSnap.val() as string;
+    const shareRef = ref(database, `shared_receipts/${shareCode}`);
+    const shareSnap = await get(shareRef);
+    if (!shareSnap.exists()) return null;
+    
+    const share = shareSnap.val() as ReceiptShare;
+    return {
+      exists: true,
+      isActive: share.isActive,
+      privacyMode: share.privacyMode,
+      shareCode: share.shareCode,
+      shareUrl: `https://t.me/planer0bot?start=receipt_${share.shareCode}`,
+    };
+  } catch (err) {
+    console.warn('getShareStatus failed:', err);
+    return null;
+  }
+}
+
+/** Toggle the active state of a share link */
+export async function toggleReceiptShare(shareCode: string, isActive: boolean): Promise<void> {
+  const shareRef = ref(database, `shared_receipts/${shareCode}`);
+  await update(shareRef, { isActive, updatedAt: Date.now() });
+}
+
+/** Save someone else's shared receipt (dual write) */
+export async function saveSharedReceipt(
+  userId: string | number,
+  displayName: string,
+  shareCode: string
+): Promise<void> {
+  const userIdStr = String(userId);
+  
+  // Check if already saved
+  const existingRef = ref(database, `saved_receipts/${userIdStr}/${shareCode}`);
+  const existing = await get(existingRef);
+  if (existing.exists()) return; // Already saved, no-op
+  
+  // Get the share data
+  const share = await getReceiptShare(shareCode);
+  if (!share || !share.isActive) return;
+  
+  const now = Date.now();
+  
+  // Write 1: saved_receipts/{userId}/{shareCode}
+  const savedData: SavedSharedReceipt = {
+    id: shareCode,
+    userId: userIdStr,
+    shareCode,
+    receiptId: share.receiptId,
+    ownerId: share.ownerId,
+    savedAt: now,
+  };
+  await set(existingRef, savedData);
+  
+  // Write 2: receipt_savers/{shareCode}/{userId}
+  const saverData: ReceiptSaver = {
+    userId: userIdStr,
+    displayName,
+    savedAt: now,
+  };
+  await set(ref(database, `receipt_savers/${shareCode}/${userIdStr}`), saverData);
+}
+
+/** Remove a saved receipt */
+export async function unsaveSharedReceipt(
+  userId: string | number,
+  shareCode: string
+): Promise<void> {
+  const userIdStr = String(userId);
+  await remove(ref(database, `saved_receipts/${userIdStr}/${shareCode}`));
+  await remove(ref(database, `receipt_savers/${shareCode}/${userIdStr}`));
+}
+
+/** Subscribe to the user's saved receipts */
+export function subscribeToSavedReceipts(
+  userId: number,
+  callback: (receipts: SavedSharedReceipt[]) => void
+): Unsubscribe {
+  const savedRef = ref(database, `saved_receipts/${userId}`);
+  return onValue(savedRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback([]);
+      return;
+    }
+    const data = snapshot.val();
+    const receipts = Object.values(data) as SavedSharedReceipt[];
+    receipts.sort((a, b) => b.savedAt - a.savedAt);
+    callback(receipts);
+  });
+}
+
+/** Get list of users who saved a receipt (owner only — enforced in UI) */
+export async function getReceiptSavers(shareCode: string): Promise<ReceiptSaver[]> {
+  const saversRef = ref(database, `receipt_savers/${shareCode}`);
+  const snapshot = await get(saversRef);
+  if (!snapshot.exists()) return [];
+  const data = snapshot.val();
+  return Object.values(data) as ReceiptSaver[];
+}
+
+/** Check if the current user has already saved a share */
+export async function checkIfSavedByMe(
+  userId: string | number,
+  shareCode: string
+): Promise<boolean> {
+  const savedRef = ref(database, `saved_receipts/${String(userId)}/${shareCode}`);
+  const snapshot = await get(savedRef);
+  return snapshot.exists();
 }
 
 // ====== Realtime Subscriptions ======

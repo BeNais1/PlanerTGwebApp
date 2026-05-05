@@ -4,7 +4,7 @@ import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
 import { HomeIcon } from "../components/icons/HomeIcon";
 import { HistoryIcon } from "../components/icons/HistoryIcon";
-import { WalletIcon } from "../components/icons/WalletIcon";
+import { BookmarkIcon } from "../components/icons/BookmarkIcon";
 import { AnalyticsIcon } from "../components/icons/AnalyticsIcon";
 import { SearchIcon } from "../components/icons/SearchIcon";
 import { PaymentIcon } from "../components/PaymentIcon";
@@ -40,6 +40,9 @@ import { AnalyticsView } from "../components/AnalyticsView";
 import { SubscriptionsView } from "../components/SubscriptionsView";
 import { BudgetBubble } from "../components/BudgetBubble";
 import { NumericKeypad, getKeypadNumericValue } from "../components/NumericKeypad";
+import { SavedReceiptsView } from "../components/SavedReceiptsView";
+import { SharedReceiptView } from "../components/SharedReceiptView";
+import type { ReceiptShare } from "../services/database";
 
 export const HomePage = () => {
   const [activeNav, setActiveNav] = useState(0);
@@ -71,11 +74,12 @@ export const HomePage = () => {
   const [limitInput, setLimitInput] = useState('');
   const [limitIncludePriorInput, setLimitIncludePriorInput] = useState(true);
   const [limitPeriodInput, setLimitPeriodInput] = useState<'day' | 'week' | 'month'>('month');
+  const [viewingShare, setViewingShare] = useState<ReceiptShare | null>(null);
 
   const navItems = [
     { icon: <HomeIcon />, id: 0 },
     { icon: <HistoryIcon />, id: 1 },
-    { icon: <WalletIcon />, id: 2 },
+    { icon: <BookmarkIcon />, id: 2 },
     { icon: <AnalyticsIcon />, id: 3 },
   ];
 
@@ -362,7 +366,16 @@ export const HomePage = () => {
         walletBalances={walletBalances}
       />
 
-      <div style={{ display: (activeNav === 3 || activeNav === 1) ? 'none' : 'contents' }}>
+      <SavedReceiptsView
+        isActive={activeNav === 2}
+        onOpenReceipt={(share) => setViewingShare(share)}
+      />
+
+      {viewingShare && (
+        <SharedReceiptView share={viewingShare} onClose={() => setViewingShare(null)} />
+      )}
+
+      <div style={{ display: (activeNav === 3 || activeNav === 1 || activeNav === 2) ? 'none' : 'contents' }}>
       {/* Header */}
       <div className="header">
         <span className="month-label">{monthName}</span>
