@@ -61,6 +61,13 @@ export const TransactionDetailModal = ({
   const { user } = useAuth();
   const [balanceAfter, setBalanceAfter] = useState<number | null>(null);
 
+  useEffect(() => {
+    setAmount(transaction.amount.toString());
+    setCategory(transaction.category);
+    setDescription(transaction.description || '');
+    setSelectedCurrency(transaction.currency as Currency || 'EUR');
+  }, [transaction]);
+
   // Load share status on mount (not on button click)
   useEffect(() => {
     if (!user || !transaction.id) {
@@ -198,10 +205,10 @@ export const TransactionDetailModal = ({
     setTimeout(onClose, 300);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const numAmount = getKeypadNumericValue(amount);
     if (numAmount > 0) {
-      onUpdate(transaction.id!, {
+      await onUpdate(transaction.id!, {
         amount: numAmount, category, description, currency: selectedCurrency });
       setIsEditing(false);
     }
@@ -218,7 +225,10 @@ export const TransactionDetailModal = ({
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  const availableWallets = Object.keys(walletBalances) as Currency[];
+  const availableWallets = Array.from(new Set([
+    transaction.currency || 'EUR',
+    ...Object.keys(walletBalances),
+  ])) as Currency[];
   const catObj = categories.find(c => c.id === transaction.category);
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type TouchEvent } from "react";
 import { ArrowDown } from "../components/icons/ArrowDown";
 import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
@@ -37,12 +37,16 @@ import { QuickSpendModal } from "../components/modals/QuickSpendModal";
 import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { AnalyticsView } from "../components/AnalyticsView";
-import { SubscriptionsView } from "../components/SubscriptionsView";
 import { BudgetBubble } from "../components/BudgetBubble";
 import { NumericKeypad, getKeypadNumericValue } from "../components/NumericKeypad";
 import { SavedReceiptsView } from "../components/SavedReceiptsView";
 import { SharedReceiptView } from "../components/SharedReceiptView";
+import { FinancialHubView } from "../components/FinancialHubView";
+import { JointCheckCreateModal } from "../components/JointCheckCreateModal";
+import { JointCheckDetailModal } from "../components/JointCheckDetailModal";
+import { UserQrSheet } from "../components/UserQrSheet";
 import type { ReceiptShare } from "../services/database";
+import "../components/JointCheck.css";
 
 export const HomePage = () => {
   const [activeNav, setActiveNav] = useState(0);
@@ -75,6 +79,11 @@ export const HomePage = () => {
   const [limitIncludePriorInput, setLimitIncludePriorInput] = useState(true);
   const [limitPeriodInput, setLimitPeriodInput] = useState<'day' | 'week' | 'month'>('month');
   const [viewingShare, setViewingShare] = useState<ReceiptShare | null>(null);
+  const [isJointCheckOpen, setIsJointCheckOpen] = useState(false);
+  const [jointCheckId, setJointCheckId] = useState<string | null>(null);
+  const [isUserQrOpen, setIsUserQrOpen] = useState(false);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [pullQrDistance, setPullQrDistance] = useState(0);
 
   const navItems = [
     { icon: <HomeIcon />, id: 0 },
@@ -141,7 +150,7 @@ export const HomePage = () => {
     walletBalances[mainCurrency] = 0;
   }
 
-  transactions.forEach(t => {
+  transactions.filter(t => !t.excludeFromBalance).forEach(t => {
     const cur = t.currency || mainCurrency;
     if (walletBalances[cur] === undefined) walletBalances[cur] = 0;
     if (t.type === 'expense') walletBalances[cur] -= t.amount;
@@ -171,6 +180,7 @@ export const HomePage = () => {
 
     return transactions
       .filter(t => {
+        if (t.excludeFromBalance) return false;
         if (t.type !== 'expense') return false;
         if (t.date < periodStart) return false;
         if (budgetLimitStartDate && t.date < budgetLimitStartDate) return false;
@@ -257,6 +267,7 @@ export const HomePage = () => {
     setIsTxActionLoading(true);
     try {
       await updateTransaction(user.id, id, data);
+      setSelectedTx(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
     } catch (error) {
       console.error('Failed to update transaction:', error);
       alert('Помилка при оновленні транзакції. Спробуйте ще раз.');
@@ -281,6 +292,50 @@ export const HomePage = () => {
     }
   };
 
+  const handleOpenTransaction = (transaction: Transaction) => {
+    if (transaction.jointCheckId) {
+      setJointCheckId(transaction.jointCheckId);
+      return;
+    }
+    setSelectedTx(transaction);
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (activeNav !== 0) return;
+    if (
+      isSpendOpen ||
+      isAddOpen ||
+      isSettingsOpen ||
+      isHistoryOpen ||
+      isQuickSpendOpen ||
+      isJointCheckOpen ||
+      selectedTx ||
+      jointCheckId ||
+      viewingShare
+    ) return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, a, [role="button"], .modal-overlay, .payment-list, .payment-history')) return;
+    const touch = event.touches[0];
+    if (window.innerHeight - touch.clientY < 24) return;
+    setTouchStartY(touch.clientY);
+    setPullQrDistance(0);
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (activeNav !== 0) return;
+    if (touchStartY === null) return;
+    const distance = Math.max(0, touchStartY - event.touches[0].clientY);
+    if (distance < 10) return;
+    setPullQrDistance(Math.min(136, distance));
+  };
+
+  const handleTouchEnd = () => {
+    if (pullQrDistance > 72) setIsUserQrOpen(true);
+    setTouchStartY(null);
+    setPullQrDistance(0);
+  };
+
   const monthName = new Date().toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
   const getIndicatorLeft = () => `calc(4px + ${activeNav} * (100% - 8px) / 4)`;
 
@@ -298,7 +353,12 @@ export const HomePage = () => {
   }
 
   return (
-    <div className="phone-frame">
+    <div
+      className="phone-frame"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Modals */}
       {(monthData === null || monthData === undefined) && <SetBalanceModal onSetBalance={handleSetInitialBalance} isLoading={isSaving} />}
       {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} walletBalances={walletBalances} />}
@@ -306,6 +366,7 @@ export const HomePage = () => {
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
       {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} walletBalances={walletBalances} />}
       {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} walletBalances={walletBalances} />}
+      {isJointCheckOpen && <JointCheckCreateModal onClose={() => setIsJointCheckOpen(false)} walletBalances={walletBalances} />}
       {selectedTx && (
         <TransactionDetailModal 
           transaction={selectedTx}
@@ -316,6 +377,21 @@ export const HomePage = () => {
           walletBalances={walletBalances}
         />
       )}
+      {jointCheckId && (
+        <JointCheckDetailModal jointCheckId={jointCheckId} onClose={() => setJointCheckId(null)} />
+      )}
+      {isUserQrOpen && <UserQrSheet onClose={() => setIsUserQrOpen(false)} />}
+      {pullQrDistance > 12 && (
+        <div className="pull-qr-indicator" style={{ opacity: Math.min(1, pullQrDistance / 72) }}>
+          {pullQrDistance > 72 ? 'Відпустіть, щоб відкрити QR-код' : 'Потягніть вище, щоб відкрити QR-код'}
+        </div>
+      )}
+
+      <div className="pull-qr-reveal" style={{ opacity: Math.min(1, pullQrDistance / 86) }}>
+        <button type="button" style={{ transform: `translateY(${Math.max(0, 28 - pullQrDistance * 0.32)}px) scale(${0.92 + Math.min(0.08, pullQrDistance / 900)})` }}>
+          {pullQrDistance > 72 ? 'Відпустіть, щоб відкрити QR-код' : 'Показати QR-код'}
+        </button>
+      </div>
 
       {/* Budget Limit Set Modal */}
       {showLimitModal && (
@@ -383,6 +459,13 @@ export const HomePage = () => {
         </div>
       )}
 
+      <div
+        className="app-lift-content"
+        style={{
+          transform: `translateY(${-pullQrDistance}px)`,
+          transition: touchStartY === null ? 'transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1)' : 'none',
+        }}
+      >
       {/* Full-screen views */}
       <AnalyticsView 
         walletBalances={walletBalances}
@@ -390,10 +473,11 @@ export const HomePage = () => {
         isActive={activeNav === 3}
       />
 
-      <SubscriptionsView
+      <FinancialHubView
         isActive={activeNav === 1}
-        onClose={() => setActiveNav(0)}
         walletBalances={walletBalances}
+        onOpenReceipt={(share) => setViewingShare(share)}
+        onOpenTransaction={handleOpenTransaction}
       />
 
       <SavedReceiptsView
@@ -444,6 +528,10 @@ export const HomePage = () => {
             <ArrowDown className="!relative !w-5 !h-5" />
             <span>Дохід</span>
           </div>
+          <div className="action-btn" onClick={() => setIsJointCheckOpen(true)}>
+            <span style={{ fontSize: '19px', lineHeight: 1 }}>▦</span>
+            <span>Спільний</span>
+          </div>
         </div>
 
         {/* Payment History (Today) */}
@@ -460,7 +548,7 @@ export const HomePage = () => {
               </div>
             ) : (
               todaysTransactions.map((item) => (
-                <div key={item.id} className="payment-item" onClick={() => setSelectedTx(item)}>
+                <div key={item.id} className={`payment-item ${item.isJointCheck ? 'joint-check-highlight' : ''}`} onClick={() => handleOpenTransaction(item)}>
                   <PaymentIcon type={item.type} category={item.category} />
                   <div className="payment-info">
                     <span className="payment-name">
@@ -515,9 +603,10 @@ export const HomePage = () => {
             </div>
           ))}
         </div>
-        <div className="search-btn" onClick={() => setIsQuickSpendOpen(true)}>
+      <div className="search-btn" onClick={() => setIsQuickSpendOpen(true)}>
           <SearchIcon />
         </div>
+      </div>
       </div>
     </div>
   );

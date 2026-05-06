@@ -32,6 +32,9 @@ export interface Transaction {
   date: number;
   month: string; // "YYYY-MM"
   currency?: string; // e.g. "EUR" "USD"
+  jointCheckId?: string;
+  isJointCheck?: boolean;
+  excludeFromBalance?: boolean;
 }
 
 export interface MonthData {
@@ -50,6 +53,29 @@ export interface Subscription {
   nextDate: number; // timestamp of next charge
   createdAt: number;
   isActive: boolean;
+}
+
+export interface SmartGoal {
+  id: string;
+  title: string;
+  targetAmount: number;
+  savedAmount: number;
+  currency: string;
+  dueDate?: number;
+  category?: string;
+  createdAt: number;
+}
+
+export interface DebtItem {
+  id: string;
+  person: string;
+  amount: number;
+  currency: string;
+  direction: 'owed_to_me' | 'i_owe';
+  dueDate?: number;
+  note?: string;
+  isPaid: boolean;
+  createdAt: number;
 }
 
 export interface CustomVendor {
@@ -81,6 +107,10 @@ export interface UserSettings {
   onboardingCompleted?: boolean;
   onboarding?: OnboardingData;
   theme?: 'dark' | 'light';
+  smartGoals?: SmartGoal[];
+  debts?: DebtItem[];
+  monthlyPlanAmount?: number;
+  monthlyPlanCurrency?: string;
 }
 
 // Legacy — kept for backward compat with old deep links
@@ -96,6 +126,15 @@ export interface SharedReceipt {
 
 export type PrivacyMode = 'public' | 'anonymous';
 
+export interface ReceiptAmountChange {
+  id?: string;
+  changedAt: number;
+  oldAmount: number;
+  newAmount: number;
+  oldCurrency?: string;
+  newCurrency?: string;
+}
+
 export interface ReceiptShare {
   id: string;               // === shareCode
   receiptId: string;        // transaction.id
@@ -108,6 +147,7 @@ export interface ReceiptShare {
   ownerUsername?: string | null;
   createdAt: number;
   updatedAt: number;
+  amountHistory?: Record<string, ReceiptAmountChange> | ReceiptAmountChange[];
 }
 
 export interface SavedSharedReceipt {
@@ -123,6 +163,45 @@ export interface ReceiptSaver {
   userId: string;
   displayName: string;
   savedAt: number;
+}
+
+export interface JointCheckParticipant {
+  userId: string;
+  displayName: string;
+  username?: string;
+  addedAt: number;
+}
+
+export interface JointCheckPayment {
+  id?: string;
+  userId: string;
+  displayName: string;
+  amount: number;
+  paidAt: number;
+}
+
+export interface JointCheck {
+  id: string;
+  creatorId: string;
+  totalAmount: number;
+  remainingAmount: number;
+  currency: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  isClosed: boolean;
+  participants: Record<string, JointCheckParticipant>;
+  payments?: Record<string, JointCheckPayment>;
+  transactionIds?: Record<string, string>;
+}
+
+export interface TemporaryUserCode {
+  code: string;
+  userId: string;
+  displayName: string;
+  username?: string;
+  expiresAt: number;
+  createdAt: number;
 }
 
 // ====== Helpers ======
@@ -298,8 +377,44 @@ export async function updateTransaction(
   data: Partial<Omit<Transaction, 'id'>>
 ): Promise<void> {
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
-  const { update } = await import('firebase/database');
+  const beforeSnap = await get(txRef);
+  const before = beforeSnap.exists()
+    ? ({ id: txId, ...(beforeSnap.val() as Omit<Transaction, 'id'>) } as Transaction)
+    : null;
+
   await update(txRef, data);
+
+  if (!before) return;
+
+  const updatedTransaction: Transaction = { ...before, ...data, id: txId };
+
+  try {
+    const mappingRef = ref(database, `user_shares/${String(userId)}/${txId}`);
+    const mappingSnap = await get(mappingRef);
+    if (!mappingSnap.exists()) return;
+
+    const shareCode = mappingSnap.val() as string;
+    const shareRef = ref(database, `shared_receipts/${shareCode}`);
+    await update(shareRef, {
+      transaction: updatedTransaction,
+      updatedAt: Date.now(),
+    });
+
+    const oldCurrency = before.currency || 'EUR';
+    const newCurrency = updatedTransaction.currency || 'EUR';
+    if (before.amount !== updatedTransaction.amount || oldCurrency !== newCurrency) {
+      const historyRef = push(ref(database, `shared_receipts/${shareCode}/amountHistory`));
+      await set(historyRef, {
+        changedAt: Date.now(),
+        oldAmount: before.amount,
+        newAmount: updatedTransaction.amount,
+        oldCurrency,
+        newCurrency,
+      } satisfies ReceiptAmountChange);
+    }
+  } catch (err) {
+    console.warn('Failed to sync shared receipt after transaction update:', err);
+  }
 }
 
 export async function deleteTransaction(
@@ -348,6 +463,99 @@ function generateShareCode(): string {
   return code;
 }
 
+function generateTemporaryCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+export function getUserQrPayload(userId: string | number, displayName: string, username?: string): string {
+  return JSON.stringify({
+    type: 'planer_user',
+    userId: String(userId),
+    displayName,
+    username: username || '',
+  });
+}
+
+export function parseUserQrPayload(rawValue: string): JointCheckParticipant | null {
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (parsed?.type !== 'planer_user' || !parsed.userId || !parsed.displayName) return null;
+    return {
+      userId: String(parsed.userId),
+      displayName: String(parsed.displayName),
+      username: parsed.username ? String(parsed.username) : undefined,
+      addedAt: Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getOrCreateTemporaryUserCode(
+  userId: string | number,
+  displayName: string,
+  username?: string
+): Promise<TemporaryUserCode> {
+  const userIdStr = String(userId);
+  const userCodeRef = ref(database, `user_temp_codes/${userIdStr}`);
+  const existingSnap = await get(userCodeRef);
+  const now = Date.now();
+
+  if (existingSnap.exists()) {
+    const existing = existingSnap.val() as TemporaryUserCode;
+    if (existing.expiresAt > now) return existing;
+    await remove(ref(database, `temp_codes/${existing.code}`));
+  }
+
+  let code = generateTemporaryCode();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const codeSnap = await get(ref(database, `temp_codes/${code}`));
+    if (!codeSnap.exists()) break;
+    const existingCode = codeSnap.val() as TemporaryUserCode;
+    if (existingCode.expiresAt <= now) {
+      await remove(ref(database, `temp_codes/${code}`));
+      break;
+    }
+    code = generateTemporaryCode();
+  }
+
+  const tempCode: TemporaryUserCode = {
+    code,
+    userId: userIdStr,
+    displayName,
+    username: username || '',
+    createdAt: now,
+    expiresAt: now + 60 * 60 * 1000,
+  };
+
+  await set(userCodeRef, tempCode);
+  await set(ref(database, `temp_codes/${code}`), tempCode);
+  return tempCode;
+}
+
+export async function getParticipantByTemporaryCode(code: string): Promise<JointCheckParticipant | null> {
+  const cleanCode = code.replace(/\D/g, '');
+  if (cleanCode.length !== 6) return null;
+
+  const codeRef = ref(database, `temp_codes/${cleanCode}`);
+  const snapshot = await get(codeRef);
+  if (!snapshot.exists()) return null;
+
+  const tempCode = snapshot.val() as TemporaryUserCode;
+  if (tempCode.expiresAt <= Date.now()) {
+    await remove(codeRef);
+    await remove(ref(database, `user_temp_codes/${tempCode.userId}`));
+    return null;
+  }
+
+  return {
+    userId: tempCode.userId,
+    displayName: tempCode.displayName,
+    username: tempCode.username,
+    addedAt: Date.now(),
+  };
+}
+
 /** Find an existing active share for a transaction via user_shares mapping */
 export async function getExistingShare(
   ownerId: string | number,
@@ -385,16 +593,24 @@ export async function createReceiptShare(
     try {
       const existing = await getExistingShare(userId, transaction.id);
       if (existing) {
+        const shareRef = ref(database, `shared_receipts/${existing.shareCode}`);
         // Update privacy mode if changed
         if (existing.privacyMode !== privacyMode) {
-          const shareRef = ref(database, `shared_receipts/${existing.shareCode}`);
           await update(shareRef, {
             privacyMode,
+            transaction,
             ownerName: privacyMode === 'public' ? (displayName || '') : null,
             ownerUsername: privacyMode === 'public' ? (username || '') : null,
             updatedAt: Date.now(),
           });
           existing.privacyMode = privacyMode;
+          existing.transaction = transaction;
+        } else if (JSON.stringify(existing.transaction) !== JSON.stringify(transaction)) {
+          await update(shareRef, {
+            transaction,
+            updatedAt: Date.now(),
+          });
+          existing.transaction = transaction;
         }
         return existing;
       }
@@ -452,6 +668,40 @@ export async function getReceiptShare(shareCode: string): Promise<ReceiptShare |
           updatedAt: Date.now(),
         });
         share.isActive = false;
+      } else {
+        const liveTransaction = {
+          id: share.receiptId,
+          ...(txSnap.val() as Omit<Transaction, 'id'>),
+        } as Transaction;
+        const oldCurrency = share.transaction?.currency || 'EUR';
+        const newCurrency = liveTransaction.currency || 'EUR';
+        const amountChanged =
+          share.transaction &&
+          (share.transaction.amount !== liveTransaction.amount || oldCurrency !== newCurrency);
+
+        if (JSON.stringify(share.transaction) !== JSON.stringify(liveTransaction)) {
+          await update(shareRef, {
+            transaction: liveTransaction,
+            updatedAt: Date.now(),
+          });
+          if (amountChanged) {
+            const historyRef = push(ref(database, `shared_receipts/${share.shareCode}/amountHistory`));
+            const change: ReceiptAmountChange = {
+              changedAt: Date.now(),
+              oldAmount: share.transaction.amount,
+              newAmount: liveTransaction.amount,
+              oldCurrency,
+              newCurrency,
+            };
+            await set(historyRef, change);
+            share.amountHistory = {
+              ...(Array.isArray(share.amountHistory) ? {} : share.amountHistory || {}),
+              [historyRef.key || String(change.changedAt)]: change,
+            };
+          }
+          share.transaction = liveTransaction;
+          share.updatedAt = Date.now();
+        }
       }
     } catch (err) {
       // If we can't verify, still return the share (snapshot data exists)
@@ -583,6 +833,139 @@ export async function checkIfSavedByMe(
   return snapshot.exists();
 }
 
+// ====== Joint Checks ======
+
+export async function createJointCheck(
+  creatorId: string | number,
+  creatorDisplayName: string,
+  creatorUsername: string | undefined,
+  totalAmount: number,
+  currency: string,
+  participants: JointCheckParticipant[],
+  title = 'Спільний чек'
+): Promise<JointCheck> {
+  const creatorIdStr = String(creatorId);
+  const now = Date.now();
+  const month = getCurrentMonth();
+  const jointCheckRef = push(ref(database, 'joint_checks'));
+  const jointCheckId = jointCheckRef.key!;
+
+  const participantMap: Record<string, JointCheckParticipant> = {};
+  [
+    {
+      userId: creatorIdStr,
+      displayName: creatorDisplayName,
+      username: creatorUsername || '',
+      addedAt: now,
+    },
+    ...participants,
+  ].forEach((participant) => {
+    participantMap[participant.userId] = {
+      ...participant,
+      userId: String(participant.userId),
+      addedAt: participant.addedAt || now,
+    };
+  });
+
+  const jointCheck: JointCheck = {
+    id: jointCheckId,
+    creatorId: creatorIdStr,
+    totalAmount,
+    remainingAmount: totalAmount,
+    currency,
+    title,
+    createdAt: now,
+    updatedAt: now,
+    isClosed: false,
+    participants: participantMap,
+    payments: {},
+    transactionIds: {},
+  };
+
+  await set(jointCheckRef, jointCheck);
+
+  const transactionIds: Record<string, string> = {};
+  await Promise.all(Object.keys(participantMap).map(async (participantId) => {
+    const txRef = push(ref(database, `users/${participantId}/transactions`));
+    transactionIds[participantId] = txRef.key!;
+    await set(txRef, {
+      type: 'expense',
+      amount: totalAmount,
+      category: 'joint_check',
+      description: title,
+      date: now,
+      month,
+      currency,
+      jointCheckId,
+      isJointCheck: true,
+      excludeFromBalance: true,
+    } satisfies Omit<Transaction, 'id'>);
+  }));
+
+  await update(jointCheckRef, { transactionIds });
+  jointCheck.transactionIds = transactionIds;
+  return jointCheck;
+}
+
+export function subscribeToJointCheck(
+  jointCheckId: string,
+  callback: (jointCheck: JointCheck | null) => void
+): Unsubscribe {
+  const jointCheckRef = ref(database, `joint_checks/${jointCheckId}`);
+  return onValue(jointCheckRef, (snapshot) => {
+    callback(snapshot.exists() ? (snapshot.val() as JointCheck) : null);
+  });
+}
+
+export async function addJointCheckPayment(
+  jointCheckId: string,
+  userId: string | number,
+  displayName: string,
+  amount: number
+): Promise<void> {
+  const jointCheckRef = ref(database, `joint_checks/${jointCheckId}`);
+  const snapshot = await get(jointCheckRef);
+  if (!snapshot.exists()) throw new Error('Joint check not found');
+
+  const jointCheck = snapshot.val() as JointCheck;
+  const safeAmount = Math.min(amount, jointCheck.remainingAmount);
+  if (safeAmount <= 0) throw new Error('Invalid payment amount');
+
+  const paymentRef = push(ref(database, `joint_checks/${jointCheckId}/payments`));
+  const remainingAmount = Math.max(0, jointCheck.remainingAmount - safeAmount);
+  const updates: Record<string, any> = {
+    remainingAmount,
+    updatedAt: Date.now(),
+    isClosed: remainingAmount === 0,
+    [`payments/${paymentRef.key}`]: {
+      userId: String(userId),
+      displayName,
+      amount: safeAmount,
+      paidAt: Date.now(),
+    } satisfies JointCheckPayment,
+  };
+
+  await update(jointCheckRef, updates);
+
+  await addTransaction(Number(userId), {
+    type: 'expense',
+    amount: safeAmount,
+    category: 'joint_check_payment',
+    description: `Погашення: ${jointCheck.title}`,
+    date: Date.now(),
+    month: getCurrentMonth(),
+    currency: jointCheck.currency,
+  });
+
+  const transactionIds = jointCheck.transactionIds || {};
+  await Promise.all(Object.entries(transactionIds).map(([participantId, txId]) => (
+    update(ref(database, `users/${participantId}/transactions/${txId}`), {
+      amount: remainingAmount,
+      description: remainingAmount === 0 ? `${jointCheck.title} · закрито` : jointCheck.title,
+    })
+  )));
+}
+
 // ====== Realtime Subscriptions ======
 
 export function subscribeToTransactions(
@@ -598,6 +981,28 @@ export function subscribeToTransactions(
       callback([]);
       return;
     }
+    const data = snapshot.val();
+    const transactions = Object.entries(data).map(([id, tx]) => ({
+      id,
+      ...(tx as Omit<Transaction, 'id'>),
+    }));
+    transactions.sort((a, b) => b.date - a.date);
+    callback(transactions);
+  });
+}
+
+export function subscribeToAllTransactions(
+  userId: number,
+  callback: (transactions: Transaction[]) => void
+): Unsubscribe {
+  const txRef = ref(database, `users/${userId}/transactions`);
+
+  return onValue(txRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback([]);
+      return;
+    }
+
     const data = snapshot.val();
     const transactions = Object.entries(data).map(([id, tx]) => ({
       id,

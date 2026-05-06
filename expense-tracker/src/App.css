@@ -24,6 +24,7 @@
   justify-content: space-between;
   padding: calc(var(--safe-area-top, 50px) + 8px) 24px 0;
   flex-shrink: 0;
+  animation: softRise 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .month-label {
@@ -72,6 +73,7 @@
   padding: 24px 0 8px;
   flex-shrink: 0;
   gap: 4px;
+  animation: heroReveal 0.52s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
 }
 
 .balance-amount {
@@ -108,6 +110,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  animation: cardDock 0.48s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
 }
 
 /* === Action Buttons — Pill style === */
@@ -127,6 +130,15 @@
   border-radius: var(--radius-lg);
   background: var(--card-bg-2);
   transition: background 0.2s ease, transform 0.15s ease;
+  animation: softRise 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.action-btn:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.action-btn:nth-child(3) {
+  animation-delay: 0.08s;
 }
 
 .action-btn:hover {
@@ -225,6 +237,7 @@
   overflow: hidden;
   transition: background 0.2s ease;
   flex-shrink: 0;
+  animation: listItemIn 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .payment-item:hover {
@@ -298,13 +311,25 @@
 /* === Bottom Navigation — Clean iOS Tab Bar === */
 .bottom-nav {
   position: relative;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 16px calc(var(--safe-area-bottom, 50px) + 4px);
   flex-shrink: 0;
+  margin-top: auto;
   background: var(--bg);
+  animation: navFloatIn 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both;
+}
+
+.app-lift-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  will-change: transform;
 }
 
 .nav-pills {
@@ -424,4 +449,128 @@ input:checked + .toggle-slider {
 }
 input:checked + .toggle-slider:before {
   transform: translateX(22px);
+}
+
+@keyframes softRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes heroReveal {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes cardDock {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes listItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes navFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes viewEnter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panelPop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes sheetPop {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header,
+  .balance-section,
+  .bottom-card,
+  .action-btn,
+  .payment-item,
+  .bottom-nav,
+  .analytics-view,
+  .analytics-header,
+  .analytics-controls,
+  .analytics-tabs,
+  .analytics-metric,
+  .analytics-insight,
+  .analytics-panel,
+  .category-row,
+  .wallet-row,
+  .trend-detail-row,
+  .financial-hub,
+  .financial-hub-header,
+  .financial-hub-tabs,
+  .hub-summary-card,
+  .hub-form,
+  .hub-card,
+  .hub-empty,
+  .joint-person,
+  .qr-sheet,
+  .camera-sheet,
+  .qr-canvas-box,
+  .qr-code-number,
+  .joint-progress-ring {
+    animation: none !important;
+  }
 }

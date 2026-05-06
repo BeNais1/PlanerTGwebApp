@@ -5,8 +5,10 @@ import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { PaymentIcon } from '../PaymentIcon';
 import { TransactionDetailModal } from './TransactionDetailModal';
+import { JointCheckDetailModal } from '../JointCheckDetailModal';
 import { deleteTransaction, updateTransaction } from '../../services/database';
 import './Modals.css';
+import '../JointCheck.css';
 
 interface HistoryModalProps {
   onClose: () => void;
@@ -20,6 +22,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
   const [history, setHistory] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedJointCheckId, setSelectedJointCheckId] = useState<string | null>(null);
   const [isTxActionLoading, setIsTxActionLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
@@ -53,10 +56,18 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
     setIsTxActionLoading(true);
     await updateTransaction(user.id, id, data);
     setHistory(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+    setSelectedTx(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
     setIsTxActionLoading(false);
   };
 
   // Using shared PaymentIcon component
+  const handleOpenTransaction = (transaction: Transaction) => {
+    if (transaction.jointCheckId) {
+      setSelectedJointCheckId(transaction.jointCheckId);
+      return;
+    }
+    setSelectedTx(transaction);
+  };
 
   // Group by Month string
   const groupedHistory = history.reduce((acc, tx) => {
@@ -68,22 +79,28 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
 
   return (
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
+      {selectedTx && (
+        <TransactionDetailModal
+          transaction={selectedTx}
+          onClose={() => setSelectedTx(null)}
+          onDelete={handleDelete}
+          onUpdate={handleUpdate}
+          isLoading={isTxActionLoading}
+          walletBalances={walletBalances}
+        />
+      )}
+      {selectedJointCheckId && (
+        <JointCheckDetailModal
+          jointCheckId={selectedJointCheckId}
+          onClose={() => setSelectedJointCheckId(null)}
+        />
+      )}
+
       <div className={`modal-content history-modal-content ${isClosing ? 'closing' : ''}`} style={{ height: '85vh', maxHeight: '85vh' }}>
         <div className="modal-header" style={{ marginBottom: '10px' }}>
           <h2 className="modal-title">Уся історія</h2>
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
-
-        {selectedTx && (
-          <TransactionDetailModal 
-            transaction={selectedTx}
-            onClose={() => setSelectedTx(null)}
-            onDelete={handleDelete}
-            onUpdate={handleUpdate}
-            isLoading={isTxActionLoading}
-            walletBalances={walletBalances}
-          />
-        )}
 
         <div className="history-list-container" style={{ flex: 1, overflowY: 'auto', paddingTop: '10px' }}>
           {loading ? (
@@ -98,7 +115,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
                 </h3>
                  <div className="payment-list" style={{ overflow: 'visible', gap: '8px' }}>
                   {txs.map((item) => (
-                    <div key={item.id} className="payment-item" onClick={() => setSelectedTx(item)}>
+                    <div key={item.id} className={`payment-item ${item.isJointCheck ? 'joint-check-highlight' : ''}`} onClick={() => handleOpenTransaction(item)}>
                       <PaymentIcon type={item.type} category={item.category} />
                       <div className="payment-info">
                         <span className="payment-name">

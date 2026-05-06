@@ -153,6 +153,66 @@
   font-weight: 600;
 }
 
+.receipt-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px dashed var(--card-bg-2);
+  padding-top: 14px;
+  margin-top: 2px;
+}
+
+.receipt-history-title {
+  font-family: var(--font-text);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.receipt-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.receipt-history-list.expanded {
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.receipt-history-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--font-text);
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.receipt-history-item strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.receipt-history-toggle {
+  align-self: flex-start;
+  border: none;
+  background: var(--card-bg-2);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-family: var(--font-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .receipt-actions {
   display: flex;
   flex-direction: column;

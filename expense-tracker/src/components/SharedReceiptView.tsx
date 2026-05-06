@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { ReceiptShare } from '../services/database';
+import type { ReceiptAmountChange, ReceiptShare } from '../services/database';
 import { useCategories } from '../hooks/useCategories';
 import { useCurrency, type Currency } from '../hooks/useCurrency';
 import { saveSharedReceipt, unsaveSharedReceipt, checkIfSavedByMe, getReceiptSavers } from '../services/database';
@@ -21,6 +21,7 @@ export const SharedReceiptView = ({ share, onClose }: SharedReceiptViewProps) =>
   const [savesCount, setSavesCount] = useState(0);
   const [showSavers, setShowSavers] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showFullAmountHistory, setShowFullAmountHistory] = useState(false);
 
   const tx = share.transaction;
   const isIncome = tx.type === 'income';
@@ -29,11 +30,18 @@ export const SharedReceiptView = ({ share, onClose }: SharedReceiptViewProps) =>
   const currencySymbol = CURRENCY_SYMBOLS[tx.currency as Currency] || tx.currency;
   const isOwner = user && String(user.id) === share.ownerId;
   const isActive = share.isActive;
+  const amountHistory = share.amountHistory
+    ? (Array.isArray(share.amountHistory)
+      ? share.amountHistory
+      : Object.entries(share.amountHistory).map(([id, item]) => ({ id, ...item } as ReceiptAmountChange)))
+        .sort((a, b) => b.changedAt - a.changedAt)
+    : [];
 
   const formattedAmount = tx.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formattedDate = new Date(tx.date).toLocaleDateString('uk-UA', {
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
+  const visibleAmountHistory = showFullAmountHistory ? amountHistory : amountHistory.slice(0, 3);
 
   // Check saved status & savers count
   useEffect(() => {
@@ -175,6 +183,44 @@ export const SharedReceiptView = ({ share, onClose }: SharedReceiptViewProps) =>
               <span className="receipt-detail-value">{savesCount} {savesCount === 1 ? 'раз' : 'разів'}</span>
             </div>
           )}
+          {amountHistory.length > 0 && (
+            <div className="receipt-history">
+              <div className="receipt-history-title">Історія суми</div>
+              <div className={`receipt-history-list ${showFullAmountHistory ? 'expanded' : ''}`}>
+                {visibleAmountHistory.map((change, index) => (
+                  <div key={change.id || `${change.changedAt}-${index}`} className="receipt-history-item">
+                    <span>
+                      {new Date(change.changedAt).toLocaleString('uk-UA', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <strong>
+                      {change.oldAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {' '}
+                      {CURRENCY_SYMBOLS[change.oldCurrency as Currency] || change.oldCurrency || ''}
+                      {' -> '}
+                      {change.newAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {' '}
+                      {CURRENCY_SYMBOLS[change.newCurrency as Currency] || change.newCurrency || ''}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+              {amountHistory.length > 3 && (
+                <button
+                  className="receipt-history-toggle"
+                  type="button"
+                  onClick={() => setShowFullAmountHistory((value) => !value)}
+                >
+                  {showFullAmountHistory ? 'Згорнути історію' : 'Подивитися всю історію змін'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -182,10 +228,6 @@ export const SharedReceiptView = ({ share, onClose }: SharedReceiptViewProps) =>
         {!isActive ? (
           <button className="receipt-btn-primary" disabled style={{ background: 'var(--card-bg-3)', color: 'var(--text-tertiary)' }}>
             🔒 Посилання вимкнено
-          </button>
-        ) : isOwner ? (
-          <button className="receipt-btn-primary" disabled style={{ background: 'var(--card-bg-3)', color: 'var(--text-secondary)' }}>
-            Це ваш чек
           </button>
         ) : isSaved ? (
           <div style={{ display: 'flex', gap: '8px', width: '100%' }}>

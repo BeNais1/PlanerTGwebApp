@@ -1,0 +1,433 @@
+.financial-hub {
+  height: 100%;
+  overflow-y: auto;
+  padding: calc(var(--safe-area-top, 50px) + 18px) 16px 112px;
+  color: var(--text-primary);
+  background: var(--bg);
+  animation: viewEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.financial-hub-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  animation: softRise 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.financial-hub-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.financial-hub-header p {
+  margin: 6px 0 0;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.financial-hub-header > span {
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.financial-hub-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px;
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background: var(--card-bg);
+  animation: softRise 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
+}
+
+.financial-hub-tabs button {
+  min-height: 36px;
+  border: none;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-text);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.financial-hub-tabs button.active {
+  background: var(--accent);
+  color: white;
+}
+
+.hub-section,
+.hub-list,
+.hub-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hub-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hub-summary-card,
+.hub-card,
+.hub-form,
+.hub-empty {
+  border-radius: 18px;
+  background: var(--card-bg);
+}
+
+.hub-summary-card {
+  padding: 14px;
+  animation: panelPop 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hub-summary-card span {
+  display: block;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.hub-summary-card strong {
+  display: block;
+  margin-top: 7px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.05;
+  font-weight: 800;
+}
+
+.hub-summary-card small {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.hub-form {
+  padding: 12px;
+  animation: panelPop 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+}
+
+.hub-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.hub-form input,
+.hub-form select,
+.hub-search {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: 14px;
+  background: var(--card-bg-2);
+  color: var(--text-primary);
+  padding: 0 12px;
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 650;
+  outline: none;
+}
+
+.hub-amount-btn,
+.hub-date-field {
+  min-height: 58px;
+  border: none;
+  border-radius: 14px;
+  background: var(--card-bg-2);
+  color: var(--text-primary);
+  padding: 9px 12px;
+  font-family: var(--font-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.hub-amount-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.hub-amount-btn span,
+.hub-date-field span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.hub-amount-btn strong,
+.hub-date-field strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-date-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.hub-date-field input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.hub-form input[type="date"] {
+  color-scheme: dark;
+}
+
+.hub-form button,
+.hub-row.compact button {
+  min-height: 44px;
+  border: none;
+  border-radius: 14px;
+  background: var(--accent);
+  color: white;
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hub-row.compact button {
+  min-height: 34px;
+  padding: 0 12px;
+  background: var(--card-bg-2);
+  color: var(--text-secondary);
+}
+
+.hub-search {
+  margin-bottom: 2px;
+}
+
+.hub-card {
+  padding: 14px;
+  color: var(--text-primary);
+  animation: listItemIn 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.hub-card.slim {
+  padding: 12px;
+}
+
+.hub-card.clickable {
+  width: 100%;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hub-card.clickable:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.hub-card.muted {
+  opacity: 0.55;
+}
+
+.hub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hub-row.compact {
+  margin-top: 10px;
+}
+
+.hub-row div {
+  min-width: 0;
+}
+
+.hub-row strong,
+.hub-row b {
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.hub-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hub-row b {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.hub-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.hub-date {
+  margin-bottom: 8px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.hub-progress {
+  height: 7px;
+  margin-top: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--card-bg-3);
+}
+
+.hub-progress.large {
+  height: 10px;
+  margin: 0 0 2px;
+}
+
+.hub-progress span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.goal-card {
+  background:
+    linear-gradient(135deg, rgba(10, 132, 255, 0.15), transparent 58%),
+    var(--card-bg);
+}
+
+.goal-money-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.goal-money-row span {
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.goal-money-row small {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hub-empty {
+  padding: 34px 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  animation: panelPop 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hub-keypad-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.48);
+  padding: 16px;
+}
+
+.hub-keypad-sheet {
+  width: min(398px, 100%);
+  border-radius: 24px 24px 18px 18px;
+  background: var(--card-bg);
+  padding: 14px;
+  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.35);
+  animation: sheetPop 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes sheetPop {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.hub-keypad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 8px;
+}
+
+.hub-keypad-header strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-keypad-header button {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--card-bg-2);
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
