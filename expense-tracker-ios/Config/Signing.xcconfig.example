@@ -1,0 +1,10 @@
+// Copy values into GitHub Actions secrets instead of committing private signing files.
+// Required secrets:
+// APPLE_TEAM_ID
+// APPLE_CERTIFICATE_BASE64
+// APPLE_CERTIFICATE_PASSWORD
+// APPLE_PROVISIONING_PROFILE_BASE64
+// KEYCHAIN_PASSWORD
+
+PRODUCT_BUNDLE_IDENTIFIER = com.boris.expensetracker.swiftui
+DEVELOPMENT_TEAM = YOUR_TEAM_ID

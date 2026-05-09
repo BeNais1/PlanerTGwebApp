@@ -1,94 +1,131 @@
-name: iOS Build (Simulator)
+name: Build iOS IPA
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'expense-tracker-ios/**'
   workflow_dispatch:
+    inputs:
+      export_method:
+        description: Export method for the IPA
+        required: true
+        default: ad-hoc
+        type: choice
+        options:
+          - ad-hoc
+          - app-store-connect
+          - development
+
+permissions:
+  contents: read
 
 jobs:
-  build-ios:
-    name: Build iOS (Simulator)
+  build-ipa:
+    name: Archive and export IPA
     runs-on: macos-latest
     defaults:
       run:
         working-directory: expense-tracker-ios
 
+    env:
+      PROJECT_PATH: ExpenseTrackerSwiftUI.xcodeproj
+      SCHEME: ExpenseTrackerSwiftUI
+      CONFIGURATION: Release
+      BUNDLE_ID: com.boris.expensetracker.swiftui
+      ARCHIVE_PATH: build/ExpenseTrackerSwiftUI.xcarchive
+      EXPORT_PATH: build/export
+      KEYCHAIN_PATH: build/app-signing.keychain-db
+
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: expense-tracker-ios/package-lock.json
+          xcode-version: latest-stable
 
-      - name: 📦 Install dependencies
-        run: npm install
+      - name: Show Xcode version
+        run: xcodebuild -version
 
-      - name: 🔧 Setup Expo CLI
-        run: npm install -g expo-cli eas-cli
-
-      - name: 🍎 Prebuild iOS project
-        run: npx expo prebuild --platform ios --clean
-
-      - name: 📱 Install CocoaPods
+      - name: Prepare signing keychain
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          cd ios
-          pod install
+          set -euo pipefail
+          mkdir -p build "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > build/signing_certificate.p12
+          echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > build/profile.mobileprovision
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import build/signing_certificate.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security cms -D -i build/profile.mobileprovision > build/profile.plist
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' build/profile.plist)
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' build/profile.plist)
+          cp build/profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
 
-      - name: 🔍 Find workspace and scheme
+      - name: Write export options
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EXPORT_METHOD: ${{ inputs.export_method }}
         run: |
-          WORKSPACE=$(find ios -name "*.xcworkspace" -maxdepth 1 | head -1)
-          SCHEME=$(xcodebuild -workspace "$WORKSPACE" -list 2>/dev/null | grep -A 1 "Schemes:" | tail -1 | xargs)
-          echo "WORKSPACE=$WORKSPACE" >> $GITHUB_ENV
-          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
-          echo "Found workspace: $WORKSPACE, scheme: $SCHEME"
+          set -euo pipefail
+          cat > build/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>$EXPORT_METHOD</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>$APPLE_TEAM_ID</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key>
+              <string>$PROFILE_NAME</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
 
-      - name: 🔨 Build for iOS Simulator
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcodebuild \
-            -workspace "$WORKSPACE" \
+          set -euo pipefail
+          xcodebuild archive \
+            -project "$PROJECT_PATH" \
             -scheme "$SCHEME" \
-            -configuration Release \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            -derivedDataPath build \
-            build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
 
-      - name: 📁 Create .app archive
+      - name: Export IPA
         run: |
-          cd build/Build/Products/Release-iphonesimulator
-          zip -r ../../../../ExpenseTracker-Simulator.zip *.app
+          set -euo pipefail
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath "$EXPORT_PATH"
 
-      - name: 📤 Upload artifact
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ExpenseTracker-iOS-Simulator
-          path: expense-tracker-ios/ExpenseTracker-Simulator.zip
+          name: ExpenseTrackerSwiftUI-IPA
+          path: expense-tracker-ios/build/export/*.ipa
           retention-days: 30
 
-  # Alternative: EAS Cloud Build (uncomment to use instead of local build)
-  # eas-build:
-  #   name: EAS Build (Cloud)
-  #   runs-on: ubuntu-latest
-  #   defaults:
-  #     run:
-  #       working-directory: expense-tracker-ios
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '20'
-  #     - run: npm install
-  #     - run: npm install -g eas-cli
-  #     - name: Build with EAS
-  #       env:
-  #         EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-  #       run: eas build --platform ios --profile simulator --non-interactive
+      - name: Clean keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" || true
