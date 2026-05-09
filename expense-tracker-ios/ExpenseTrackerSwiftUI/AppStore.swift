@@ -114,8 +114,8 @@ final class AppStore: ObservableObject {
 
     private func seedDemoData() {
         transactions = [
-            .init(kind: .income, amount: 2400, currency: .eur, category: "Доход", note: "Пополнение", date: .now.addingTimeInterval(-3600 * 5)),
-            .init(kind: .expense, amount: 28.40, currency: .eur, category: "Еда", note: "Кофе и обед", date: .now.addingTimeInterval(-3600 * 2)),
+            .init(kind: .income, amount: 2400, currency: .eur, category: "Доход", note: "Пополнение", date: .now.addingTimeInterval(-3600.0 * 5.0)),
+            .init(kind: .expense, amount: 28.40, currency: .eur, category: "Еда", note: "Кофе и обед", date: .now.addingTimeInterval(-3600.0 * 2.0)),
             .init(kind: .expense, amount: 1200, currency: .uah, category: "Транспорт", note: "Такси", date: .now.addingTimeInterval(-86400))
         ]
         receipts = [
