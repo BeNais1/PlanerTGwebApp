@@ -2,14 +2,14 @@ import Foundation
 import FirebaseCore
 
 enum FirebaseClientConfig {
-    static let googleAppID = "1:961873874615:ios:2678e9c5b8c038ba91c732"
+    static let googleAppID = "1:961873874615:ios:cf80b47bfea9e9da91c732"
     static let gcmSenderID = "961873874615"
-    static let apiKey = "AIzaSyCLu9KZvO3lluQX8b1eVIdw6dX46kI4l6I"
+    static let apiKey = "AIzaSyA4kw1-3ge6b9XFZOhQam_WfkJ1AxF4UrA"
     static let projectID = "planer-app-3a0f2"
     static let databaseURL = "https://planer-app-3a0f2-default-rtdb.europe-west1.firebasedatabase.app"
     static let storageBucket = "planer-app-3a0f2.firebasestorage.app"
-    static let defaultClientID = ""
-    static let defaultReversedClientID = ""
+    static let defaultClientID = "961873874615-aou9tmmfarru9l3cr48q8hmbtv9n910f.apps.googleusercontent.com"
+    static let defaultReversedClientID = "com.googleusercontent.apps.961873874615-aou9tmmfarru9l3cr48q8hmbtv9n910f"
 }
 
 enum FirebaseBootstrap {
