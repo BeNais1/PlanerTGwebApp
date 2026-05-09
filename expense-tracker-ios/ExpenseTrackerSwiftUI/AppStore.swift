@@ -1,5 +1,7 @@
 import Foundation
 import Combine
+import FirebaseAuth
+import FirebaseDatabase
 
 final class AppStore: ObservableObject {
     @Published private(set) var transactions: [TransactionItem] = []
@@ -9,9 +11,20 @@ final class AppStore: ObservableObject {
     }
 
     private let storageKey = "expense-tracker-swiftui-state-v1"
+    private var authStateListener: AuthStateDidChangeListenerHandle?
+    private var activeUserID: String?
+    private var isApplyingRemoteState = false
 
     init() {
+        FirebaseBootstrap.configureIfNeeded()
         load()
+        observeAuthState()
+    }
+
+    deinit {
+        if let listener = authStateListener {
+            Auth.auth().removeStateDidChangeListener(listener)
+        }
     }
 
     var currentBalance: Double {
@@ -110,16 +123,79 @@ final class AppStore: ObservableObject {
         let state = PersistedState(transactions: transactions, receipts: receipts, settings: settings)
         guard let data = try? JSONEncoder().encode(state) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
+
+        guard !isApplyingRemoteState else { return }
+        syncToFirebase(state)
+    }
+
+    private func observeAuthState() {
+        authStateListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            self?.handleAuthState(user)
+        }
+    }
+
+    private func handleAuthState(_ user: User?) {
+        let nextUserID = user?.uid
+        guard nextUserID != activeUserID else { return }
+
+        activeUserID = nextUserID
+        guard let uid = nextUserID else { return }
+        syncFromFirebase(uid: uid)
+    }
+
+    private func databaseReference(for uid: String) -> DatabaseReference {
+        Database.database(url: FirebaseClientConfig.databaseURL)
+            .reference()
+            .child("users")
+            .child(uid)
+            .child("swiftui_state")
+    }
+
+    private func syncFromFirebase(uid: String) {
+        databaseReference(for: uid).observeSingleEvent(of: .value) { [weak self] snapshot in
+            guard let self else { return }
+
+            guard snapshot.exists(), let raw = snapshot.value else {
+                self.syncToFirebase(PersistedState(transactions: self.transactions, receipts: self.receipts, settings: self.settings))
+                return
+            }
+
+            do {
+                let data = try JSONSerialization.data(withJSONObject: raw)
+                let cloudState = try JSONDecoder().decode(PersistedState.self, from: data)
+                DispatchQueue.main.async {
+                    self.isApplyingRemoteState = true
+                    self.transactions = cloudState.transactions
+                    self.receipts = cloudState.receipts
+                    self.settings = cloudState.settings
+                    self.isApplyingRemoteState = false
+                }
+            } catch {
+                print("Failed to decode Firebase state: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func syncToFirebase(_ state: PersistedState) {
+        guard let uid = activeUserID else { return }
+
+        do {
+            let data = try JSONEncoder().encode(state)
+            let object = try JSONSerialization.jsonObject(with: data)
+            databaseReference(for: uid).setValue(object)
+        } catch {
+            print("Failed to sync Firebase state: \(error.localizedDescription)")
+        }
     }
 
     private func seedDemoData() {
         transactions = [
             .init(kind: .income, amount: 2400, currency: .eur, category: "Доход", note: "Пополнение", date: .now.addingTimeInterval(-3600.0 * 5.0)),
             .init(kind: .expense, amount: 28.40, currency: .eur, category: "Еда", note: "Кофе и обед", date: .now.addingTimeInterval(-3600.0 * 2.0)),
-            .init(kind: .expense, amount: 1200, currency: .uah, category: "Транспорт", note: "Такси", date: .now.addingTimeInterval(-86400))
+            .init(kind: .expense, amount: 1200, currency: .uah, category: "Транспорт", note: "Такси", date: .now.addingTimeInterval(-86400.0))
         ]
         receipts = [
-            .init(title: "Обед с друзьями", merchant: "Urban Bistro", amount: 64.90, currency: .eur, date: .now.addingTimeInterval(-7200))
+            .init(title: "Обед с друзьями", merchant: "Urban Bistro", amount: 64.90, currency: .eur, date: .now.addingTimeInterval(-7200.0))
         ]
         save()
     }

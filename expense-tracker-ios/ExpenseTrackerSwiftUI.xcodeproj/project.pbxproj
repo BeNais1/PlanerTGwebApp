@@ -20,6 +20,13 @@
 		0A11A00B2CDA4F1000010001 /* AnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B00B2CDA4F1000010001 /* AnalyticsView.swift */; };
 		0A11A00C2CDA4F1000010001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B00C2CDA4F1000010001 /* SettingsView.swift */; };
 		0A11A00D2CDA4F1000010001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0A11B00D2CDA4F1000010001 /* Assets.xcassets */; };
+		0A11A00E2CDA4F1000010001 /* FirebaseClientConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0102CDA4F1000010001 /* FirebaseClientConfig.swift */; };
+		0A11A00F2CDA4F1000010001 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0112CDA4F1000010001 /* AuthViewModel.swift */; };
+		0A11A0102CDA4F1000010001 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0122CDA4F1000010001 /* SignInView.swift */; };
+		0A11A0112CDA4F1000010001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300012CDA4F1000010001 /* FirebaseAuth */; };
+		0A11A0122CDA4F1000010001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300022CDA4F1000010001 /* FirebaseCore */; };
+		0A11A0132CDA4F1000010001 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300032CDA4F1000010001 /* FirebaseDatabase */; };
+		0A11A0142CDA4F1000010001 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300042CDA4F1000010001 /* GoogleSignIn */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +45,10 @@
 		0A11B00D2CDA4F1000010001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0A11B00E2CDA4F1000010001 /* Preview Content */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Preview Content"; sourceTree = "<group>"; };
 		0A11B00F2CDA4F1000010001 /* ExpenseTrackerSwiftUI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExpenseTrackerSwiftUI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A11B0102CDA4F1000010001 /* FirebaseClientConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirebaseClientConfig.swift; sourceTree = "<group>"; };
+		0A11B0112CDA4F1000010001 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		0A11B0122CDA4F1000010001 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		0A11B0132CDA4F1000010001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +56,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A11A0112CDA4F1000010001 /* FirebaseAuth in Frameworks */,
+				0A11A0122CDA4F1000010001 /* FirebaseCore in Frameworks */,
+				0A11A0132CDA4F1000010001 /* FirebaseDatabase in Frameworks */,
+				0A11A0142CDA4F1000010001 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +89,10 @@
 				0A11B00A2CDA4F1000010001 /* ReceiptsView.swift */,
 				0A11B00B2CDA4F1000010001 /* AnalyticsView.swift */,
 				0A11B00C2CDA4F1000010001 /* SettingsView.swift */,
+				0A11B0102CDA4F1000010001 /* FirebaseClientConfig.swift */,
+				0A11B0112CDA4F1000010001 /* AuthViewModel.swift */,
+				0A11B0122CDA4F1000010001 /* SignInView.swift */,
+				0A11B0132CDA4F1000010001 /* Info.plist */,
 				0A11B00D2CDA4F1000010001 /* Assets.xcassets */,
 				0A11B00E2CDA4F1000010001 /* Preview Content */,
 			);
@@ -104,6 +123,12 @@
 			dependencies = (
 			);
 			name = ExpenseTrackerSwiftUI;
+			packageProductDependencies = (
+				0A1300012CDA4F1000010001 /* FirebaseAuth */,
+				0A1300022CDA4F1000010001 /* FirebaseCore */,
+				0A1300032CDA4F1000010001 /* FirebaseDatabase */,
+				0A1300042CDA4F1000010001 /* GoogleSignIn */,
+			);
 			productName = ExpenseTrackerSwiftUI;
 			productReference = 0A11B00F2CDA4F1000010001 /* ExpenseTrackerSwiftUI.app */;
 			productType = "com.apple.product-type.application";
@@ -132,6 +157,10 @@
 				Base,
 			);
 			mainGroup = 0A11D0012CDA4F1000010001;
+			packageReferences = (
+				0A1200012CDA4F1000010001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				0A1200022CDA4F1000010001 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			productRefGroup = 0A11D0032CDA4F1000010001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -169,6 +198,9 @@
 				0A11A00A2CDA4F1000010001 /* ReceiptsView.swift in Sources */,
 				0A11A00B2CDA4F1000010001 /* AnalyticsView.swift in Sources */,
 				0A11A00C2CDA4F1000010001 /* SettingsView.swift in Sources */,
+				0A11A00E2CDA4F1000010001 /* FirebaseClientConfig.swift in Sources */,
+				0A11A00F2CDA4F1000010001 /* AuthViewModel.swift in Sources */,
+				0A11A0102CDA4F1000010001 /* SignInView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,15 +332,18 @@
 				DEVELOPMENT_ASSET_PATHS = "\"ExpenseTrackerSwiftUI/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Expense Tracker";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				GOOGLE_CLIENT_ID = "";
+				INFOPLIST_FILE = ExpenseTrackerSwiftUI/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.boris.expensetracker.swiftui;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REVERSED_CLIENT_ID = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -328,15 +363,18 @@
 				DEVELOPMENT_ASSET_PATHS = "\"ExpenseTrackerSwiftUI/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Expense Tracker";
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				GOOGLE_CLIENT_ID = "";
+				INFOPLIST_FILE = ExpenseTrackerSwiftUI/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.boris.expensetracker.swiftui;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REVERSED_CLIENT_ID = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -368,6 +406,48 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0A1200012CDA4F1000010001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+		0A1200022CDA4F1000010001 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0A1300012CDA4F1000010001 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A1200012CDA4F1000010001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		0A1300022CDA4F1000010001 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A1200012CDA4F1000010001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		0A1300032CDA4F1000010001 /* FirebaseDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A1200012CDA4F1000010001 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDatabase;
+		};
+		0A1300042CDA4F1000010001 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0A1200022CDA4F1000010001 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0A11E0022CDA4F1000010001 /* Project object */;
 }

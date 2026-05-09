@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var auth: AuthViewModel
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,18 @@ struct SettingsView: View {
                         ForEach(BudgetPeriod.allCases) { period in
                             Text(period.title).tag(period)
                         }
+                    }
+                }
+
+                Section("Аккаунт") {
+                    if let email = auth.user?.email {
+                        Text(email)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button("Выйти из Google аккаунта", role: .destructive) {
+                        auth.signOut()
                     }
                 }
             }
