@@ -3,18 +3,18 @@ import SwiftUI
 struct AnalyticsView: View {
     @EnvironmentObject private var store: AppStore
 
-    private var categoryTotals: [(Category, Double)] {
+    private var categoryTotals: [CategoryTotal] {
         expenseCategories.compactMap { category in
             let total = store.transactions
                 .filter { $0.kind == .expense && $0.category == category.title }
                 .reduce(0) { $0 + store.convert($1.amount, from: $1.currency, to: store.settings.mainCurrency) }
-            return total > 0 ? (category, total) : nil
+            return total > 0 ? CategoryTotal(category: category, total: total) : nil
         }
-        .sorted { $0.1 > $1.1 }
+        .sorted { $0.total > $1.total }
     }
 
     private var maxTotal: Double {
-        categoryTotals.map(\.1).max() ?? 1
+        categoryTotals.map(\.total).max() ?? 1
     }
 
     var body: some View {
@@ -35,12 +35,12 @@ struct AnalyticsView: View {
                             Text("Добавьте расходы, чтобы увидеть аналитику.")
                                 .foregroundStyle(.white.opacity(0.62))
                         } else {
-                            ForEach(categoryTotals, id: \.0.id) { category, total in
+                            ForEach(categoryTotals) { item in
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
-                                        Label(category.title, systemImage: category.symbol)
+                                        Label(item.category.title, systemImage: item.category.symbol)
                                         Spacer()
-                                        Text(store.formatted(total))
+                                        Text(store.formatted(item.total))
                                     }
                                     .font(.subheadline.weight(.semibold))
 
@@ -49,8 +49,8 @@ struct AnalyticsView: View {
                                             .fill(.white.opacity(0.12))
                                             .overlay(alignment: .leading) {
                                                 Capsule()
-                                                    .fill(category.color.gradient)
-                                                    .frame(width: proxy.size.width * min(total / maxTotal, 1))
+                                                    .fill(item.category.color.gradient)
+                                                    .frame(width: proxy.size.width * min(item.total / maxTotal, 1))
                                             }
                                     }
                                     .frame(height: 10)
@@ -66,4 +66,11 @@ struct AnalyticsView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
     }
+}
+
+private struct CategoryTotal: Identifiable {
+    let category: Category
+    let total: Double
+
+    var id: String { category.id }
 }

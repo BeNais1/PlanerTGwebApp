@@ -18,14 +18,6 @@ Open `ExpenseTrackerSwiftUI.xcodeproj` in Xcode, select the `ExpenseTrackerSwift
 
 The workflow is manual only: `.github/workflows/ios-build.yml` uses `workflow_dispatch`, so creating these files will not start a build.
 
-When you click **Run workflow**, the default `ipa_type` is `unsigned`. This builds an IPA artifact without Apple signing secrets, which is useful for checking that the app compiles in GitHub Actions.
+When you click **Run workflow**, GitHub Actions builds the app without code signing, packages `Payload/ExpenseTrackerSwiftUI.app` into `ExpenseTrackerSwiftUI.ipa`, and uploads it as an artifact.
 
-For a device-installable signed IPA, choose `ipa_type: signed` and add these repository secrets first:
-
-- `APPLE_TEAM_ID`
-- `APPLE_CERTIFICATE_BASE64`
-- `APPLE_CERTIFICATE_PASSWORD`
-- `APPLE_PROVISIONING_PROFILE_BASE64`
-- `KEYCHAIN_PASSWORD`
-
-The provisioning profile must match bundle ID `com.boris.expensetracker.swiftui`.
+You can add signing later outside this workflow.

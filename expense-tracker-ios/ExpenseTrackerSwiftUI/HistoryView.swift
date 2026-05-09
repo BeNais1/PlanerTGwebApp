@@ -13,13 +13,13 @@ struct HistoryView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    ForEach(store.groupedHistory, id: \.0) { section in
+                    ForEach(store.groupedHistory) { section in
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(section.0)
+                            Text(section.title)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.white.opacity(0.68))
 
-                            ForEach(section.1) { item in
+                            ForEach(section.items) { item in
                                 TransactionRow(item: item)
                                     .contextMenu {
                                         Button(role: .destructive) {

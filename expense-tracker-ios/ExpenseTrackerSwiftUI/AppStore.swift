@@ -47,7 +47,7 @@ final class AppStore: ObservableObject {
             .sorted { $0.date > $1.date }
     }
 
-    var groupedHistory: [(String, [TransactionItem])] {
+    var groupedHistory: [HistorySection] {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
         formatter.dateStyle = .medium
@@ -57,8 +57,8 @@ final class AppStore: ObservableObject {
         }
 
         return grouped
-            .map { ($0.key, $0.value) }
-            .sorted { ($0.1.first?.date ?? .distantPast) > ($1.1.first?.date ?? .distantPast) }
+            .map { HistorySection(title: $0.key, items: $0.value) }
+            .sorted { ($0.items.first?.date ?? .distantPast) > ($1.items.first?.date ?? .distantPast) }
     }
 
     func addTransaction(kind: TransactionKind, amount: Double, currency: CurrencyCode, category: String, note: String, date: Date) {

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-enum TransactionKind: String, Codable, CaseIterable, Identifiable {
+enum TransactionKind: String, Codable, CaseIterable, Identifiable, Hashable {
     case expense
     case income
 
@@ -26,7 +26,7 @@ enum TransactionKind: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum CurrencyCode: String, Codable, CaseIterable, Identifiable {
+enum CurrencyCode: String, Codable, CaseIterable, Identifiable, Hashable {
     case eur = "EUR"
     case usd = "USD"
     case uah = "UAH"
@@ -45,7 +45,7 @@ enum CurrencyCode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum BudgetPeriod: String, Codable, CaseIterable, Identifiable {
+enum BudgetPeriod: String, Codable, CaseIterable, Identifiable, Hashable {
     case day
     case week
     case month
@@ -82,6 +82,13 @@ struct ReceiptItem: Identifiable, Codable, Hashable {
     var amount: Double
     var currency: CurrencyCode
     var date: Date
+}
+
+struct HistorySection: Identifiable, Hashable {
+    let title: String
+    let items: [TransactionItem]
+
+    var id: String { title }
 }
 
 struct UserSettings: Codable, Hashable {

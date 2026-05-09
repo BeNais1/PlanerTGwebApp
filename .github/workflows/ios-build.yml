@@ -2,24 +2,6 @@ name: Build iOS IPA
 
 on:
   workflow_dispatch:
-    inputs:
-      ipa_type:
-        description: IPA type
-        required: true
-        default: unsigned
-        type: choice
-        options:
-          - unsigned
-          - signed
-      export_method:
-        description: Export method for signed IPA
-        required: true
-        default: ad-hoc
-        type: choice
-        options:
-          - ad-hoc
-          - app-store-connect
-          - development
 
 permissions:
   contents: read
@@ -37,46 +19,44 @@ jobs:
       SCHEME: ExpenseTrackerSwiftUI
       CONFIGURATION: Release
       BUNDLE_ID: com.boris.expensetracker.swiftui
-      ARCHIVE_PATH: build/ExpenseTrackerSwiftUI.xcarchive
+      BUILD_DIR: build
+      DERIVED_DATA_PATH: build/DerivedData
       EXPORT_PATH: build/export
       RESULT_BUNDLE_PATH: build/ExpenseTrackerSwiftUI.xcresult
-      KEYCHAIN_PATH: build/app-signing.keychain-db
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Select Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
 
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Build unsigned app
-        if: ${{ inputs.ipa_type == 'unsigned' }}
+      - name: Build app without signing
         run: |
           set -euo pipefail
-          mkdir -p build
+          mkdir -p "$BUILD_DIR"
           xcodebuild clean build \
             -project "$PROJECT_PATH" \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
-            -derivedDataPath build/DerivedData \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "$RESULT_BUNDLE_PATH" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            2>&1 | tee build/xcodebuild-unsigned.log
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$BUILD_DIR/xcodebuild.log"
 
-      - name: Package unsigned IPA
-        if: ${{ inputs.ipa_type == 'unsigned' }}
+      - name: Package IPA
         run: |
           set -euo pipefail
-          APP_PATH=$(find build/DerivedData/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -n 1)
+          APP_PATH=$(find "$DERIVED_DATA_PATH/Build/Products/Release-iphoneos" -maxdepth 1 -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "::error::No .app bundle was produced."
             exit 1
@@ -84,127 +64,22 @@ jobs:
           rm -rf "$EXPORT_PATH"
           mkdir -p "$EXPORT_PATH/Payload"
           cp -R "$APP_PATH" "$EXPORT_PATH/Payload/"
-          (cd "$EXPORT_PATH" && zip -qry ExpenseTrackerSwiftUI-unsigned.ipa Payload)
+          (cd "$EXPORT_PATH" && zip -qry ExpenseTrackerSwiftUI.ipa Payload)
 
-      - name: Validate signing secrets
-        if: ${{ inputs.ipa_type == 'signed' }}
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in APPLE_TEAM_ID APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_PROVISIONING_PROFILE_BASE64 KEYCHAIN_PASSWORD; do
-            if [ -z "${!name}" ]; then
-              echo "::error::$name secret is required for signed IPA builds."
-              missing=1
-            fi
-          done
-          exit "$missing"
-
-      - name: Prepare signing keychain
-        if: ${{ inputs.ipa_type == 'signed' }}
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          mkdir -p build "$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > build/signing_certificate.p12
-          echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > build/profile.mobileprovision
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import build/signing_certificate.p12 -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security cms -D -i build/profile.mobileprovision > build/profile.plist
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' build/profile.plist)
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' build/profile.plist)
-          cp build/profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
-
-      - name: Write export options
-        if: ${{ inputs.ipa_type == 'signed' }}
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          EXPORT_METHOD: ${{ inputs.export_method }}
-        run: |
-          set -euo pipefail
-          cat > build/ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>$EXPORT_METHOD</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>teamID</key>
-            <string>$APPLE_TEAM_ID</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>$BUNDLE_ID</key>
-              <string>$PROFILE_NAME</string>
-            </dict>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Archive signed app
-        if: ${{ inputs.ipa_type == 'signed' }}
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          xcodebuild archive \
-            -project "$PROJECT_PATH" \
-            -scheme "$SCHEME" \
-            -configuration "$CONFIGURATION" \
-            -destination "generic/platform=iOS" \
-            -archivePath "$ARCHIVE_PATH" \
-            -resultBundlePath "$RESULT_BUNDLE_PATH" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            2>&1 | tee build/xcodebuild-signed-archive.log
-
-      - name: Export signed IPA
-        if: ${{ inputs.ipa_type == 'signed' }}
-        run: |
-          set -euo pipefail
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist build/ExportOptions.plist \
-            -exportPath "$EXPORT_PATH" \
-            2>&1 | tee build/xcodebuild-signed-export.log
-
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@v6
         with:
           name: ExpenseTrackerSwiftUI-IPA
-          path: expense-tracker-ios/build/export/*.ipa
+          path: expense-tracker-ios/build/export/ExpenseTrackerSwiftUI.ipa
           retention-days: 30
 
       - name: Upload build diagnostics
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: ExpenseTrackerSwiftUI-xcresult
+          name: ExpenseTrackerSwiftUI-build-diagnostics
           path: |
             expense-tracker-ios/build/*.xcresult
             expense-tracker-ios/build/*.log
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Clean keychain
-        if: ${{ always() && inputs.ipa_type == 'signed' }}
-        run: |
-          security delete-keychain "$KEYCHAIN_PATH" || true
