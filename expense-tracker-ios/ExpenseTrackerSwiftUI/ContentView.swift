@@ -15,25 +15,25 @@ struct ContentView: View {
                     NavigationStack {
                         DashboardView(showingAddSheet: $showingAddSheet)
                     }
-                    .tabItem { Label("Главная", systemImage: "house.fill") }
+                    .tabItem { Label("Home", systemImage: "house.fill") }
                     .tag(AppTab.home)
 
                     NavigationStack {
-                        HistoryView()
+                        FinancialHubView()
                     }
-                    .tabItem { Label("История", systemImage: "clock.fill") }
-                    .tag(AppTab.history)
+                    .tabItem { Label("Finance", systemImage: "wallet.pass.fill") }
+                    .tag(AppTab.finance)
 
                     NavigationStack {
                         ReceiptsView()
                     }
-                    .tabItem { Label("Чеки", systemImage: "bookmark.fill") }
+                    .tabItem { Label("Receipts", systemImage: "bookmark.fill") }
                     .tag(AppTab.receipts)
 
                     NavigationStack {
                         AnalyticsView()
                     }
-                    .tabItem { Label("Аналитика", systemImage: "chart.pie.fill") }
+                    .tabItem { Label("Analytics", systemImage: "chart.pie.fill") }
                     .tag(AppTab.analytics)
                 }
                 .tint(.mint)
@@ -50,7 +50,7 @@ struct ContentView: View {
 
 private enum AppTab: Hashable {
     case home
-    case history
+    case finance
     case receipts
     case analytics
 }

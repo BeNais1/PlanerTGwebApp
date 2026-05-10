@@ -18,7 +18,7 @@ Native iOS 26 SwiftUI version of the expense tracker app.
 3. Open target build settings and set:
    - `GOOGLE_CLIENT_ID` (from Firebase iOS app config)
    - `REVERSED_CLIENT_ID` (the reversed value for URL callback)
-4. Verify bundle identifier is `com.boris.expensetracker.swiftui` (or update it in the project and Firebase app settings).
+4. Verify bundle identifier is `planer` (or update it in the project and Firebase app settings).
 5. Optional: instead of manual keys, you can add `GoogleService-Info.plist` to the app target and the app will auto-configure Firebase from it.
 
 ## Open locally
@@ -30,5 +30,6 @@ Open `ExpenseTrackerSwiftUI.xcodeproj` in Xcode, select the `ExpenseTrackerSwift
 The workflow is manual only: `.github/workflows/ios-build.yml` uses `workflow_dispatch`, so creating these files will not start a build.
 
 When you click **Run workflow**, GitHub Actions builds the app without code signing, packages `Payload/ExpenseTrackerSwiftUI.app` into `ExpenseTrackerSwiftUI.ipa`, and uploads it as an artifact.
+Each workflow run also sets a higher `CURRENT_PROJECT_VERSION` from `GITHUB_RUN_NUMBER`, so the IPA is treated as an update build.
 
 You can add signing later outside this workflow.

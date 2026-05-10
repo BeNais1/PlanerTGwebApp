@@ -18,7 +18,8 @@ jobs:
       PROJECT_PATH: ExpenseTrackerSwiftUI.xcodeproj
       SCHEME: ExpenseTrackerSwiftUI
       CONFIGURATION: Release
-      BUNDLE_ID: com.boris.expensetracker.swiftui
+      BUNDLE_ID: planer
+      APP_MARKETING_VERSION: 1.1.0
       BUILD_DIR: build
       DERIVED_DATA_PATH: build/DerivedData
       EXPORT_PATH: build/export
@@ -47,6 +48,8 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "$RESULT_BUNDLE_PATH" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            MARKETING_VERSION="$APP_MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \

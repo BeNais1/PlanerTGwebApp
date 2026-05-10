@@ -23,6 +23,7 @@
 		0A11A00E2CDA4F1000010001 /* FirebaseClientConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0102CDA4F1000010001 /* FirebaseClientConfig.swift */; };
 		0A11A00F2CDA4F1000010001 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0112CDA4F1000010001 /* AuthViewModel.swift */; };
 		0A11A0102CDA4F1000010001 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0122CDA4F1000010001 /* SignInView.swift */; };
+		0A11A0152CDA4F1000010001 /* FinancialHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0142CDA4F1000010001 /* FinancialHubView.swift */; };
 		0A11A0112CDA4F1000010001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300012CDA4F1000010001 /* FirebaseAuth */; };
 		0A11A0122CDA4F1000010001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300022CDA4F1000010001 /* FirebaseCore */; };
 		0A11A0132CDA4F1000010001 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300032CDA4F1000010001 /* FirebaseDatabase */; };
@@ -49,6 +50,7 @@
 		0A11B0112CDA4F1000010001 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		0A11B0122CDA4F1000010001 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		0A11B0132CDA4F1000010001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0A11B0142CDA4F1000010001 /* FinancialHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialHubView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +95,7 @@
 				0A11B0112CDA4F1000010001 /* AuthViewModel.swift */,
 				0A11B0122CDA4F1000010001 /* SignInView.swift */,
 				0A11B0132CDA4F1000010001 /* Info.plist */,
+				0A11B0142CDA4F1000010001 /* FinancialHubView.swift */,
 				0A11B00D2CDA4F1000010001 /* Assets.xcassets */,
 				0A11B00E2CDA4F1000010001 /* Preview Content */,
 			);
@@ -201,6 +204,7 @@
 				0A11A00E2CDA4F1000010001 /* FirebaseClientConfig.swift in Sources */,
 				0A11A00F2CDA4F1000010001 /* AuthViewModel.swift in Sources */,
 				0A11A0102CDA4F1000010001 /* SignInView.swift in Sources */,
+				0A11A0152CDA4F1000010001 /* FinancialHubView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,7 +332,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_ASSET_PATHS = "\"ExpenseTrackerSwiftUI/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
@@ -336,12 +340,12 @@
 				GOOGLE_CLIENT_ID = 961873874615-aou9tmmfarru9l3cr48q8hmbtv9n910f.apps.googleusercontent.com;
 				INFOPLIST_FILE = ExpenseTrackerSwiftUI/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.boris.expensetracker.swiftui;
+				PRODUCT_BUNDLE_IDENTIFIER = planer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REVERSED_CLIENT_ID = com.googleusercontent.apps.961873874615-aou9tmmfarru9l3cr48q8hmbtv9n910f;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -359,7 +363,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_ASSET_PATHS = "\"ExpenseTrackerSwiftUI/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
@@ -367,12 +371,12 @@
 				GOOGLE_CLIENT_ID = 961873874615-aou9tmmfarru9l3cr48q8hmbtv9n910f.apps.googleusercontent.com;
 				INFOPLIST_FILE = ExpenseTrackerSwiftUI/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.boris.expensetracker.swiftui;
+				PRODUCT_BUNDLE_IDENTIFIER = planer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REVERSED_CLIENT_ID = com.googleusercontent.apps.961873874615-aou9tmmfarru9l3cr48q8hmbtv9n910f;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

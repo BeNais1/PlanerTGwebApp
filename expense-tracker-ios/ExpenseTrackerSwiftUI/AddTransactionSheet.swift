@@ -7,47 +7,49 @@ struct AddTransactionSheet: View {
     @State private var kind: TransactionKind = .expense
     @State private var amount = ""
     @State private var currency: CurrencyCode = .eur
-    @State private var category = expenseCategories.first?.title ?? "Другое"
+    @State private var category = expenseCategories.first?.id ?? "other"
     @State private var note = ""
     @State private var date = Date()
 
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Тип", selection: $kind) {
+                Picker("Type", selection: $kind) {
                     ForEach(TransactionKind.allCases) { item in
                         Text(item.title).tag(item)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                Section("Сумма") {
+                Section("Amount") {
                     TextField("0.00", text: $amount)
                         .keyboardType(.decimalPad)
-                    Picker("Валюта", selection: $currency) {
+                    Picker("Currency", selection: $currency) {
                         ForEach(CurrencyCode.allCases) { code in
                             Text("\(code.rawValue) \(code.symbol)").tag(code)
                         }
                     }
                 }
 
-                Section("Детали") {
-                    Picker("Категория", selection: $category) {
-                        ForEach(expenseCategories) { item in
-                            Label(item.title, systemImage: item.symbol).tag(item.title)
+                Section("Details") {
+                    if kind == .expense {
+                        Picker("Category", selection: $category) {
+                            ForEach(expenseCategories) { item in
+                                Label(item.title, systemImage: item.symbol).tag(item.id)
+                            }
                         }
                     }
-                    TextField("Описание", text: $note)
-                    DatePicker("Дата", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    TextField("Note", text: $note)
+                    DatePicker("Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
                 }
             }
-            .navigationTitle(kind == .expense ? "Новый расход" : "Новый доход")
+            .navigationTitle(kind == .expense ? "New Expense" : "New Income")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Отмена") { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Готово") {
+                    Button("Save") {
                         save()
                     }
                     .disabled(parsedAmount <= 0)
@@ -68,7 +70,7 @@ struct AddTransactionSheet: View {
             kind: kind,
             amount: parsedAmount,
             currency: currency,
-            category: kind == .income ? "Доход" : category,
+            category: kind == .income ? "income" : category,
             note: note,
             date: date
         )
