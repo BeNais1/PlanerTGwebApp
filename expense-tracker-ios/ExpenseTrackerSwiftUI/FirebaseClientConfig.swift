@@ -26,7 +26,7 @@ enum FirebaseBootstrap {
         options.projectID = FirebaseClientConfig.projectID
         options.databaseURL = FirebaseClientConfig.databaseURL
         options.storageBucket = FirebaseClientConfig.storageBucket
-        options.bundleID = Bundle.main.bundleIdentifier
+        options.bundleID = Bundle.main.bundleIdentifier ?? "com.boris.expensetracker.swiftui"
         options.clientID = googleClientID()
 
         FirebaseApp.configure(options: options)
