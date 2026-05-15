@@ -12,8 +12,10 @@ final class AppStore: ObservableObject {
 
     private let storageKey = "expense-tracker-swiftui-state-v2"
     private var authStateListener: AuthStateDidChangeListenerHandle?
+    private var stateObserverHandle: DatabaseHandle?
     private var activeUserID: String?
     private var isApplyingRemoteState = false
+    private var pendingSave: DispatchWorkItem?
 
     init() {
         FirebaseBootstrap.configureIfNeeded()
@@ -25,12 +27,18 @@ final class AppStore: ObservableObject {
         if let listener = authStateListener {
             Auth.auth().removeStateDidChangeListener(listener)
         }
+        detachStateObserver()
+    }
+
+    var allCategories: [Category] {
+        let visibleDefaults = defaultExpenseCategories.filter { !settings.hiddenCategoryIds.contains($0.id) }
+        return visibleDefaults + settings.customCategories
     }
 
     var allWalletBalances: [CurrencyCode: Double] {
-        var balances = settings.walletNames.keys.reduce(into: [CurrencyCode: Double]()) { partialResult, rawCode in
-            guard let code = CurrencyCode(rawValue: rawCode) else { return }
-            partialResult[code] = 0
+        var balances: [CurrencyCode: Double] = [:]
+        for code in settings.enabledCurrencies {
+            balances[code] = 0
         }
         if balances[settings.mainCurrency] == nil {
             balances[settings.mainCurrency] = 0
@@ -62,6 +70,13 @@ final class AppStore: ObservableObject {
             .reduce(0) { $0 + convert($1.amount, from: $1.currency, to: settings.mainCurrency) }
     }
 
+    var periodIncome: Double {
+        let startDate = periodStart(for: settings.budgetPeriod, relativeTo: Date())
+        return transactions
+            .filter { $0.kind == .income && !$0.excludedFromBalance && $0.date >= startDate }
+            .reduce(0) { $0 + convert($1.amount, from: $1.currency, to: settings.mainCurrency) }
+    }
+
     var todayTransactions: [TransactionItem] {
         transactions
             .filter { Calendar.current.isDateInToday($0.date) }
@@ -69,12 +84,8 @@ final class AppStore: ObservableObject {
     }
 
     var groupedHistory: [HistorySection] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "uk_UA")
-        formatter.dateStyle = .medium
-
         let grouped = Dictionary(grouping: transactions.sorted { $0.date > $1.date }) {
-            formatter.string(from: $0.date)
+            AppLocale.relativeDay(for: $0.date)
         }
 
         return grouped
@@ -85,6 +96,14 @@ final class AppStore: ObservableObject {
     var monthlyTransactions: [TransactionItem] {
         let monthStart = Calendar.current.dateInterval(of: .month, for: Date())?.start ?? .distantPast
         return transactions.filter { $0.date >= monthStart }
+    }
+
+    func walletName(for currency: CurrencyCode) -> String {
+        settings.walletNames[currency.rawValue] ?? currency.defaultWalletName
+    }
+
+    func balance(for currency: CurrencyCode) -> Double {
+        allWalletBalances[currency] ?? 0
     }
 
     func addTransaction(kind: TransactionKind, amount: Double, currency: CurrencyCode, category: String, note: String, date: Date) {
@@ -114,13 +133,20 @@ final class AppStore: ObservableObject {
         save()
     }
 
-    func addGoal(title: String, targetAmount: Double, savedAmount: Double, dueDate: Date?) {
+    func attachShareCode(_ code: String, toReceipt receiptID: UUID) {
+        guard let index = receipts.firstIndex(where: { $0.id == receiptID }) else { return }
+        receipts[index].shareCode = code
+        save()
+    }
+
+    func addGoal(title: String, targetAmount: Double, savedAmount: Double, dueDate: Date?, emoji: String) {
         let goal = SmartGoal(
             title: title,
             targetAmount: max(targetAmount, 0),
             savedAmount: min(max(savedAmount, 0), max(targetAmount, 0)),
             currency: settings.mainCurrency,
-            dueDate: dueDate
+            dueDate: dueDate,
+            emoji: emoji
         )
         settings.smartGoals.insert(goal, at: 0)
     }
@@ -135,13 +161,14 @@ final class AppStore: ObservableObject {
         settings.smartGoals[index].savedAmount = nextValue
     }
 
-    func addDebt(person: String, amount: Double, dueDate: Date?, direction: DebtDirection) {
+    func addDebt(person: String, amount: Double, currency: CurrencyCode, dueDate: Date?, direction: DebtDirection, note: String) {
         let debt = DebtItem(
             person: person,
             amount: max(0, amount),
-            currency: settings.mainCurrency,
+            currency: currency,
             direction: direction,
-            dueDate: dueDate
+            dueDate: dueDate,
+            note: note
         )
         settings.debts.insert(debt, at: 0)
     }
@@ -155,13 +182,15 @@ final class AppStore: ObservableObject {
         settings.debts.removeAll { $0.id == debt.id }
     }
 
-    func addSubscription(name: String, amount: Double, category: String, icon: String, period: SubscriptionPeriod, nextDate: Date) {
+    func addSubscription(name: String, amount: Double, currency: CurrencyCode, category: String, icon: String, colorHex: UInt, period: SubscriptionPeriod, nextDate: Date) {
+        let colorString = String(format: "%06X", colorHex)
         let subscription = SubscriptionItem(
             name: name,
             amount: max(0, amount),
-            currency: settings.mainCurrency,
+            currency: currency,
             category: category,
             icon: icon,
+            color: colorString,
             period: period,
             nextDate: nextDate
         )
@@ -177,6 +206,62 @@ final class AppStore: ObservableObject {
         settings.subscriptions.removeAll { $0.id == subscription.id }
     }
 
+    func addJointCheck(title: String, totalAmount: Double, currency: CurrencyCode, participants: [JointCheckParticipant]) -> JointCheck {
+        let check = JointCheck(
+            title: title,
+            totalAmount: totalAmount,
+            currency: currency,
+            participants: participants
+        )
+        settings.jointChecks.insert(check, at: 0)
+        return check
+    }
+
+    func recordPayment(checkId: UUID, participantId: UUID, amount: Double) {
+        guard let index = settings.jointChecks.firstIndex(where: { $0.id == checkId }) else { return }
+        settings.jointChecks[index].payments.append(.init(participantId: participantId, amount: amount))
+    }
+
+    func closeJointCheck(_ check: JointCheck) {
+        guard let index = settings.jointChecks.firstIndex(where: { $0.id == check.id }) else { return }
+        settings.jointChecks[index].isClosed = true
+    }
+
+    func removeJointCheck(_ check: JointCheck) {
+        settings.jointChecks.removeAll { $0.id == check.id }
+    }
+
+    func toggleCategoryHidden(_ category: Category) {
+        if settings.hiddenCategoryIds.contains(category.id) {
+            settings.hiddenCategoryIds.removeAll { $0 == category.id }
+        } else {
+            settings.hiddenCategoryIds.append(category.id)
+        }
+    }
+
+    func addCustomCategory(title: String, symbol: String, colorHex: UInt) {
+        let id = title.lowercased().trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "-")
+        guard !id.isEmpty, !settings.customCategories.contains(where: { $0.id == id }) else { return }
+        settings.customCategories.append(.init(id: id, title: title, symbol: symbol, colorHex: colorHex))
+    }
+
+    func renameWallet(currency: CurrencyCode, name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        settings.walletNames[currency.rawValue] = trimmed
+    }
+
+    func completeOnboarding(gender: Gender?, age: Int?, isMarried: Bool?, hasPets: Bool?) {
+        settings.onboarding = .init(
+            gender: gender,
+            age: age,
+            isMarried: isMarried,
+            hasPets: hasPets,
+            completedAt: .now
+        )
+        settings.onboardingCompleted = true
+    }
+
     func convert(_ amount: Double, from: CurrencyCode, to: CurrencyCode) -> Double {
         guard from != to else { return amount }
         let eurRates: [CurrencyCode: Double] = [.eur: 1, .usd: 1.08, .uah: 45.2]
@@ -187,8 +272,10 @@ final class AppStore: ObservableObject {
     func formatted(_ value: Double, currency: CurrencyCode? = nil) -> String {
         let code = currency ?? settings.mainCurrency
         let formatter = NumberFormatter()
+        formatter.locale = AppLocale.locale
         formatter.numberStyle = .currency
         formatter.currencyCode = code.rawValue
+        formatter.currencySymbol = code.symbol
         formatter.maximumFractionDigits = 2
         formatter.minimumFractionDigits = 2
         return formatter.string(from: NSNumber(value: value)) ?? "\(code.symbol)\(value)"
@@ -237,7 +324,16 @@ final class AppStore: ObservableObject {
         UserDefaults.standard.set(data, forKey: storageKey)
 
         guard !isApplyingRemoteState else { return }
-        syncToFirebase(state)
+        scheduleSyncToFirebase(state)
+    }
+
+    private func scheduleSyncToFirebase(_ state: PersistedState) {
+        pendingSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.syncToFirebase(state)
+        }
+        pendingSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
     private func observeAuthState() {
@@ -250,9 +346,10 @@ final class AppStore: ObservableObject {
         let nextUserID = user?.uid
         guard nextUserID != activeUserID else { return }
 
+        detachStateObserver()
         activeUserID = nextUserID
         guard let uid = nextUserID else { return }
-        syncFromFirebase(uid: uid)
+        attachStateObserver(uid: uid)
     }
 
     private func databaseReference(for uid: String) -> DatabaseReference {
@@ -263,11 +360,12 @@ final class AppStore: ObservableObject {
             .child("swiftui_state")
     }
 
-    private func syncFromFirebase(uid: String) {
-        databaseReference(for: uid).observeSingleEvent(of: .value) { [weak self] snapshot in
+    private func attachStateObserver(uid: String) {
+        let ref = databaseReference(for: uid)
+        stateObserverHandle = ref.observe(.value) { [weak self] snapshot in
             guard let self else { return }
 
-            guard snapshot.exists(), let raw = snapshot.value else {
+            guard snapshot.exists(), let raw = snapshot.value, !(raw is NSNull) else {
                 self.syncToFirebase(PersistedState(transactions: self.transactions, receipts: self.receipts, settings: self.settings))
                 return
             }
@@ -286,6 +384,13 @@ final class AppStore: ObservableObject {
                 print("Failed to decode Firebase state: \(error.localizedDescription)")
             }
         }
+    }
+
+    private func detachStateObserver() {
+        if let handle = stateObserverHandle, let uid = activeUserID {
+            databaseReference(for: uid).removeObserver(withHandle: handle)
+        }
+        stateObserverHandle = nil
     }
 
     private func syncToFirebase(_ state: PersistedState) {
@@ -313,22 +418,24 @@ final class AppStore: ObservableObject {
     }
 
     private func seedDemoData() {
+        settings.onboardingCompleted = false
         transactions = [
-            .init(kind: .income, amount: 2400, currency: .eur, category: "income", note: "Monthly transfer", date: .now.addingTimeInterval(-3600.0 * 8.0)),
-            .init(kind: .expense, amount: 39.20, currency: .eur, category: "food", note: "Grocery store", date: .now.addingTimeInterval(-3600.0 * 4.0)),
-            .init(kind: .expense, amount: 520, currency: .uah, category: "transport", note: "Taxi", date: .now.addingTimeInterval(-86400.0))
+            .init(kind: .income, amount: 2400, currency: .eur, category: "income", note: "Зарплата", date: .now.addingTimeInterval(-3600.0 * 8.0)),
+            .init(kind: .expense, amount: 39.20, currency: .eur, category: "food", note: "Сільпо", date: .now.addingTimeInterval(-3600.0 * 4.0)),
+            .init(kind: .expense, amount: 520, currency: .uah, category: "transport", note: "Таксі", date: .now.addingTimeInterval(-86400.0)),
+            .init(kind: .expense, amount: 12.50, currency: .eur, category: "cafe", note: "Кава", date: .now.addingTimeInterval(-3600.0 * 2.0))
         ]
         receipts = [
-            .init(title: "Lunch", merchant: "Urban Bistro", amount: 18.90, currency: .eur, date: .now.addingTimeInterval(-7200.0))
+            .init(title: "Обід", merchant: "Urban Bistro", amount: 18.90, currency: .eur, date: .now.addingTimeInterval(-7200.0))
         ]
         settings.smartGoals = [
-            .init(title: "New laptop", targetAmount: 1500, savedAmount: 320, currency: .eur, dueDate: Calendar.current.date(byAdding: .month, value: 3, to: .now))
+            .init(title: "Новий MacBook", targetAmount: 1500, savedAmount: 320, currency: .eur, dueDate: Calendar.current.date(byAdding: .month, value: 3, to: .now), emoji: "💻")
         ]
         settings.debts = [
-            .init(person: "Alex", amount: 50, currency: .eur, direction: .owedToMe, dueDate: Calendar.current.date(byAdding: .day, value: 7, to: .now))
+            .init(person: "Олексій", amount: 50, currency: .eur, direction: .owedToMe, dueDate: Calendar.current.date(byAdding: .day, value: 7, to: .now))
         ]
         settings.subscriptions = [
-            .init(name: "Netflix", amount: 12.99, currency: .eur, category: "subscriptions", icon: "tv.fill", period: .monthly, nextDate: Calendar.current.date(byAdding: .day, value: 10, to: .now) ?? .now)
+            .init(name: "Netflix", amount: 12.99, currency: .eur, category: "subscriptions", icon: "play.tv.fill", color: "E50914", period: .monthly, nextDate: Calendar.current.date(byAdding: .day, value: 10, to: .now) ?? .now)
         ]
         save()
     }
@@ -381,11 +488,11 @@ enum AnalyticsDateRange: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .week: return "Week"
-        case .month: return "Month"
-        case .quarter: return "Quarter"
-        case .year: return "Year"
-        case .all: return "All"
+        case .week: return "Тиждень"
+        case .month: return "Місяць"
+        case .quarter: return "Квартал"
+        case .year: return "Рік"
+        case .all: return "Весь час"
         }
     }
 
@@ -416,9 +523,9 @@ enum AnalyticsTypeFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .expense: return "Expense"
-        case .income: return "Income"
-        case .all: return "All"
+        case .expense: return "Витрати"
+        case .income: return "Доходи"
+        case .all: return "Усе"
         }
     }
 

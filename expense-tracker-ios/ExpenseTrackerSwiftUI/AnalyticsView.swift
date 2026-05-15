@@ -1,490 +1,583 @@
 import SwiftUI
+import Charts
 
-private enum AnalyticsTab: String, CaseIterable, Identifiable {
+enum AnalyticsTab: String, CaseIterable, Identifiable {
     case overview
     case categories
     case trends
     case wallets
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+
+    var title: String {
+        switch self {
+        case .overview: return "Огляд"
+        case .categories: return "Категорії"
+        case .trends: return "Тренди"
+        case .wallets: return "Гаманці"
+        }
+    }
 }
 
 struct AnalyticsView: View {
     @EnvironmentObject private var store: AppStore
 
-    @State private var selectedCurrency = "ALL"
     @State private var selectedRange: AnalyticsDateRange = .month
-    @State private var selectedType: AnalyticsTypeFilter = .expense
     @State private var selectedTab: AnalyticsTab = .overview
-    @State private var selectedCategory: String?
+    @State private var selectedType: AnalyticsTypeFilter = .expense
 
-    private var availableCurrencies: [CurrencyCode] {
-        let set = Set(store.transactions.map(\.currency))
-        return CurrencyCode.allCases.filter { set.contains($0) || store.allWalletBalances[$0] != nil }
-    }
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                rangePicker
+                tabPicker
 
-    private var currencyFilter: CurrencyCode? {
-        selectedCurrency == "ALL" ? nil : CurrencyCode(rawValue: selectedCurrency)
-    }
+                switch selectedTab {
+                case .overview: OverviewTab(range: selectedRange)
+                case .categories: CategoriesTab(range: selectedRange, type: selectedType)
+                case .trends: TrendsTab(range: selectedRange)
+                case .wallets: WalletsTab(range: selectedRange)
+                }
 
-    private var periodTransactions: [TransactionItem] {
-        store.transactionsInRange(selectedRange, currencyFilter: currencyFilter, typeFilter: .all, categoryFilter: nil)
-    }
-
-    private var filteredTransactions: [TransactionItem] {
-        store.transactionsInRange(selectedRange, currencyFilter: currencyFilter, typeFilter: selectedType, categoryFilter: selectedCategory)
-    }
-
-    private var previousTransactions: [TransactionItem] {
-        let previous = previousRange(for: selectedRange)
-        return store.transactions.filter { item in
-            if item.excludedFromBalance { return false }
-            if let currencyFilter, item.currency != currencyFilter { return false }
-            return item.date >= previous.start && item.date <= previous.end
+                Color.clear.frame(height: 100)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
         }
     }
 
-    private var totals: Totals {
-        Totals(
-            expenses: sum(periodTransactions, kind: .expense),
-            income: sum(periodTransactions, kind: .income),
-            previousExpenses: sum(previousTransactions, kind: .expense),
-            previousIncome: sum(previousTransactions, kind: .income),
-            transactionCount: periodTransactions.count
-        )
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Аналітика")
+                .font(Theme.Typography.largeTitle)
+                .foregroundStyle(.white)
+            Text("Витрати, доходи й тренди")
+                .font(Theme.Typography.footnote)
+                .foregroundStyle(Theme.Palette.tertiaryText)
+        }
     }
 
-    private var categoryRows: [CategoryRow] {
+    private var rangePicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(AnalyticsDateRange.allCases) { range in
+                    GlassChip(title: range.title, isSelected: selectedRange == range) {
+                        withAnimation(Theme.Motion.snappy) {
+                            selectedRange = range
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var tabPicker: some View {
+        HStack(spacing: 6) {
+            ForEach(AnalyticsTab.allCases) { tab in
+                Button {
+                    HapticFeedback.selection()
+                    withAnimation(Theme.Motion.snappy) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    Text(tab.title)
+                        .font(Theme.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(selectedTab == tab ? .white : Theme.Palette.tertiaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            Group {
+                                if selectedTab == tab {
+                                    Capsule().fill(Theme.Palette.indigo.opacity(0.4))
+                                }
+                            }
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .liquidGlass(tint: .white.opacity(0.04), in: Capsule())
+    }
+}
+
+struct OverviewTab: View {
+    @EnvironmentObject private var store: AppStore
+    let range: AnalyticsDateRange
+
+    private var transactions: [TransactionItem] {
+        store.transactionsInRange(range, currencyFilter: nil, typeFilter: .all, categoryFilter: nil)
+    }
+
+    private var expenses: Double {
+        transactions.filter { $0.kind == .expense }
+            .reduce(0) { $0 + store.convert($1.amount, from: $1.currency, to: store.settings.mainCurrency) }
+    }
+
+    private var income: Double {
+        transactions.filter { $0.kind == .income }
+            .reduce(0) { $0 + store.convert($1.amount, from: $1.currency, to: store.settings.mainCurrency) }
+    }
+
+    private var dailyData: [DailyTotal] {
+        let bounds = range.bounds(relativeTo: Date())
+        let calendar = Calendar.current
+        let days = max(1, calendar.dateComponents([.day], from: bounds.start, to: bounds.end).day ?? 1)
+
+        var map: [String: DailyTotal] = [:]
+        for item in transactions {
+            let key = AppLocale.dayMonthFormatter.string(from: item.date)
+            var row = map[key] ?? DailyTotal(date: item.date, label: key, expense: 0, income: 0)
+            let value = store.convert(item.amount, from: item.currency, to: store.settings.mainCurrency)
+            if item.kind == .expense { row.expense += value } else { row.income += value }
+            row.date = min(row.date, item.date)
+            map[key] = row
+        }
+        let result = map.values.sorted { $0.date < $1.date }
+        return Array(result.suffix(min(days, 14)))
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                metric(title: "Витрати", value: expenses, tint: Theme.Palette.expense, icon: "arrow.up.right")
+                metric(title: "Доходи", value: income, tint: Theme.Palette.income, icon: "arrow.down.left")
+                metric(title: "Чистий", value: income - expenses, tint: (income - expenses) >= 0 ? Theme.Palette.mint : Theme.Palette.rose, icon: "scalemass")
+                metric(title: "Транзакцій", value: Double(transactions.count), tint: Theme.Palette.indigo, icon: "number", isCount: true)
+            }
+
+            chartCard
+        }
+    }
+
+    private func metric(title: String, value: Double, tint: Color, icon: String, isCount: Bool = false) -> some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 14, tint: tint.opacity(0.12)) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(tint)
+                        .frame(width: 26, height: 26)
+                        .background(tint.opacity(0.18), in: Circle())
+                    Spacer()
+                }
+                Text(title)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+                Text(isCount ? "\(Int(value))" : store.formatted(value))
+                    .font(Theme.Typography.title2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+        }
+    }
+
+    private var chartCard: some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Динаміка")
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(.white)
+
+                if dailyData.isEmpty {
+                    Text("Немає даних")
+                        .font(Theme.Typography.footnote)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+                        .frame(maxWidth: .infinity, minHeight: 160)
+                } else {
+                    Chart {
+                        ForEach(dailyData) { row in
+                            BarMark(
+                                x: .value("Дата", row.date, unit: .day),
+                                y: .value("Витрати", row.expense)
+                            )
+                            .foregroundStyle(Theme.Palette.expense.gradient)
+                            .cornerRadius(4)
+
+                            BarMark(
+                                x: .value("Дата", row.date, unit: .day),
+                                y: .value("Доходи", row.income)
+                            )
+                            .foregroundStyle(Theme.Palette.mint.gradient)
+                            .cornerRadius(4)
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .day, count: max(1, dailyData.count / 6))) { _ in
+                            AxisGridLine().foregroundStyle(.white.opacity(0.08))
+                            AxisValueLabel(format: .dateTime.day().month(.abbreviated).locale(AppLocale.locale))
+                                .foregroundStyle(Theme.Palette.tertiaryText)
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks { _ in
+                            AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                            AxisValueLabel().foregroundStyle(Theme.Palette.tertiaryText)
+                        }
+                    }
+                    .frame(height: 200)
+                }
+            }
+        }
+    }
+}
+
+struct CategoriesTab: View {
+    @EnvironmentObject private var store: AppStore
+    let range: AnalyticsDateRange
+    let type: AnalyticsTypeFilter
+
+    private var rows: [CategoryRow] {
+        let txs = store.transactionsInRange(range, currencyFilter: nil, typeFilter: .all, categoryFilter: nil)
+            .filter { $0.kind == .expense }
         var dict: [String: CategoryRow] = [:]
-        for item in periodTransactions where selectedType == .all || item.kind == selectedType.transactionKind {
-            let key = item.kind == .income ? "income" : item.category
-            let value = amountForView(item)
-            let existing = dict[key] ?? CategoryRow(category: key, amount: 0, count: 0)
-            dict[key] = CategoryRow(category: key, amount: existing.amount + value, count: existing.count + 1)
+        for item in txs {
+            let v = store.convert(item.amount, from: item.currency, to: store.settings.mainCurrency)
+            let prev = dict[item.category] ?? CategoryRow(category: item.category, amount: 0, count: 0)
+            dict[item.category] = CategoryRow(category: item.category, amount: prev.amount + v, count: prev.count + 1)
         }
         return dict.values.sorted { $0.amount > $1.amount }
     }
 
-    private var trendRows: [TrendRow] {
-        let calendar = Calendar.current
-        let useMonths = selectedRange == .year || selectedRange == .all
-        var map: [String: TrendRow] = [:]
+    private var total: Double {
+        max(0.01, rows.reduce(0) { $0 + $1.amount })
+    }
 
-        for item in filteredTransactions {
-            let key: String
-            let label: String
-            if useMonths {
-                let month = calendar.component(.month, from: item.date)
-                let year = calendar.component(.year, from: item.date)
-                key = "\(year)-\(month)"
-                label = item.date.formatted(.dateTime.month(.abbreviated))
-            } else {
-                key = item.date.formatted(.dateTime.year().month().day())
-                label = item.date.formatted(.dateTime.day().month(.twoDigits))
-            }
+    var body: some View {
+        VStack(spacing: 14) {
+            donutChart
+            categoryList
+        }
+    }
 
-            var row = map[key] ?? TrendRow(label: label, date: item.date, expense: 0, income: 0)
-            if item.kind == .expense {
-                row.expense += amountForView(item)
-            } else {
-                row.income += amountForView(item)
+    private var donutChart: some View {
+        GlassCard(cornerRadius: Theme.Radius.xl, padding: 18) {
+            VStack(spacing: 10) {
+                Text("Розподіл витрат")
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(.white)
+
+                if rows.isEmpty {
+                    Text("Немає даних за період")
+                        .font(Theme.Typography.footnote)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+                        .frame(height: 200)
+                } else {
+                    Chart {
+                        ForEach(rows) { row in
+                            let cat = categoryById(row.category, customCategories: store.settings.customCategories)
+                            SectorMark(
+                                angle: .value("Сума", row.amount),
+                                innerRadius: .ratio(0.62),
+                                angularInset: 2
+                            )
+                            .foregroundStyle(cat.color)
+                            .cornerRadius(6)
+                        }
+                    }
+                    .chartLegend(.hidden)
+                    .frame(height: 220)
+                    .overlay {
+                        VStack(spacing: 2) {
+                            Text("Усього")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.tertiaryText)
+                            Text(store.formatted(total))
+                                .font(Theme.Typography.title2.weight(.bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    private var categoryList: some View {
+        VStack(spacing: 8) {
+            ForEach(rows) { row in
+                let cat = categoryById(row.category, customCategories: store.settings.customCategories)
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(cat.color.opacity(0.22))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: cat.symbol)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(cat.color)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(cat.title)
+                                .font(Theme.Typography.callout)
+                                .foregroundStyle(.white)
+                            Spacer()
+                            Text(store.formatted(row.amount))
+                                .font(Theme.Typography.footnote.weight(.bold))
+                                .foregroundStyle(.white)
+                        }
+                        GeometryReader { proxy in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(.white.opacity(0.1))
+                                Capsule()
+                                    .fill(cat.color.gradient)
+                                    .frame(width: max(4, proxy.size.width * (row.amount / total)))
+                            }
+                        }
+                        .frame(height: 6)
+                        HStack {
+                            Text("\(row.count) транз.")
+                            Spacer()
+                            Text("\(Int((row.amount / total) * 100))%")
+                        }
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+                    }
+                }
+                .padding(14)
+                .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+            }
+        }
+    }
+}
+
+struct TrendsTab: View {
+    @EnvironmentObject private var store: AppStore
+    let range: AnalyticsDateRange
+
+    private var rows: [DailyTotal] {
+        let txs = store.transactionsInRange(range, currencyFilter: nil, typeFilter: .all, categoryFilter: nil)
+        var map: [String: DailyTotal] = [:]
+        for item in txs {
+            let key = AppLocale.dayMonthFormatter.string(from: item.date)
+            var row = map[key] ?? DailyTotal(date: item.date, label: key, expense: 0, income: 0)
+            let value = store.convert(item.amount, from: item.currency, to: store.settings.mainCurrency)
+            if item.kind == .expense { row.expense += value } else { row.income += value }
             row.date = min(row.date, item.date)
             map[key] = row
         }
-
         return map.values.sorted { $0.date < $1.date }
     }
 
     var body: some View {
-        ZStack {
-            AppBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    rangeFilter
-                    typeFilter
-                    tabFilter
-
-                    switch selectedTab {
-                    case .overview:
-                        overviewSection
-                    case .categories:
-                        categoriesSection(expanded: true)
-                    case .trends:
-                        trendsSection
-                    case .wallets:
-                        walletsSection
-                    }
-
-                    if periodTransactions.isEmpty {
-                        Text("No transactions for this filter")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.66))
-                            .glassCard(cornerRadius: 16)
-                    }
-                }
-                .padding(18)
-                .padding(.bottom, 28)
-            }
+        VStack(spacing: 14) {
+            lineChart
+            summary
         }
-        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Analytics")
-                    .font(.largeTitle.weight(.bold))
+    private var lineChart: some View {
+        GlassCard(cornerRadius: Theme.Radius.xl, padding: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Тренди")
+                    .font(Theme.Typography.headline)
                     .foregroundStyle(.white)
-                Text("Spending, income, trends, and wallet breakdown")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.66))
-            }
-            Spacer()
-            Picker("Currency", selection: $selectedCurrency) {
-                Text("All").tag("ALL")
-                ForEach(availableCurrencies) { code in
-                    Text(code.rawValue).tag(code.rawValue)
-                }
-            }
-            .pickerStyle(.menu)
-            .padding(8)
-            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-    }
 
-    private var rangeFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(AnalyticsDateRange.allCases) { range in
-                    filterPill(title: range.title, isActive: selectedRange == range) {
-                        selectedRange = range
-                    }
-                }
-            }
-        }
-    }
-
-    private var typeFilter: some View {
-        HStack(spacing: 8) {
-            ForEach(AnalyticsTypeFilter.allCases) { type in
-                filterPill(title: type.title, isActive: selectedType == type) {
-                    selectedType = type
-                    selectedCategory = nil
-                }
-            }
-        }
-    }
-
-    private var tabFilter: some View {
-        HStack(spacing: 8) {
-            ForEach(AnalyticsTab.allCases) { tab in
-                filterPill(title: tab.title, isActive: selectedTab == tab) {
-                    selectedTab = tab
-                }
-            }
-        }
-    }
-
-    private var overviewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
-                metricCard(title: "Net", value: format(totals.net), detail: "vs prev \(percent(totals.netDelta))", accent: totals.net >= 0 ? .mint : .red)
-                metricCard(title: "Expenses", value: format(totals.expenses), detail: selectedRange == .all ? "all time" : percent(totals.expensesDelta), accent: .white)
-                metricCard(title: "Income", value: format(totals.income), detail: selectedRange == .all ? "all time" : percent(totals.incomeDelta), accent: .mint)
-                metricCard(title: "Daily Avg", value: format(totals.dailyAverage), detail: "\(totals.transactionCount) tx", accent: .white)
-            }
-
-            categoriesSection(expanded: false)
-            trendChart(limit: 14)
-        }
-    }
-
-    private func categoriesSection(expanded: Bool) -> some View {
-        let rows = expanded ? categoryRows : Array(categoryRows.prefix(5))
-        let total = max(1, rows.reduce(0) { $0 + $1.amount })
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(expanded ? "All Categories" : "Top Categories")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Spacer()
-                if selectedCategory != nil {
-                    Button("Reset") {
-                        selectedCategory = nil
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.mint)
-                }
-            }
-
-            if rows.isEmpty {
-                Text("No categories")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.66))
-            } else {
-                ForEach(rows) { row in
-                    Button {
-                        selectedCategory = selectedCategory == row.category ? nil : row.category
-                    } label: {
-                        HStack(spacing: 10) {
-                            let category = resolvedCategory(for: row.category)
-                            Image(systemName: row.category == "income" ? "arrow.down.left" : category.symbol)
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(row.category == "income" ? .mint : category.color)
-                                .frame(width: 30, height: 30)
-                                .background(.white.opacity(0.08), in: Circle())
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(row.category == "income" ? "Income" : resolvedCategory(for: row.category).title)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                Text("\(row.count) tx")
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.62))
-                            }
-
-                            GeometryReader { proxy in
-                                Capsule()
-                                    .fill(.white.opacity(0.12))
-                                    .overlay(alignment: .leading) {
-                                        Capsule()
-                                            .fill((row.category == "income" ? Color.mint : resolvedCategory(for: row.category).color).gradient)
-                                            .frame(width: max(3, proxy.size.width * (row.amount / total)))
-                                    }
-                            }
-                            .frame(height: 8)
-
-                            Text(format(row.amount))
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .glassCard(cornerRadius: 18)
-    }
-
-    private var trendsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            trendChart(limit: trendRows.count)
-            ForEach(trendRows.reversed()) { row in
-                HStack {
-                    Text(row.label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                    Spacer()
-                    Text("-\(format(row.expense))")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.white)
-                    Text("+\(format(row.income))")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.mint)
-                }
-                .glassCard(cornerRadius: 12)
-            }
-        }
-    }
-
-    private var walletsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Wallets")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-            ForEach(availableCurrencies) { code in
-                let tx = periodTransactions.filter { $0.currency == code }
-                let income = tx.filter { $0.kind == .income }.reduce(0) { $0 + $1.amount }
-                let expenses = tx.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount }
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(code.rawValue)
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
-                        Text("\(tx.count) tx")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(store.formatted(store.allWalletBalances[code] ?? 0, currency: code))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
-                        Text("-\(store.formatted(expenses, currency: code)) / +\(store.formatted(income, currency: code))")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
-                }
-                .glassCard(cornerRadius: 16)
-            }
-        }
-    }
-
-    private func trendChart(limit: Int) -> some View {
-        let rows = Array(trendRows.suffix(max(1, limit)))
-        let maxAmount = max(1, rows.reduce(0) { current, row in
-            max(current, max(row.expense, row.income))
-        })
-
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Trends")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-            if rows.isEmpty {
-                Text("No trend data")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.66))
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .bottom, spacing: 10) {
+                if rows.isEmpty {
+                    Text("Немає даних")
+                        .font(Theme.Typography.footnote)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+                        .frame(height: 200)
+                } else {
+                    Chart {
                         ForEach(rows) { row in
-                            VStack(spacing: 6) {
-                                HStack(alignment: .bottom, spacing: 3) {
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .fill(Color.mint)
-                                        .frame(width: 10, height: max(4, 90 * (row.income / maxAmount)))
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .fill(Color.white)
-                                        .frame(width: 10, height: max(4, 90 * (row.expense / maxAmount)))
-                                }
-                                Text(row.label)
-                                    .font(.caption2)
-                                    .foregroundStyle(.white.opacity(0.62))
-                            }
-                            .frame(width: 36)
+                            LineMark(
+                                x: .value("Дата", row.date),
+                                y: .value("Витрати", row.expense),
+                                series: .value("Тип", "Витрати")
+                            )
+                            .foregroundStyle(Theme.Palette.expense)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 3))
+
+                            AreaMark(
+                                x: .value("Дата", row.date),
+                                y: .value("Витрати", row.expense),
+                                series: .value("Тип", "Витрати")
+                            )
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Theme.Palette.expense.opacity(0.4), Theme.Palette.expense.opacity(0)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .interpolationMethod(.catmullRom)
+
+                            LineMark(
+                                x: .value("Дата", row.date),
+                                y: .value("Доходи", row.income),
+                                series: .value("Тип", "Доходи")
+                            )
+                            .foregroundStyle(Theme.Palette.mint)
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 3))
                         }
                     }
+                    .chartXAxis {
+                        AxisMarks { _ in
+                            AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                            AxisValueLabel(format: .dateTime.day().month(.abbreviated).locale(AppLocale.locale))
+                                .foregroundStyle(Theme.Palette.tertiaryText)
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks { _ in
+                            AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                            AxisValueLabel().foregroundStyle(Theme.Palette.tertiaryText)
+                        }
+                    }
+                    .frame(height: 240)
                 }
             }
         }
-        .glassCard(cornerRadius: 18)
     }
 
-    private func filterPill(title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(isActive ? .white : .white.opacity(0.74))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isActive ? .white.opacity(0.18) : .white.opacity(0.08))
-                )
+    private var summary: some View {
+        let totalExpense = rows.reduce(0) { $0 + $1.expense }
+        let totalIncome = rows.reduce(0) { $0 + $1.income }
+        let avg = rows.isEmpty ? 0 : totalExpense / Double(rows.count)
+
+        return HStack(spacing: 10) {
+            metricPill(title: "Сер. за день", value: store.formatted(avg), tint: Theme.Palette.indigo)
+            metricPill(title: "Чистий", value: store.formatted(totalIncome - totalExpense), tint: (totalIncome - totalExpense) >= 0 ? Theme.Palette.mint : Theme.Palette.rose)
         }
-        .buttonStyle(.plain)
     }
 
-    private func metricCard(title: String, value: String, detail: String, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func metricPill(title: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.66))
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Palette.tertiaryText)
             Text(value)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(accent)
-            Text(detail)
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.58))
+                .font(Theme.Typography.headline.weight(.bold))
+                .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 14)
+        .padding(14)
+        .liquidGlass(tint: tint.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
     }
+}
 
-    private func resolvedCategory(for id: String) -> Category {
-        expenseCategories.first(where: { $0.id == id }) ?? expenseCategories.last!
-    }
+struct WalletsTab: View {
+    @EnvironmentObject private var store: AppStore
+    let range: AnalyticsDateRange
 
-    private func format(_ value: Double) -> String {
-        if let code = currencyFilter {
-            return store.formatted(value, currency: code)
+    private var balances: [WalletData] {
+        store.settings.enabledCurrencies.map { code in
+            let txs = store.transactionsInRange(range, currencyFilter: code, typeFilter: .all, categoryFilter: nil)
+            let income = txs.filter { $0.kind == .income }.reduce(0) { $0 + $1.amount }
+            let expense = txs.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount }
+            return WalletData(
+                currency: code,
+                balance: store.balance(for: code),
+                income: income,
+                expense: expense
+            )
         }
-        return store.formatted(value, currency: store.settings.mainCurrency)
     }
 
-    private func percent(_ value: Double) -> String {
-        guard value.isFinite else { return "0%" }
-        let sign = value > 0 ? "+" : ""
-        return "\(sign)\(Int(value.rounded()))%"
-    }
-
-    private func sum(_ source: [TransactionItem], kind: TransactionKind) -> Double {
-        source
-            .filter { $0.kind == kind }
-            .reduce(0) { partialResult, item in
-                partialResult + amountForView(item)
+    var body: some View {
+        VStack(spacing: 14) {
+            chart
+            ForEach(balances) { data in
+                walletRow(data)
             }
-    }
-
-    private func amountForView(_ item: TransactionItem) -> Double {
-        if currencyFilter != nil {
-            return item.amount
         }
-        return store.convert(item.amount, from: item.currency, to: store.settings.mainCurrency)
     }
 
-    private func previousRange(for range: AnalyticsDateRange) -> (start: Date, end: Date) {
-        let current = range.bounds(relativeTo: Date())
-        switch range {
-        case .week:
-            return (Calendar.current.date(byAdding: .day, value: -7, to: current.start) ?? .distantPast, Calendar.current.date(byAdding: .second, value: -1, to: current.start) ?? current.start)
-        case .month:
-            return (Calendar.current.date(byAdding: .month, value: -1, to: current.start) ?? .distantPast, Calendar.current.date(byAdding: .second, value: -1, to: current.start) ?? current.start)
-        case .quarter:
-            return (Calendar.current.date(byAdding: .day, value: -90, to: current.start) ?? .distantPast, Calendar.current.date(byAdding: .second, value: -1, to: current.start) ?? current.start)
-        case .year:
-            return (Calendar.current.date(byAdding: .year, value: -1, to: current.start) ?? .distantPast, Calendar.current.date(byAdding: .second, value: -1, to: current.start) ?? current.start)
-        case .all:
-            return (.distantPast, .distantPast)
+    private var chart: some View {
+        GlassCard(cornerRadius: Theme.Radius.xl, padding: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Активність гаманців")
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(.white)
+
+                Chart {
+                    ForEach(balances) { data in
+                        BarMark(
+                            x: .value("Дохід", data.income),
+                            y: .value("Валюта", data.currency.rawValue)
+                        )
+                        .foregroundStyle(Theme.Palette.mint.gradient)
+                        .cornerRadius(6)
+
+                        BarMark(
+                            x: .value("Витрати", -data.expense),
+                            y: .value("Валюта", data.currency.rawValue)
+                        )
+                        .foregroundStyle(Theme.Palette.expense.gradient)
+                        .cornerRadius(6)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { _ in
+                        AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                        AxisValueLabel().foregroundStyle(Theme.Palette.tertiaryText)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { _ in
+                        AxisValueLabel().foregroundStyle(.white)
+                    }
+                }
+                .frame(height: 160)
+            }
+        }
+    }
+
+    private func walletRow(_ data: WalletData) -> some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 14, tint: data.currency.accent.opacity(0.1)) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(data.currency.accent.opacity(0.3)).frame(width: 44, height: 44)
+                    Text(data.currency.symbol)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.walletName(for: data.currency))
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(.white)
+                    HStack(spacing: 6) {
+                        Text("+\(store.formatted(data.income, currency: data.currency))")
+                            .foregroundStyle(Theme.Palette.mint)
+                        Text("·")
+                            .foregroundStyle(Theme.Palette.tertiaryText)
+                        Text("−\(store.formatted(data.expense, currency: data.currency))")
+                            .foregroundStyle(Theme.Palette.rose)
+                    }
+                    .font(Theme.Typography.caption)
+                }
+                Spacer()
+                Text(store.formatted(data.balance, currency: data.currency))
+                    .font(Theme.Typography.headline.weight(.bold))
+                    .foregroundStyle(.white)
+            }
         }
     }
 }
 
-private struct Totals {
-    let expenses: Double
-    let income: Double
-    let previousExpenses: Double
-    let previousIncome: Double
-    let transactionCount: Int
-
-    var net: Double { income - expenses }
-    var previousNet: Double { previousIncome - previousExpenses }
-    var dailyAverage: Double {
-        guard transactionCount > 0 else { return 0 }
-        return expenses / Double(max(1, transactionCount))
-    }
-
-    var expensesDelta: Double {
-        guard previousExpenses > 0 else { return 0 }
-        return ((expenses - previousExpenses) / previousExpenses) * 100
-    }
-
-    var incomeDelta: Double {
-        guard previousIncome > 0 else { return 0 }
-        return ((income - previousIncome) / previousIncome) * 100
-    }
-
-    var netDelta: Double {
-        guard abs(previousNet) > 0 else { return 0 }
-        return ((net - previousNet) / abs(previousNet)) * 100
-    }
+struct DailyTotal: Identifiable, Hashable {
+    var date: Date
+    let label: String
+    var expense: Double
+    var income: Double
+    var id: String { "\(label)-\(date.timeIntervalSince1970)" }
 }
 
-private struct CategoryRow: Identifiable {
+struct CategoryRow: Identifiable {
     let category: String
     let amount: Double
     let count: Int
     var id: String { category }
 }
 
-private struct TrendRow: Identifiable {
-    let label: String
-    var date: Date
-    var expense: Double
-    var income: Double
-    var id: String { "\(label)-\(date.timeIntervalSince1970)" }
+struct WalletData: Identifiable {
+    let currency: CurrencyCode
+    let balance: Double
+    let income: Double
+    let expense: Double
+    var id: String { currency.rawValue }
 }

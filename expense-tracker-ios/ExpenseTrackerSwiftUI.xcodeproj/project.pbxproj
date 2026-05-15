@@ -24,6 +24,13 @@
 		0A11A00F2CDA4F1000010001 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0112CDA4F1000010001 /* AuthViewModel.swift */; };
 		0A11A0102CDA4F1000010001 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0122CDA4F1000010001 /* SignInView.swift */; };
 		0A11A0152CDA4F1000010001 /* FinancialHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0142CDA4F1000010001 /* FinancialHubView.swift */; };
+		0A11A0202CDA4F1000010001 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0202CDA4F1000010001 /* Theme.swift */; };
+		0A11A0212CDA4F1000010001 /* AnimatedMeshBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0212CDA4F1000010001 /* AnimatedMeshBackground.swift */; };
+		0A11A0222CDA4F1000010001 /* HapticFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0222CDA4F1000010001 /* HapticFeedback.swift */; };
+		0A11A0232CDA4F1000010001 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0232CDA4F1000010001 /* Localization.swift */; };
+		0A11A0242CDA4F1000010001 /* SubscriptionPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0242CDA4F1000010001 /* SubscriptionPresets.swift */; };
+		0A11A0252CDA4F1000010001 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0252CDA4F1000010001 /* OnboardingFlow.swift */; };
+		0A11A0262CDA4F1000010001 /* QRCodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A11B0262CDA4F1000010001 /* QRCodeView.swift */; };
 		0A11A0112CDA4F1000010001 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300012CDA4F1000010001 /* FirebaseAuth */; };
 		0A11A0122CDA4F1000010001 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300022CDA4F1000010001 /* FirebaseCore */; };
 		0A11A0132CDA4F1000010001 /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 0A1300032CDA4F1000010001 /* FirebaseDatabase */; };
@@ -51,6 +58,13 @@
 		0A11B0122CDA4F1000010001 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		0A11B0132CDA4F1000010001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		0A11B0142CDA4F1000010001 /* FinancialHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinancialHubView.swift; sourceTree = "<group>"; };
+		0A11B0202CDA4F1000010001 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		0A11B0212CDA4F1000010001 /* AnimatedMeshBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedMeshBackground.swift; sourceTree = "<group>"; };
+		0A11B0222CDA4F1000010001 /* HapticFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedback.swift; sourceTree = "<group>"; };
+		0A11B0232CDA4F1000010001 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		0A11B0242CDA4F1000010001 /* SubscriptionPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPresets.swift; sourceTree = "<group>"; };
+		0A11B0252CDA4F1000010001 /* OnboardingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
+		0A11B0262CDA4F1000010001 /* QRCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRCodeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -96,6 +110,13 @@
 				0A11B0122CDA4F1000010001 /* SignInView.swift */,
 				0A11B0132CDA4F1000010001 /* Info.plist */,
 				0A11B0142CDA4F1000010001 /* FinancialHubView.swift */,
+				0A11B0202CDA4F1000010001 /* Theme.swift */,
+				0A11B0212CDA4F1000010001 /* AnimatedMeshBackground.swift */,
+				0A11B0222CDA4F1000010001 /* HapticFeedback.swift */,
+				0A11B0232CDA4F1000010001 /* Localization.swift */,
+				0A11B0242CDA4F1000010001 /* SubscriptionPresets.swift */,
+				0A11B0252CDA4F1000010001 /* OnboardingFlow.swift */,
+				0A11B0262CDA4F1000010001 /* QRCodeView.swift */,
 				0A11B00D2CDA4F1000010001 /* Assets.xcassets */,
 				0A11B00E2CDA4F1000010001 /* Preview Content */,
 			);
@@ -205,6 +226,13 @@
 				0A11A00F2CDA4F1000010001 /* AuthViewModel.swift in Sources */,
 				0A11A0102CDA4F1000010001 /* SignInView.swift in Sources */,
 				0A11A0152CDA4F1000010001 /* FinancialHubView.swift in Sources */,
+				0A11A0202CDA4F1000010001 /* Theme.swift in Sources */,
+				0A11A0212CDA4F1000010001 /* AnimatedMeshBackground.swift in Sources */,
+				0A11A0222CDA4F1000010001 /* HapticFeedback.swift in Sources */,
+				0A11A0232CDA4F1000010001 /* Localization.swift in Sources */,
+				0A11A0242CDA4F1000010001 /* SubscriptionPresets.swift in Sources */,
+				0A11A0252CDA4F1000010001 /* OnboardingFlow.swift in Sources */,
+				0A11A0262CDA4F1000010001 /* QRCodeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

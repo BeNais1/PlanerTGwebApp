@@ -1,522 +1,1083 @@
 import SwiftUI
 
-private enum HubTab: String, CaseIterable, Identifiable {
+enum HubSection: String, CaseIterable, Identifiable {
     case goals
-    case auto
-    case search
-    case recurring
+    case subscriptions
     case debts
-    case receipts
+    case jointChecks
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .goals: return "Goals"
-        case .auto: return "Auto"
-        case .search: return "Search"
-        case .recurring: return "Recurring"
-        case .debts: return "Debts"
-        case .receipts: return "Receipts"
+        case .goals: return "Цілі"
+        case .subscriptions: return "Підписки"
+        case .debts: return "Борги"
+        case .jointChecks: return "Спільні чеки"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .goals: return "target"
+        case .subscriptions: return "arrow.triangle.2.circlepath"
+        case .debts: return "person.2.fill"
+        case .jointChecks: return "list.dash.header.rectangle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .goals: return Theme.Palette.mint
+        case .subscriptions: return Theme.Palette.violet
+        case .debts: return Theme.Palette.amber
+        case .jointChecks: return Theme.Palette.cyan
         }
     }
 }
 
 struct FinancialHubView: View {
-    @EnvironmentObject private var store: AppStore
-    @State private var activeTab: HubTab = .goals
+    @State private var section: HubSection = .goals
 
-    @State private var goalTitle = ""
-    @State private var goalTarget = ""
-    @State private var goalSaved = ""
-    @State private var goalDueDate = Date()
-    @State private var includeGoalDate = false
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                sectionPicker
 
-    @State private var debtPerson = ""
-    @State private var debtAmount = ""
-    @State private var debtDueDate = Date()
-    @State private var includeDebtDate = false
-    @State private var debtDirection: DebtDirection = .owedToMe
-
-    @State private var subscriptionName = ""
-    @State private var subscriptionAmount = ""
-    @State private var subscriptionPeriod: SubscriptionPeriod = .monthly
-    @State private var subscriptionNextDate = Date()
-    @State private var subscriptionCategory = "subscriptions"
-    @State private var subscriptionIcon = "repeat.circle.fill"
-
-    @State private var search = ""
-
-    private var autoSuggestions: [AutoSuggestion] {
-        store.transactions
-            .filter { $0.kind == .expense && !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .compactMap { item in
-                guard let suggested = store.suggestedCategory(for: item.note), suggested != item.category else {
-                    return nil
+                Group {
+                    switch section {
+                    case .goals: GoalsSection()
+                    case .subscriptions: SubscriptionsSection()
+                    case .debts: DebtsSection()
+                    case .jointChecks: JointChecksSection()
+                    }
                 }
-                return AutoSuggestion(item: item, suggestedCategory: suggested)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                Color.clear.frame(height: 100)
             }
-            .prefix(12)
-            .map { $0 }
-    }
-
-    private var searchResults: [TransactionItem] {
-        let needle = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let source = store.transactions.sorted { $0.date > $1.date }
-        guard !needle.isEmpty else { return Array(source.prefix(40)) }
-        return source.filter { item in
-            let haystack = "\(item.note) \(item.category) \(item.amount) \(item.currency.rawValue)".lowercased()
-            return haystack.contains(needle)
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
         }
-        .prefix(40)
-        .map { $0 }
     }
 
-    private var debtToMeTotal: Double {
-        store.settings.debts
-            .filter { !$0.isPaid && $0.direction == .owedToMe }
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Фінанси")
+                .font(Theme.Typography.largeTitle)
+                .foregroundStyle(.white)
+            Text("Цілі, підписки, борги та спільні чеки")
+                .font(Theme.Typography.footnote)
+                .foregroundStyle(Theme.Palette.tertiaryText)
+        }
+    }
+
+    private var sectionPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(HubSection.allCases) { s in
+                    Button {
+                        HapticFeedback.selection()
+                        withAnimation(Theme.Motion.snappy) {
+                            section = s
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: s.icon)
+                                .font(.system(size: 12, weight: .bold))
+                            Text(s.title)
+                                .font(Theme.Typography.footnote.weight(.semibold))
+                        }
+                        .foregroundStyle(section == s ? .white : Theme.Palette.secondaryText)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .liquidGlass(
+                        tint: section == s ? s.tint.opacity(0.35) : .white.opacity(0.05),
+                        interactive: true,
+                        in: Capsule()
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct GoalsSection: View {
+    @EnvironmentObject private var store: AppStore
+    @State private var showingCreate = false
+    @State private var topupGoal: SmartGoal?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("\(store.settings.smartGoals.count) цілей")
+                    .font(Theme.Typography.footnote)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+                Spacer()
+                GlassButton(title: "Додати ціль", icon: "plus", tint: Theme.Palette.mint, prominent: true) {
+                    showingCreate = true
+                }
+                .frame(width: 180)
+            }
+
+            if store.settings.smartGoals.isEmpty {
+                EmptyStateCard(icon: "target", title: "Немає цілей", subtitle: "Створіть першу фінансову ціль")
+            } else {
+                ForEach(store.settings.smartGoals) { goal in
+                    GoalCard(goal: goal) {
+                        topupGoal = goal
+                    }
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            store.removeGoal(goal)
+                        } label: {
+                            Label("Видалити", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingCreate) {
+            GoalCreateSheet().environmentObject(store)
+                .presentationDetents([.medium])
+                .presentationBackground(.clear)
+        }
+        .sheet(item: $topupGoal) { goal in
+            GoalTopUpSheet(goal: goal).environmentObject(store)
+                .presentationDetents([.height(280)])
+                .presentationBackground(.clear)
+        }
+    }
+}
+
+struct GoalCard: View {
+    @EnvironmentObject private var store: AppStore
+    let goal: SmartGoal
+    let onTopUp: () -> Void
+
+    var body: some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 16, tint: Theme.Palette.mint.opacity(0.1)) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(Theme.Palette.mint.opacity(0.25)).frame(width: 46, height: 46)
+                        Text(goal.emoji).font(.system(size: 22))
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(goal.title)
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(.white)
+                        if let due = goal.dueDate {
+                            Text("До \(AppLocale.mediumDateFormatter.string(from: due))")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.tertiaryText)
+                        }
+                    }
+                    Spacer()
+                    Button {
+                        HapticFeedback.tap()
+                        onTopUp()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .bold))
+                            .frame(width: 32, height: 32)
+                            .foregroundStyle(.white)
+                            .background(Theme.Palette.mint, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(store.formatted(goal.savedAmount, currency: goal.currency))
+                            .font(Theme.Typography.title2.weight(.bold))
+                            .foregroundStyle(.white)
+                        Text("/ \(store.formatted(goal.targetAmount, currency: goal.currency))")
+                            .font(Theme.Typography.footnote)
+                            .foregroundStyle(Theme.Palette.tertiaryText)
+                        Spacer()
+                        Text("\(Int(goal.progress * 100))%")
+                            .font(Theme.Typography.headline.weight(.bold))
+                            .foregroundStyle(Theme.Palette.mint)
+                    }
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(.white.opacity(0.1))
+                            Capsule()
+                                .fill(Theme.Gradient.incomeGlow)
+                                .frame(width: max(6, proxy.size.width * goal.progress))
+                        }
+                    }
+                    .frame(height: 8)
+                }
+            }
+        }
+    }
+}
+
+struct GoalCreateSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var target = ""
+    @State private var saved = ""
+    @State private var emoji = "🎯"
+    @State private var dueDate = Calendar.current.date(byAdding: .month, value: 6, to: .now) ?? .now
+    @State private var includeDate = false
+
+    private let emojiOptions = ["🎯", "💻", "🏠", "🚗", "✈️", "💍", "📚", "🎁", "💰", "📱"]
+
+    var body: some View {
+        ZStack {
+            AppBackground(palette: .oceanDeep)
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Нова ціль")
+                            .font(Theme.Typography.title)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        GlassIconButton(systemImage: "xmark") { dismiss() }
+                    }
+
+                    emojiPicker
+                    field("Назва цілі", text: $title)
+                    HStack(spacing: 10) {
+                        amountField(text: $target, placeholder: "Ціль")
+                        amountField(text: $saved, placeholder: "Зібрано")
+                    }
+                    Toggle("Встановити дату", isOn: $includeDate)
+                        .foregroundStyle(.white)
+                        .tint(Theme.Palette.mint)
+                    if includeDate {
+                        DatePicker("Дата", selection: $dueDate, displayedComponents: .date)
+                            .environment(\.locale, AppLocale.locale)
+                            .datePickerStyle(.compact)
+                            .colorScheme(.dark)
+                    }
+
+                    Button(action: save) {
+                        Text("Створити")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.Gradient.primaryButton)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
+                }
+                .padding(18)
+            }
+        }
+    }
+
+    private var emojiPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(emojiOptions, id: \.self) { e in
+                    Button {
+                        emoji = e
+                    } label: {
+                        Text(e)
+                            .font(.system(size: 26))
+                            .frame(width: 50, height: 50)
+                    }
+                    .buttonStyle(.plain)
+                    .liquidGlass(
+                        tint: emoji == e ? Theme.Palette.mint.opacity(0.4) : .white.opacity(0.06),
+                        interactive: true,
+                        in: Circle()
+                    )
+                }
+            }
+        }
+    }
+
+    private func field(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .font(Theme.Typography.callout)
+            .foregroundStyle(.white)
+            .tint(Theme.Palette.mint)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+    }
+
+    private func amountField(text: Binding<String>, placeholder: String) -> some View {
+        TextField(placeholder, text: text)
+            .keyboardType(.decimalPad)
+            .font(Theme.Typography.callout)
+            .foregroundStyle(.white)
+            .tint(Theme.Palette.mint)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+    }
+
+    private func save() {
+        let t = Double(target.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let s = Double(saved.replacingOccurrences(of: ",", with: ".")) ?? 0
+        guard !title.isEmpty, t > 0 else {
+            HapticFeedback.warning()
+            return
+        }
+        store.addGoal(title: title, targetAmount: t, savedAmount: s, dueDate: includeDate ? dueDate : nil, emoji: emoji)
+        HapticFeedback.success()
+        dismiss()
+    }
+}
+
+struct GoalTopUpSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    let goal: SmartGoal
+    @State private var amount = ""
+
+    var body: some View {
+        ZStack {
+            AppBackground(palette: .oceanDeep)
+            VStack(spacing: 16) {
+                HStack {
+                    Text("Поповнити \"\(goal.title)\"")
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    GlassIconButton(systemImage: "xmark") { dismiss() }
+                }
+
+                TextField("Сума", text: $amount)
+                    .keyboardType(.decimalPad)
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity)
+                    .liquidGlass(tint: .white.opacity(0.05), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                    .tint(Theme.Palette.mint)
+
+                Button {
+                    let value = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
+                    store.topUpGoal(goal, amount: value)
+                    HapticFeedback.success()
+                    dismiss()
+                } label: {
+                    Text("Додати")
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Theme.Gradient.incomeGlow)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(18)
+        }
+    }
+}
+
+struct SubscriptionsSection: View {
+    @EnvironmentObject private var store: AppStore
+    @State private var showingCreate = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("\(store.settings.subscriptions.filter { $0.isActive }.count) активних")
+                    .font(Theme.Typography.footnote)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+                Spacer()
+                GlassButton(title: "Додати підписку", icon: "plus", tint: Theme.Palette.violet, prominent: true) {
+                    showingCreate = true
+                }
+                .frame(width: 200)
+            }
+
+            if store.settings.subscriptions.isEmpty {
+                EmptyStateCard(icon: "arrow.triangle.2.circlepath", title: "Немає підписок", subtitle: "Додайте Netflix, Spotify чи свою послугу")
+            } else {
+                ForEach(store.settings.subscriptions) { sub in
+                    SubscriptionCard(sub: sub)
+                        .contextMenu {
+                            Button {
+                                store.toggleSubscriptionActive(sub)
+                            } label: {
+                                Label(sub.isActive ? "Призупинити" : "Відновити",
+                                      systemImage: sub.isActive ? "pause.fill" : "play.fill")
+                            }
+                            Button(role: .destructive) {
+                                store.removeSubscription(sub)
+                            } label: {
+                                Label("Видалити", systemImage: "trash")
+                            }
+                        }
+                }
+            }
+        }
+        .sheet(isPresented: $showingCreate) {
+            SubscriptionCreateSheet().environmentObject(store)
+                .presentationDetents([.large])
+                .presentationBackground(.clear)
+        }
+    }
+}
+
+struct SubscriptionCard: View {
+    @EnvironmentObject private var store: AppStore
+    let sub: SubscriptionItem
+
+    private var color: Color {
+        if let hex = UInt(sub.color, radix: 16) {
+            return Color(hex: hex)
+        }
+        return Theme.Palette.violet
+    }
+
+    var body: some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 14, tint: color.opacity(0.12)) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle().fill(color.opacity(0.3)).frame(width: 46, height: 46)
+                    Image(systemName: sub.icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sub.name)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(.white)
+                    HStack(spacing: 6) {
+                        Text(sub.period.title)
+                        Text("·")
+                        Text("До \(AppLocale.mediumDateFormatter.string(from: sub.nextDate))")
+                    }
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(store.formatted(sub.amount, currency: sub.currency))
+                        .font(Theme.Typography.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    if !sub.isActive {
+                        Text("ПАУЗА")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(1)
+                            .foregroundStyle(Theme.Palette.amber)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.Palette.amber.opacity(0.18), in: Capsule())
+                    }
+                }
+            }
+        }
+        .opacity(sub.isActive ? 1.0 : 0.6)
+    }
+}
+
+struct SubscriptionCreateSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedPreset: SubscriptionPreset?
+    @State private var customName = ""
+    @State private var amount = ""
+    @State private var currency: CurrencyCode = .eur
+    @State private var period: SubscriptionPeriod = .monthly
+    @State private var nextDate = Calendar.current.date(byAdding: .month, value: 1, to: .now) ?? .now
+
+    var body: some View {
+        ZStack {
+            AppBackground(palette: .auroraNight)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Нова підписка")
+                            .font(Theme.Typography.title)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        GlassIconButton(systemImage: "xmark") { dismiss() }
+                    }
+
+                    Text("Оберіть сервіс")
+                        .font(Theme.Typography.caption.weight(.bold))
+                        .tracking(1.2)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        ForEach(subscriptionPresets) { preset in
+                            presetTile(preset)
+                        }
+                    }
+
+                    if selectedPreset?.id == "custom" {
+                        TextField("Назва", text: $customName)
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                    }
+
+                    HStack(spacing: 10) {
+                        TextField("Сума", text: $amount)
+                            .keyboardType(.decimalPad)
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                        ForEach(CurrencyCode.allCases) { code in
+                            GlassChip(title: code.symbol, isSelected: currency == code, tint: code.accent) {
+                                currency = code
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach(SubscriptionPeriod.allCases) { p in
+                            GlassChip(title: p.title, isSelected: period == p, tint: Theme.Palette.violet) {
+                                period = p
+                            }
+                        }
+                    }
+
+                    DatePicker("Наступний платіж", selection: $nextDate, displayedComponents: .date)
+                        .environment(\.locale, AppLocale.locale)
+                        .datePickerStyle(.compact)
+                        .colorScheme(.dark)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                    Button(action: save) {
+                        Text("Створити")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.Gradient.primaryButton)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 18)
+                }
+                .padding(18)
+            }
+        }
+        .onAppear {
+            currency = store.settings.mainCurrency
+        }
+    }
+
+    private func presetTile(_ preset: SubscriptionPreset) -> some View {
+        Button {
+            HapticFeedback.selection()
+            selectedPreset = preset
+            if preset.id != "custom" {
+                customName = preset.name
+                amount = String(format: "%.2f", preset.suggestedAmount)
+                currency = preset.suggestedCurrency
+            } else {
+                customName = ""
+                amount = ""
+            }
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(preset.color.opacity(0.25))
+                        .frame(width: 42, height: 42)
+                    Image(systemName: preset.icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                Text(preset.name)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(.plain)
+        .liquidGlass(
+            tint: selectedPreset?.id == preset.id ? preset.color.opacity(0.25) : .white.opacity(0.04),
+            interactive: true,
+            in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous)
+        )
+    }
+
+    private func save() {
+        let amt = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
+        let name = customName.isEmpty ? (selectedPreset?.name ?? "Підписка") : customName
+        let icon = selectedPreset?.icon ?? "arrow.triangle.2.circlepath"
+        let colorHex = selectedPreset?.colorHex ?? 0x7C3AED
+        let categoryId = selectedPreset?.categoryId ?? "subscriptions"
+        guard amt > 0 else {
+            HapticFeedback.warning()
+            return
+        }
+        store.addSubscription(name: name, amount: amt, currency: currency, category: categoryId, icon: icon, colorHex: colorHex, period: period, nextDate: nextDate)
+        HapticFeedback.success()
+        dismiss()
+    }
+}
+
+struct DebtsSection: View {
+    @EnvironmentObject private var store: AppStore
+    @State private var showingCreate = false
+
+    private var owedToMe: Double {
+        store.settings.debts.filter { !$0.isPaid && $0.direction == .owedToMe }
             .reduce(0) { $0 + store.convert($1.amount, from: $1.currency, to: store.settings.mainCurrency) }
     }
 
-    private var debtIOweTotal: Double {
-        store.settings.debts
-            .filter { !$0.isPaid && $0.direction == .iOwe }
+    private var iOwe: Double {
+        store.settings.debts.filter { !$0.isPaid && $0.direction == .iOwe }
             .reduce(0) { $0 + store.convert($1.amount, from: $1.currency, to: store.settings.mainCurrency) }
     }
 
     var body: some View {
-        ZStack {
-            AppBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Financial Hub")
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.white)
-                        Text("Goals, auto-categorization, search, recurring payments, debts, and receipts")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.66))
-                    }
-
-                    tabBar
-
-                    switch activeTab {
-                    case .goals:
-                        goalsSection
-                    case .auto:
-                        autoSection
-                    case .search:
-                        searchSection
-                    case .recurring:
-                        recurringSection
-                    case .debts:
-                        debtsSection
-                    case .receipts:
-                        receiptsSection
-                    }
-                }
-                .padding(18)
-                .padding(.bottom, 28)
-            }
-        }
-        .toolbar(.hidden, for: .navigationBar)
-    }
-
-    private var tabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(HubTab.allCases) { tab in
-                    Button {
-                        activeTab = tab
-                    } label: {
-                        Text(tab.title)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(activeTab == tab ? .white : .white.opacity(0.7))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(activeTab == tab ? .white.opacity(0.18) : .white.opacity(0.08))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .glassCard(cornerRadius: 16)
-    }
-
-    private var goalsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Smart Goals")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
-            VStack(spacing: 10) {
-                TextField("Goal title", text: $goalTitle)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    TextField("Target amount", text: $goalTarget)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Saved now", text: $goalSaved)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.roundedBorder)
-                }
-                Toggle("Add due date", isOn: $includeGoalDate)
-                    .tint(.mint)
-                    .foregroundStyle(.white)
-                if includeGoalDate {
-                    DatePicker("Due date", selection: $goalDueDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                        .foregroundStyle(.white)
-                }
-                Button("Add Goal") {
-                    let target = parseAmount(goalTarget)
-                    let saved = parseAmount(goalSaved)
-                    guard !goalTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, target > 0 else { return }
-                    store.addGoal(
-                        title: goalTitle.trimmingCharacters(in: .whitespacesAndNewlines),
-                        targetAmount: target,
-                        savedAmount: saved,
-                        dueDate: includeGoalDate ? goalDueDate : nil
-                    )
-                    goalTitle = ""
-                    goalTarget = ""
-                    goalSaved = ""
-                    includeGoalDate = false
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.mint)
-            }
-            .glassCard(cornerRadius: 18)
-
-            ForEach(store.settings.smartGoals) { goal in
-                let progress = goal.targetAmount > 0 ? min(goal.savedAmount / goal.targetAmount, 1) : 0
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(goal.title)
-                                .font(.headline.weight(.semibold))
-                                .foregroundStyle(.white)
-                            Text(goal.dueDate?.formatted(date: .abbreviated, time: .omitted) ?? "No due date")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.6))
-                        }
-                        Spacer()
-                        Text("\(Int(progress * 100))%")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.mint)
-                    }
-
-                    GeometryReader { proxy in
-                        Capsule()
-                            .fill(.white.opacity(0.12))
-                            .overlay(alignment: .leading) {
-                                Capsule()
-                                    .fill(.mint.gradient)
-                                    .frame(width: proxy.size.width * progress)
-                            }
-                    }
-                    .frame(height: 8)
-
-                    HStack {
-                        Text(store.formatted(goal.savedAmount, currency: goal.currency))
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Text("of \(store.formatted(goal.targetAmount, currency: goal.currency))")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.64))
-                    }
-
-                    HStack {
-                        Button("Top up +10") {
-                            store.topUpGoal(goal, amount: 10)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.mint)
-
-                        Spacer()
-
-                        Button("Delete", role: .destructive) {
-                            store.removeGoal(goal)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-                .glassCard(cornerRadius: 18)
-            }
-        }
-    }
-
-    private var autoSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Auto-categorization suggestions")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
-            if autoSuggestions.isEmpty {
-                Text("No suggestions right now.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .glassCard(cornerRadius: 16)
-            } else {
-                ForEach(autoSuggestions) { suggestion in
-                    Button {
-                        var updated = suggestion.item
-                        updated.category = suggestion.suggestedCategory
-                        store.updateTransaction(updated)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(suggestion.item.note)
-                                    .font(.subheadline.weight(.semibold))
-                                Text("\(suggestion.item.category) → \(suggestion.suggestedCategory)")
-                                    .font(.caption)
-                            }
-                            Spacer()
-                            Text(store.formatted(suggestion.item.amount, currency: suggestion.item.currency))
-                                .font(.subheadline.weight(.bold))
-                        }
-                        .foregroundStyle(.white)
-                    }
-                    .buttonStyle(.plain)
-                    .glassCard(cornerRadius: 16)
-                }
-            }
-        }
-    }
-
-    private var searchSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            TextField("Search by note/category/amount", text: $search)
-                .textFieldStyle(.roundedBorder)
-                .glassCard(cornerRadius: 16)
-
-            ForEach(searchResults) { item in
-                TransactionRow(item: item)
-            }
-        }
-    }
-
-    private var recurringSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Recurring Payments")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
-            VStack(spacing: 10) {
-                TextField("Subscription name", text: $subscriptionName)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    TextField("Amount", text: $subscriptionAmount)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.roundedBorder)
-                    Picker("Period", selection: $subscriptionPeriod) {
-                        ForEach(SubscriptionPeriod.allCases) { period in
-                            Text(period.title).tag(period)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-                HStack {
-                    TextField("Category id", text: $subscriptionCategory)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("SF Symbol", text: $subscriptionIcon)
-                        .textFieldStyle(.roundedBorder)
-                }
-                DatePicker("Next charge", selection: $subscriptionNextDate, displayedComponents: .date)
-                    .datePickerStyle(.compact)
-                    .foregroundStyle(.white)
-                Button("Add Subscription") {
-                    let amount = parseAmount(subscriptionAmount)
-                    guard !subscriptionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, amount > 0 else { return }
-                    store.addSubscription(
-                        name: subscriptionName.trimmingCharacters(in: .whitespacesAndNewlines),
-                        amount: amount,
-                        category: subscriptionCategory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "subscriptions" : subscriptionCategory.trimmingCharacters(in: .whitespacesAndNewlines),
-                        icon: subscriptionIcon.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "repeat.circle.fill" : subscriptionIcon.trimmingCharacters(in: .whitespacesAndNewlines),
-                        period: subscriptionPeriod,
-                        nextDate: subscriptionNextDate
-                    )
-                    subscriptionName = ""
-                    subscriptionAmount = ""
-                    subscriptionCategory = "subscriptions"
-                    subscriptionIcon = "repeat.circle.fill"
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.mint)
-            }
-            .glassCard(cornerRadius: 18)
-
-            ForEach(store.settings.subscriptions) { sub in
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("\(sub.icon) \(sub.name)")
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(.white)
-                        Text("\(sub.period.title) · \(sub.nextDate.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.66))
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 8) {
-                        Text(store.formatted(sub.amount, currency: sub.currency))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
-                        HStack {
-                            Button(sub.isActive ? "Pause" : "Resume") {
-                                store.toggleSubscriptionActive(sub)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Button("Delete", role: .destructive) {
-                                store.removeSubscription(sub)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                }
-                .glassCard(cornerRadius: 16)
-            }
-        }
-    }
-
-    private var debtsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(spacing: 12) {
             HStack(spacing: 10) {
-                debtMetric(title: "Owed to me", value: store.formatted(debtToMeTotal))
-                debtMetric(title: "I owe", value: store.formatted(debtIOweTotal))
+                summaryCard(title: "Мені винні", value: owedToMe, tint: Theme.Palette.mint)
+                summaryCard(title: "Я винен", value: iOwe, tint: Theme.Palette.rose)
             }
 
-            VStack(spacing: 10) {
-                TextField("Person", text: $debtPerson)
-                    .textFieldStyle(.roundedBorder)
-                HStack {
-                    TextField("Amount", text: $debtAmount)
-                        .keyboardType(.decimalPad)
-                        .textFieldStyle(.roundedBorder)
-                    Picker("Direction", selection: $debtDirection) {
-                        ForEach(DebtDirection.allCases) { direction in
-                            Text(direction.title).tag(direction)
-                        }
-                    }
-                    .pickerStyle(.menu)
+            HStack {
+                Spacer()
+                GlassButton(title: "Додати борг", icon: "plus", tint: Theme.Palette.amber, prominent: true) {
+                    showingCreate = true
                 }
-                Toggle("Add due date", isOn: $includeDebtDate)
-                    .tint(.mint)
-                    .foregroundStyle(.white)
-                if includeDebtDate {
-                    DatePicker("Due date", selection: $debtDueDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                        .foregroundStyle(.white)
-                }
-                Button("Add Debt") {
-                    let amount = parseAmount(debtAmount)
-                    guard !debtPerson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, amount > 0 else { return }
-                    store.addDebt(
-                        person: debtPerson.trimmingCharacters(in: .whitespacesAndNewlines),
-                        amount: amount,
-                        dueDate: includeDebtDate ? debtDueDate : nil,
-                        direction: debtDirection
-                    )
-                    debtPerson = ""
-                    debtAmount = ""
-                    includeDebtDate = false
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.mint)
+                .frame(width: 180)
             }
-            .glassCard(cornerRadius: 18)
 
-            ForEach(store.settings.debts) { debt in
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(debt.person)
-                            .font(.headline.weight(.semibold))
-                        Text("\(debt.direction.title) · \(debt.dueDate?.formatted(date: .abbreviated, time: .omitted) ?? "No due date")")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.66))
-                    }
-                    .foregroundStyle(.white)
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 8) {
-                        Text(store.formatted(debt.amount, currency: debt.currency))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
-                        HStack {
-                            Button(debt.isPaid ? "Reopen" : "Paid") {
-                                store.toggleDebtPaid(debt)
-                            }
-                            .buttonStyle(.bordered)
-
-                            Button("Delete", role: .destructive) {
-                                store.removeDebt(debt)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                }
-                .opacity(debt.isPaid ? 0.65 : 1)
-                .glassCard(cornerRadius: 16)
-            }
-        }
-    }
-
-    private var receiptsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Saved Receipts")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(.white)
-
-            if store.receipts.isEmpty {
-                Text("No saved receipts yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.66))
-                    .glassCard(cornerRadius: 16)
+            if store.settings.debts.isEmpty {
+                EmptyStateCard(icon: "person.2", title: "Боргів немає", subtitle: "Додайте борг, щоб не забути")
             } else {
-                ForEach(store.receipts) { receipt in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(receipt.title)
-                                .font(.headline.weight(.semibold))
-                            Spacer()
-                            Text(store.formatted(receipt.amount, currency: receipt.currency))
-                                .font(.subheadline.weight(.bold))
+                ForEach(store.settings.debts) { debt in
+                    DebtCard(debt: debt)
+                        .contextMenu {
+                            Button {
+                                store.toggleDebtPaid(debt)
+                            } label: {
+                                Label(debt.isPaid ? "Відновити" : "Позначити сплаченим",
+                                      systemImage: debt.isPaid ? "arrow.uturn.backward" : "checkmark")
+                            }
+                            Button(role: .destructive) {
+                                store.removeDebt(debt)
+                            } label: {
+                                Label("Видалити", systemImage: "trash")
+                            }
                         }
-                        Text("\(receipt.merchant) · \(receipt.date.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.66))
-                    }
-                    .foregroundStyle(.white)
-                    .glassCard(cornerRadius: 16)
                 }
             }
         }
-    }
-
-    private func debtMetric(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.66))
-            Text(value)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
+        .sheet(isPresented: $showingCreate) {
+            DebtCreateSheet().environmentObject(store)
+                .presentationDetents([.medium])
+                .presentationBackground(.clear)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 16)
     }
 
-    private func parseAmount(_ value: String) -> Double {
-        Double(value.replacingOccurrences(of: ",", with: ".")) ?? 0
+    private func summaryCard(title: String, value: Double, tint: Color) -> some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 14, tint: tint.opacity(0.15)) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+                Text(store.formatted(value))
+                    .font(Theme.Typography.title2.weight(.bold))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+        }
     }
 }
 
-private struct AutoSuggestion: Identifiable {
-    let item: TransactionItem
-    let suggestedCategory: String
+struct DebtCard: View {
+    @EnvironmentObject private var store: AppStore
+    let debt: DebtItem
 
-    var id: UUID { item.id }
+    var body: some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 14, tint: debt.direction.tint.opacity(0.1)) {
+            HStack(spacing: 12) {
+                Image(systemName: debt.direction.icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(debt.direction.tint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(debt.person)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(.white)
+                        .strikethrough(debt.isPaid)
+                    Text(debt.direction.title)
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+                    if let due = debt.dueDate {
+                        Text("До \(AppLocale.mediumDateFormatter.string(from: due))")
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Palette.tertiaryText)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(store.formatted(debt.amount, currency: debt.currency))
+                        .font(Theme.Typography.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .strikethrough(debt.isPaid)
+                    if debt.isPaid {
+                        Text("СПЛАЧЕНО")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(1)
+                            .foregroundStyle(Theme.Palette.mint)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.Palette.mint.opacity(0.18), in: Capsule())
+                    }
+                }
+            }
+        }
+        .opacity(debt.isPaid ? 0.6 : 1.0)
+    }
+}
+
+struct DebtCreateSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var person = ""
+    @State private var amount = ""
+    @State private var currency: CurrencyCode = .eur
+    @State private var direction: DebtDirection = .owedToMe
+    @State private var note = ""
+    @State private var includeDate = false
+    @State private var dueDate = Calendar.current.date(byAdding: .day, value: 14, to: .now) ?? .now
+
+    var body: some View {
+        ZStack {
+            AppBackground(palette: .sunsetPeach)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Новий борг")
+                            .font(Theme.Typography.title)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        GlassIconButton(systemImage: "xmark") { dismiss() }
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach(DebtDirection.allCases) { d in
+                            GlassChip(title: d.title, isSelected: direction == d, tint: d.tint) {
+                                direction = d
+                            }
+                        }
+                    }
+
+                    TextField("Ім'я", text: $person)
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                    HStack(spacing: 10) {
+                        TextField("Сума", text: $amount)
+                            .keyboardType(.decimalPad)
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                        ForEach(CurrencyCode.allCases) { code in
+                            GlassChip(title: code.symbol, isSelected: currency == code, tint: code.accent) {
+                                currency = code
+                            }
+                        }
+                    }
+
+                    TextField("Примітка", text: $note)
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                    Toggle("Встановити дату", isOn: $includeDate)
+                        .foregroundStyle(.white)
+                        .tint(Theme.Palette.amber)
+                    if includeDate {
+                        DatePicker("Повернути до", selection: $dueDate, displayedComponents: .date)
+                            .environment(\.locale, AppLocale.locale)
+                            .datePickerStyle(.compact)
+                            .colorScheme(.dark)
+                    }
+
+                    Button {
+                        let amt = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
+                        guard !person.isEmpty, amt > 0 else {
+                            HapticFeedback.warning()
+                            return
+                        }
+                        store.addDebt(person: person, amount: amt, currency: currency, dueDate: includeDate ? dueDate : nil, direction: direction, note: note)
+                        HapticFeedback.success()
+                        dismiss()
+                    } label: {
+                        Text("Створити")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.Gradient.primaryButton)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(18)
+            }
+        }
+        .onAppear { currency = store.settings.mainCurrency }
+    }
+}
+
+struct JointChecksSection: View {
+    @EnvironmentObject private var store: AppStore
+    @State private var showingCreate = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Text("\(store.settings.jointChecks.count) чеків")
+                    .font(Theme.Typography.footnote)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+                Spacer()
+                GlassButton(title: "Створити", icon: "plus", tint: Theme.Palette.cyan, prominent: true) {
+                    showingCreate = true
+                }
+                .frame(width: 180)
+            }
+
+            if store.settings.jointChecks.isEmpty {
+                EmptyStateCard(icon: "list.dash.header.rectangle", title: "Спільних чеків немає", subtitle: "Розділіть рахунок з друзями")
+            } else {
+                ForEach(store.settings.jointChecks) { check in
+                    JointCheckCard(check: check)
+                        .contextMenu {
+                            if !check.isClosed {
+                                Button {
+                                    store.closeJointCheck(check)
+                                } label: {
+                                    Label("Закрити", systemImage: "checkmark.circle")
+                                }
+                            }
+                            Button(role: .destructive) {
+                                store.removeJointCheck(check)
+                            } label: {
+                                Label("Видалити", systemImage: "trash")
+                            }
+                        }
+                }
+            }
+        }
+        .sheet(isPresented: $showingCreate) {
+            JointCheckCreateSheet().environmentObject(store)
+                .presentationDetents([.large])
+                .presentationBackground(.clear)
+        }
+    }
+}
+
+struct JointCheckCard: View {
+    @EnvironmentObject private var store: AppStore
+    let check: JointCheck
+
+    var body: some View {
+        GlassCard(cornerRadius: Theme.Radius.lg, padding: 16, tint: Theme.Palette.cyan.opacity(0.1)) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Image(systemName: "list.dash.header.rectangle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Theme.Palette.cyan)
+                    Text(check.title)
+                        .font(Theme.Typography.headline)
+                        .foregroundStyle(.white)
+                    Spacer()
+                    if check.isClosed {
+                        Text("ЗАКРИТО")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(1)
+                            .foregroundStyle(Theme.Palette.mutedText)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.white.opacity(0.1), in: Capsule())
+                    }
+                }
+
+                Text("\(check.participants.count) учасників")
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.tertiaryText)
+
+                HStack {
+                    Text(store.formatted(check.totalPaid, currency: check.currency))
+                        .font(Theme.Typography.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text("/ \(store.formatted(check.totalAmount, currency: check.currency))")
+                        .font(Theme.Typography.footnote)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+                    Spacer()
+                    Text("\(Int(check.progress * 100))%")
+                        .font(Theme.Typography.headline.weight(.bold))
+                        .foregroundStyle(Theme.Palette.cyan)
+                }
+
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.1))
+                        Capsule()
+                            .fill(LinearGradient(colors: [Theme.Palette.cyan, Theme.Palette.mint], startPoint: .leading, endPoint: .trailing))
+                            .frame(width: max(6, proxy.size.width * check.progress))
+                    }
+                }
+                .frame(height: 6)
+            }
+        }
+    }
+}
+
+struct JointCheckCreateSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var total = ""
+    @State private var currency: CurrencyCode = .eur
+    @State private var participants: [JointCheckParticipant] = [
+        .init(name: "Я", share: 1)
+    ]
+    @State private var newParticipant = ""
+
+    var body: some View {
+        ZStack {
+            AppBackground(palette: .oceanDeep)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Спільний чек")
+                            .font(Theme.Typography.title)
+                            .foregroundStyle(.white)
+                        Spacer()
+                        GlassIconButton(systemImage: "xmark") { dismiss() }
+                    }
+
+                    TextField("Назва (напр. Вечеря)", text: $title)
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                    HStack(spacing: 10) {
+                        TextField("Загальна сума", text: $total)
+                            .keyboardType(.decimalPad)
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                        ForEach(CurrencyCode.allCases) { code in
+                            GlassChip(title: code.symbol, isSelected: currency == code, tint: code.accent) {
+                                currency = code
+                            }
+                        }
+                    }
+
+                    Text("УЧАСНИКИ (\(participants.count))")
+                        .font(Theme.Typography.caption.weight(.bold))
+                        .tracking(1.2)
+                        .foregroundStyle(Theme.Palette.tertiaryText)
+
+                    VStack(spacing: 8) {
+                        ForEach(participants) { p in
+                            HStack {
+                                Image(systemName: "person.fill")
+                                    .foregroundStyle(Theme.Palette.cyan)
+                                Text(p.name)
+                                    .font(Theme.Typography.callout)
+                                    .foregroundStyle(.white)
+                                Spacer()
+                                if participants.count > 1 {
+                                    Button {
+                                        participants.removeAll { $0.id == p.id }
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(Theme.Palette.rose)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(12)
+                            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        TextField("Додати учасника", text: $newParticipant)
+                            .font(Theme.Typography.callout)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .liquidGlass(tint: .white.opacity(0.04), in: RoundedRectangle(cornerRadius: Theme.Radius.md, style: .continuous))
+
+                        Button {
+                            let name = newParticipant.trimmingCharacters(in: .whitespaces)
+                            guard !name.isEmpty else { return }
+                            participants.append(.init(name: name, share: 1))
+                            newParticipant = ""
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Theme.Palette.cyan, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button {
+                        let amt = Double(total.replacingOccurrences(of: ",", with: ".")) ?? 0
+                        guard !title.isEmpty, amt > 0, !participants.isEmpty else {
+                            HapticFeedback.warning()
+                            return
+                        }
+                        _ = store.addJointCheck(title: title, totalAmount: amt, currency: currency, participants: participants)
+                        HapticFeedback.success()
+                        dismiss()
+                    } label: {
+                        Text("Створити")
+                            .font(Theme.Typography.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.Gradient.primaryButton)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 18)
+                }
+                .padding(18)
+            }
+        }
+        .onAppear { currency = store.settings.mainCurrency }
+    }
 }
