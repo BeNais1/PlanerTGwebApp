@@ -21,12 +21,11 @@ import {
 } from "../services/database";
 import "./FinancialHubView.css";
 
-type HubTab = "goals" | "auto" | "calendar" | "plan" | "search" | "recurring" | "debts" | "receipts";
+type HubTab = "goals" | "auto" | "search" | "recurring" | "debts" | "receipts";
 type AmountEditor =
   | { kind: "goalTarget"; title: string }
   | { kind: "goalSaved"; title: string }
   | { kind: "goalTopUp"; title: string; goalId: string }
-  | { kind: "plan"; title: string }
   | { kind: "debt"; title: string };
 
 interface FinancialHubViewProps {
@@ -38,9 +37,7 @@ interface FinancialHubViewProps {
 
 const TABS: { id: HubTab; label: string }[] = [
   { id: "goals", label: "Цілі" },
-  { id: "auto", label: "Авто" },
-  { id: "calendar", label: "Календар" },
-  { id: "plan", label: "План" },
+  { id: "auto", label: "Авто-категорії" },
   { id: "search", label: "Пошук" },
   { id: "recurring", label: "Повтори" },
   { id: "debts", label: "Борги" },
@@ -67,11 +64,6 @@ function parseDateInput(value: string) {
   return value ? new Date(`${value}T12:00:00`).getTime() : undefined;
 }
 
-function monthKey(timestamp: number) {
-  const date = new Date(timestamp);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function getDefaultCategory(description: string) {
   const text = description.toLowerCase();
   const match = Object.entries(CATEGORY_KEYWORDS).find(([, words]) => words.some((word) => text.includes(word)));
@@ -81,7 +73,7 @@ function getDefaultCategory(description: string) {
 export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOpenTransaction }: FinancialHubViewProps) => {
   const { user } = useAuth();
   const { currency: mainCurrency, formatValue, convertToMain, CURRENCY_SYMBOLS } = useCurrency();
-  const { names: categoryNames, icons: categoryIcons, categories } = useCategories();
+  const { names: categoryNames, icons: categoryIcons } = useCategories();
   const [activeTab, setActiveTab] = useState<HubTab>("goals");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -92,7 +84,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
   const [goalTarget, setGoalTarget] = useState("");
   const [goalSaved, setGoalSaved] = useState("");
   const [goalDate, setGoalDate] = useState("");
-  const [planAmount, setPlanAmount] = useState("");
   const [search, setSearch] = useState("");
   const [debtPerson, setDebtPerson] = useState("");
   const [debtAmount, setDebtAmount] = useState("");
@@ -128,26 +119,8 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     return () => { cancelled = true; };
   }, [isActive, savedReceipts]);
 
-  useEffect(() => {
-    if (settings.monthlyPlanAmount) setPlanAmount(String(settings.monthlyPlanAmount));
-  }, [settings.monthlyPlanAmount]);
-
   const goals = settings.smartGoals || [];
   const debts = settings.debts || [];
-  const now = Date.now();
-  const currentMonth = monthKey(now);
-
-  const monthTransactions = useMemo(
-    () => transactions.filter((tx) => monthKey(tx.date) === currentMonth),
-    [currentMonth, transactions]
-  );
-
-  const monthExpenses = useMemo(
-    () => monthTransactions
-      .filter((tx) => tx.type === "expense")
-      .reduce((sum, tx) => sum + convertToMain(tx.amount, (tx.currency || "EUR") as Currency), 0),
-    [convertToMain, monthTransactions]
-  );
 
   const autoSuggestions = useMemo(() => (
     transactions
@@ -156,31 +129,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
       .filter(({ tx, suggestedCategory }) => suggestedCategory !== "other" && suggestedCategory !== tx.category)
       .slice(0, 12)
   ), [transactions]);
-
-  const calendarItems = useMemo(() => {
-    const txItems = transactions.slice(0, 20).map((tx) => ({
-      id: `tx-${tx.id}`,
-      date: tx.date,
-      title: tx.type === "income" ? "Дохід" : categoryNames[tx.category] || "Витрата",
-      amount: tx.type === "expense" ? -convertToMain(tx.amount, (tx.currency || "EUR") as Currency) : convertToMain(tx.amount, (tx.currency || "EUR") as Currency),
-      kind: "Операція",
-    }));
-    const subItems = subscriptions.filter((sub) => sub.isActive).map((sub) => ({
-      id: `sub-${sub.id}`,
-      date: sub.nextDate,
-      title: sub.name,
-      amount: -convertToMain(sub.amount, (sub.currency || "EUR") as Currency),
-      kind: "Повтор",
-    }));
-    const debtItems = debts.filter((debt) => !debt.isPaid && debt.dueDate).map((debt) => ({
-      id: `debt-${debt.id}`,
-      date: debt.dueDate || now,
-      title: debt.person,
-      amount: debt.direction === "owed_to_me" ? convertToMain(debt.amount, (debt.currency || "EUR") as Currency) : -convertToMain(debt.amount, (debt.currency || "EUR") as Currency),
-      kind: "Борг",
-    }));
-    return [...subItems, ...debtItems, ...txItems].sort((a, b) => a.date - b.date).slice(0, 30);
-  }, [categoryNames, convertToMain, debts, now, subscriptions, transactions]);
 
   const searchResults = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -191,8 +139,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     }).slice(0, 40);
   }, [categoryNames, search, transactions]);
 
-  const monthlyPlanAmount = settings.monthlyPlanAmount || 0;
-  const planProgress = monthlyPlanAmount > 0 ? Math.min(100, (monthExpenses / monthlyPlanAmount) * 100) : 0;
   const upcomingSubscriptions = subscriptions.filter((sub) => sub.isActive).slice(0, 8);
   const totalDebtsToMe = debts.filter((debt) => !debt.isPaid && debt.direction === "owed_to_me")
     .reduce((sum, debt) => sum + convertToMain(debt.amount, (debt.currency || "EUR") as Currency), 0);
@@ -221,7 +167,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
 
     if (amountEditor.kind === "goalTarget") setGoalTarget(String(amount));
     if (amountEditor.kind === "goalSaved") setGoalSaved(String(amount));
-    if (amountEditor.kind === "plan") setPlanAmount(String(amount));
     if (amountEditor.kind === "debt") setDebtAmount(String(amount));
     if (amountEditor.kind === "goalTopUp") {
       await saveGoals(goals.map((goal) => (
@@ -280,13 +225,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     setDebtDate("");
   };
 
-  const handleSavePlan = async () => {
-    if (!user) return;
-    const amount = Number(planAmount);
-    if (!Number.isFinite(amount) || amount < 0) return;
-    await updateUserSettings(user.id, { monthlyPlanAmount: amount, monthlyPlanCurrency: mainCurrency });
-  };
-
   const handleApplyCategory = async (tx: Transaction, category: string) => {
     if (!user || !tx.id) return;
     await updateTransaction(user.id, tx.id, { category });
@@ -297,7 +235,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
       <div className="financial-hub-header">
         <div>
           <h2>Фінанси</h2>
-          <p>Цілі, планування, борги та історія в одному місці</p>
+          <p>Цілі, автокатегорії, пошук, борги, повтори та чеки в одному місці</p>
         </div>
         <span>{Object.keys(walletBalances).length} гаман.</span>
       </div>
@@ -354,7 +292,13 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
 
       {activeTab === "auto" && (
         <section className="hub-section">
-          <SummaryCard title="Авто-категоризація" value={`${autoSuggestions.length}`} detail="пропозицій за історією" />
+          <div className="hub-info-card">
+            <strong>Авто-категорії</strong>
+            <span>
+              Це підказки для витрат, де опис схожий на відому категорію. Натисніть на підказку, щоб одразу змінити категорію операції.
+            </span>
+          </div>
+          <SummaryCard title="Знайдено підказок" value={`${autoSuggestions.length}`} detail="на основі описів в історії" />
           <div className="hub-list">
             {autoSuggestions.length === 0 ? <EmptyState text="Нових пропозицій немає" /> : autoSuggestions.map(({ tx, suggestedCategory }) => (
               <button key={tx.id} className="hub-card clickable" onClick={() => handleApplyCategory(tx, suggestedCategory)}>
@@ -367,53 +311,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
                 </div>
               </button>
             ))}
-          </div>
-        </section>
-      )}
-
-      {activeTab === "calendar" && (
-        <section className="hub-section">
-          <div className="hub-list">
-            {calendarItems.length === 0 ? <EmptyState text="Календар поки порожній" /> : calendarItems.map((item) => (
-              <div key={item.id} className="hub-card slim">
-                <div className="hub-date">{new Date(item.date).toLocaleDateString("uk-UA", { day: "2-digit", month: "short" })}</div>
-                <div className="hub-row">
-                  <div>
-                    <strong>{item.title}</strong>
-                    <small>{item.kind}</small>
-                  </div>
-                  <b className={item.amount >= 0 ? "positive" : "negative"}>{formatValue(item.amount)}</b>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {activeTab === "plan" && (
-        <section className="hub-section">
-          <SummaryCard title="План на місяць" value={monthlyPlanAmount > 0 ? formatValue(monthlyPlanAmount) : "Не задано"} detail={`Витрачено: ${formatValue(monthExpenses)}`} />
-          <div className="hub-progress large"><span style={{ width: `${planProgress}%` }} /></div>
-          <HubForm>
-            <div className="hub-form-grid">
-              <AmountButton label="Місячний ліміт" value={planAmount ? formatValue(Number(planAmount), mainCurrency) : "Обрати суму"} onClick={() => openAmountEditor({ kind: "plan", title: "Місячний ліміт" }, planAmount)} />
-              <button onClick={handleSavePlan}>Зберегти</button>
-            </div>
-          </HubForm>
-          <div className="hub-list">
-            {categories.slice(0, 6).map((category) => {
-              const spent = monthTransactions
-                .filter((tx) => tx.type === "expense" && tx.category === category.id)
-                .reduce((sum, tx) => sum + convertToMain(tx.amount, (tx.currency || "EUR") as Currency), 0);
-              return (
-                <div key={category.id} className="hub-card slim">
-                  <div className="hub-row">
-                    <div><strong>{category.icon} {category.name}</strong><small>за поточний місяць</small></div>
-                    <b>{formatValue(spent)}</b>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </section>
       )}

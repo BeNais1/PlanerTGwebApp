@@ -92,9 +92,31 @@
 .hub-summary-card,
 .hub-card,
 .hub-form,
-.hub-empty {
+.hub-empty,
+.hub-info-card {
   border-radius: 18px;
   background: var(--card-bg);
+}
+
+.hub-info-card {
+  padding: 14px;
+  animation: panelPop 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hub-info-card strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 850;
+}
+
+.hub-info-card span {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 650;
 }
 
 .hub-summary-card {

@@ -117,10 +117,6 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
     return Array.from(new Set([...Object.keys(walletBalances), ...fromTransactions])) as Currency[];
   }, [allTransactions, walletBalances]);
 
-  const currencySymbol = selectedCurrency === "ALL"
-    ? CURRENCY_SYMBOLS[mainCurrency]
-    : CURRENCY_SYMBOLS[selectedCurrency];
-
   const amountForView = (tx: Transaction) => {
     if (selectedCurrency === "ALL") return convertToMain(tx.amount, (tx.currency || "EUR") as Currency);
     return tx.amount;
@@ -134,7 +130,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
 
   const previousTransactions = useMemo(() => {
     if (dateRange === "all") return [];
-    return allTransactions.filter((tx) => tx.date >= range.previousStart && tx.date <= range.previousEnd && inCurrency(tx));
+    return allTransactions.filter((tx) => !tx.excludeFromBalance && tx.date >= range.previousStart && tx.date <= range.previousEnd && inCurrency(tx));
   }, [allTransactions, dateRange, range, selectedCurrency]);
 
   const visibleTransactions = useMemo(() => (
@@ -193,14 +189,14 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
 
   const trendRows = useMemo(() => {
     const useMonths = dateRange === "year" || dateRange === "all";
-    const source = visibleTransactions.length > 0 ? visibleTransactions : periodTransactions;
+    const source = visibleTransactions;
     const rows = new Map<string, { label: string; expense: number; income: number; date: number }>();
 
     source.forEach((tx) => {
       const date = new Date(tx.date);
       const key = useMonths
         ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-        : new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       const label = useMonths
         ? date.toLocaleDateString("uk-UA", { month: "short" })
         : date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" });
@@ -211,7 +207,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
     });
 
     return Array.from(rows.values()).sort((a, b) => a.date - b.date);
-  }, [dateRange, periodTransactions, selectedCurrency, visibleTransactions]);
+  }, [dateRange, selectedCurrency, visibleTransactions]);
 
   const trendMax = Math.max(1, ...trendRows.map((row) => Math.max(row.expense, row.income)));
 
@@ -375,7 +371,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
                 names={CATEGORY_NAMES}
                 icons={CATEGORY_ICONS}
                 colors={CATEGORY_COLORS}
-                formatAmount={(value) => `${formatValue(value, selectedCurrency === "ALL" ? mainCurrency : selectedCurrency)} ${currencySymbol || ""}`}
+                formatAmount={(value) => formatValue(value, selectedCurrency === "ALL" ? mainCurrency : selectedCurrency)}
               />
             </>
           )}
@@ -389,7 +385,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
               names={CATEGORY_NAMES}
               icons={CATEGORY_ICONS}
               colors={CATEGORY_COLORS}
-              formatAmount={(value) => `${formatValue(value, selectedCurrency === "ALL" ? mainCurrency : selectedCurrency)} ${currencySymbol || ""}`}
+              formatAmount={(value) => formatValue(value, selectedCurrency === "ALL" ? mainCurrency : selectedCurrency)}
               expanded
             />
           )}

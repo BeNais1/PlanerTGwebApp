@@ -389,3 +389,17 @@ html.keyboard-open .modal-content {
 .history-month-group {
   margin-bottom: 20px;
 }
+
+.history-search-input {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--card-bg-2);
+  color: var(--text-primary);
+  padding: 0 12px;
+  font-family: var(--font-text);
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+}

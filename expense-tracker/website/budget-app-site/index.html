@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Мінімалістичний сайт мобільного застосунку для обліку витрат, доходів, бюджетів та спільних чеків."
+    />
+    <title>Finly — особисті фінанси без шуму</title>
+    <link rel="icon" href="./assets/hero.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Finly">
+        <span class="brand-mark">F</span>
+        <span>Finly</span>
+      </a>
+      <nav class="header-nav" aria-label="Основна навігація">
+        <a href="#features">Можливості</a>
+        <a href="#analytics">Аналітика</a>
+        <a href="#security">Приватність</a>
+      </nav>
+      <a class="header-action" href="#preview">Подивитись</a>
+    </header>
+
+    <main id="top">
+      <section class="hero-section" id="preview">
+        <div class="hero-copy">
+          <p class="eyebrow">Облік грошей у Telegram</p>
+          <h1>Фінанси, які не заважають жити.</h1>
+          <p class="hero-text">
+            Додавайте витрати за секунди, бачте залишки по гаманцях, знаходьте потрібні операції
+            та розумійте, куди йдуть гроші.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#features">Що всередині</a>
+            <a class="button secondary" href="#analytics">Як виглядає аналітика</a>
+          </div>
+        </div>
+
+        <div class="phone-showcase" aria-label="Попередній перегляд застосунку">
+          <div class="phone-shell">
+            <div class="phone-status">
+              <span>21:42</span>
+              <span>●●●</span>
+            </div>
+            <div class="phone-card balance-card">
+              <span>Травень 2026</span>
+              <strong>2,840.00 €</strong>
+              <small>Капітал: 4,120.00 €</small>
+            </div>
+            <div class="bubble-card">
+              <span>Ліміт місяця</span>
+              <b>62%</b>
+              <i><em style="width: 62%"></em></i>
+            </div>
+            <div class="phone-actions">
+              <button>Витрата</button>
+              <button>Дохід</button>
+            </div>
+            <div class="phone-list">
+              <div>
+                <span>☕</span>
+                <p><b>Кав'ярня</b><small>Сьогодні</small></p>
+                <strong>-4.80 €</strong>
+              </div>
+              <div>
+                <span>🚗</span>
+                <p><b>Транспорт</b><small>Bolt</small></p>
+                <strong>-12.20 €</strong>
+              </div>
+              <div>
+                <span>💼</span>
+                <p><b>Дохід</b><small>Проєкт</small></p>
+                <strong class="positive">+920.00 €</strong>
+              </div>
+            </div>
+          </div>
+          <img class="hero-orbit" src="./assets/hero.png" alt="" />
+        </div>
+      </section>
+
+      <section class="light-section intro-section">
+        <div class="section-heading">
+          <p class="eyebrow">Менше ручної роботи</p>
+          <h2>Один екран для щоденних грошей.</h2>
+        </div>
+        <div class="intro-grid">
+          <article>
+            <span>01</span>
+            <h3>Швидкі операції</h3>
+            <p>Витрата, дохід або спільний чек відкриваються без зайвих переходів.</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>Мультивалюта</h3>
+            <p>EUR, USD та UAH живуть поруч, а капітал показується в основній валюті.</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>Пошук в історії</h3>
+            <p>Знаходьте операцію за сумою, категорією, описом або валютою.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="feature-section" id="features">
+        <div class="section-heading narrow">
+          <p class="eyebrow">Можливості</p>
+          <h2>Зроблено для реального щоденного використання.</h2>
+          <p>
+            Без складних таблиць і нескінченних налаштувань. Тільки те, що допомагає бачити
+            картину та швидко приймати рішення.
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card large">
+            <div>
+              <span class="feature-icon">⌁</span>
+              <h3>Авто-категорії</h3>
+              <p>Застосунок підказує категорію за описом витрати, щоб історія залишалась чистою.</p>
+            </div>
+            <div class="suggestion-list">
+              <span>Starbucks → Кав'ярня</span>
+              <span>Bolt → Транспорт</span>
+              <span>Netflix → Підписки</span>
+            </div>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">◇</span>
+            <h3>Цілі</h3>
+            <p>Відкладайте на конкретні покупки та бачте прогрес у відсотках.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">□</span>
+            <h3>Спільні чеки</h3>
+            <p>Зберігайте чеки, діліться ними та відкривайте деталі без плутанини.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">↺</span>
+            <h3>Повтори</h3>
+            <p>Підписки та регулярні списання зібрані окремо, щоб нічого не губилось.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon">↔</span>
+            <h3>Борги</h3>
+            <p>Кому винні ви, хто винен вам, дата повернення і статус оплати.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="analytics-section" id="analytics">
+        <div class="analytics-copy">
+          <p class="eyebrow">Аналітика</p>
+          <h2>Витрати видно не тільки списком.</h2>
+          <p>
+            Перемикайте тиждень, місяць, квартал, рік або весь час. Дивіться категорії,
+            тренди, доходи, витрати та гаманці в одному спокійному інтерфейсі.
+          </p>
+        </div>
+        <div class="analytics-board">
+          <div class="segment">
+            <button class="active">Місяць</button>
+            <button>Рік</button>
+            <button>Усе</button>
+          </div>
+          <div class="metric-row">
+            <div><span>Витрати</span><strong>1,280 €</strong></div>
+            <div><span>Доходи</span><strong>2,900 €</strong></div>
+          </div>
+          <div class="bars" aria-hidden="true">
+            <span style="height: 42%"></span>
+            <span style="height: 64%"></span>
+            <span style="height: 34%"></span>
+            <span style="height: 78%"></span>
+            <span style="height: 56%"></span>
+            <span style="height: 88%"></span>
+            <span style="height: 48%"></span>
+          </div>
+          <div class="category-preview">
+            <p><b>Їжа</b><span>34%</span></p>
+            <p><b>Транспорт</b><span>18%</span></p>
+            <p><b>Підписки</b><span>11%</span></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="light-section security-section" id="security">
+        <div class="section-heading narrow">
+          <p class="eyebrow">Приватність</p>
+          <h2>Без зайвих обіцянок. Просто контроль.</h2>
+          <p>
+            Дані належать користувачу. Інтерфейс не змушує ділитися фінансами, не відволікає
+            рекламою і не ховає важливе за декоративним шумом.
+          </p>
+        </div>
+        <div class="security-strip">
+          <span>Чистий інтерфейс</span>
+          <span>Швидкий доступ</span>
+          <span>Зрозумілі категорії</span>
+          <span>Локальний сайт для презентації</span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Finly</strong>
+        <span>Мінімалістичний облік особистих фінансів.</span>
+      </div>
+      <button class="to-top" type="button" aria-label="Повернутися нагору">↑</button>
+    </footer>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

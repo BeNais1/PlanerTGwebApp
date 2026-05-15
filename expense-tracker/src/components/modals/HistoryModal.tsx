@@ -25,6 +25,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
   const [selectedJointCheckId, setSelectedJointCheckId] = useState<string | null>(null);
   const [isTxActionLoading, setIsTxActionLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleClose = () => {
     setIsClosing(true);
@@ -69,8 +70,17 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
     setSelectedTx(transaction);
   };
 
+  const filteredHistory = history.filter((tx) => {
+    const query = searchQuery.trim().toLowerCase();
+    const categoryName = CATEGORY_NAMES[tx.category] || "";
+    if (!query) return true;
+
+    const haystack = `${tx.description} ${tx.category} ${categoryName} ${tx.amount} ${tx.currency || ""}`.toLowerCase();
+    return haystack.includes(query);
+  });
+
   // Group by Month string
-  const groupedHistory = history.reduce((acc, tx) => {
+  const groupedHistory = filteredHistory.reduce((acc, tx) => {
     const monthName = new Date(tx.date).toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
     if (!acc[monthName]) acc[monthName] = [];
     acc[monthName].push(tx);
@@ -102,11 +112,20 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
           <div className="modal-close" onClick={handleClose}>✕</div>
         </div>
 
+        <input
+          className="history-search-input"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Пошук за сумою, категорією або описом"
+        />
+
         <div className="history-list-container" style={{ flex: 1, overflowY: 'auto', paddingTop: '10px' }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Завантаження...</div>
           ) : history.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Немає транзакцій</div>
+          ) : filteredHistory.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Нічого не знайдено</div>
           ) : (
             Object.entries(groupedHistory).map(([monthStr, txs]) => (
               <div key={monthStr} className="history-month-group">

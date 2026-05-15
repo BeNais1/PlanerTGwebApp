@@ -16,6 +16,11 @@
   animation: softRise 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+.analytics-header > div {
+  min-width: 0;
+  flex: 1;
+}
+
 .analytics-header h2 {
   margin: 0;
   font-family: var(--font-display);
@@ -31,6 +36,7 @@
 }
 
 .analytics-currency-select {
+  flex-shrink: 0;
   max-width: 128px;
   border: none;
   border-radius: 14px;
@@ -53,7 +59,7 @@
 
 .analytics-segment,
 .analytics-tabs {
-  display: flex;
+  display: grid;
   gap: 4px;
   padding: 4px;
   border-radius: 16px;
@@ -61,22 +67,38 @@
 }
 
 .analytics-segment {
-  overflow-x: auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.analytics-segment.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .analytics-segment button,
 .analytics-tabs button {
-  flex: 1;
+  min-width: 0;
   min-height: 36px;
   border: none;
   border-radius: 12px;
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font-text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.analytics-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow-x: auto;
+}
+
+.analytics-tabs button {
+  font-size: 13px;
 }
 
 .analytics-segment.compact button {
@@ -114,6 +136,7 @@
 .analytics-metric {
   min-height: 104px;
   padding: 14px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -151,13 +174,14 @@
   display: block;
   margin-top: 8px;
   font-family: var(--font-display);
-  font-size: 26px;
+  font-size: 24px;
   line-height: 1.05;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .analytics-metric.primary strong {
-  font-size: 36px;
+  font-size: 32px;
 }
 
 .analytics-metric small,
@@ -184,6 +208,7 @@
 
 .analytics-insight {
   padding: 14px;
+  min-width: 0;
   animation: listItemIn 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
@@ -192,6 +217,7 @@
   margin: 6px 0 2px;
   font-size: 17px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .analytics-panel {
@@ -216,6 +242,7 @@
 }
 
 .analytics-panel-header h3 {
+  min-width: 0;
   margin: 0;
   font-size: 17px;
   line-height: 1.2;
@@ -224,6 +251,7 @@
 
 .analytics-panel-header span,
 .analytics-panel-header button {
+  flex-shrink: 0;
   border: none;
   background: transparent;
   color: var(--text-tertiary);
@@ -296,7 +324,7 @@
   width: 100%;
   min-height: 64px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(86px, auto);
   align-items: center;
   gap: 10px;
   border: none;
@@ -345,6 +373,13 @@
   font-weight: 800;
 }
 
+.category-row-main strong,
+.category-row-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .category-row-main small,
 .category-row-side small {
   margin-top: 2px;
@@ -370,19 +405,35 @@
 
 .category-row-side {
   align-items: flex-end;
+  min-width: 0;
+  max-width: 116px;
   white-space: nowrap;
+}
+
+.category-row-side strong,
+.category-row-side small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .wallet-row,
 .trend-detail-row {
-  display: flex;
+  display: grid;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 12px;
   border-radius: 14px;
   background: var(--card-bg-2);
   animation: listItemIn 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.wallet-row {
+  grid-template-columns: minmax(0, 1fr) minmax(112px, auto);
+}
+
+.trend-detail-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 @keyframes viewEnter {
@@ -421,6 +472,9 @@
   display: block;
   font-size: 15px;
   font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wallet-row span,
@@ -430,6 +484,9 @@
   color: var(--text-tertiary);
   font-size: 12px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .analytics-empty {
@@ -455,8 +512,33 @@
   font-size: 13px;
 }
 
-@media (min-width: 390px) {
+@media (min-width: 560px) {
   .analytics-insights {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .analytics-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-metric.primary {
+    grid-column: auto;
+  }
+
+  .category-row {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .category-row-side {
+    grid-column: 2;
+    align-items: flex-start;
+    max-width: 100%;
+  }
+
+  .trend-detail-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }
