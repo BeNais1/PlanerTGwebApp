@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type TouchEvent } from "react";
+import { useState, useEffect, useMemo, useRef, type TouchEvent } from "react";
 import { ArrowDown } from "../components/icons/ArrowDown";
 import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
@@ -14,14 +14,16 @@ import { useKeyboardSafe } from "../hooks/useKeyboardSafe";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
 import { useCategories } from "../hooks/useCategories";
-import { 
-  getCurrentMonth, 
-  subscribeToMonthlyBalance, 
-  subscribeToTransactions, 
+import {
+  getCurrentMonth,
+  subscribeToMonthlyBalance,
+  subscribeToTransactions,
   setMonthlyBalance,
   addTransaction,
   updateTransaction,
   deleteTransaction,
+  addWalletBalance,
+  deleteWalletData,
   subscribeToUserSettings,
   updateUserSettings,
   type Transaction,
@@ -38,7 +40,6 @@ import { QuickSpendModal } from "../components/modals/QuickSpendModal";
 import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { AnalyticsView } from "../components/AnalyticsView";
-import { BudgetBubble } from "../components/BudgetBubble";
 import { NumericKeypad, getKeypadNumericValue } from "../components/NumericKeypad";
 import { SavedReceiptsView } from "../components/SavedReceiptsView";
 import { SharedReceiptView } from "../components/SharedReceiptView";
@@ -49,12 +50,18 @@ import { UserQrSheet } from "../components/UserQrSheet";
 import type { ReceiptShare } from "../services/database";
 import "../components/JointCheck.css";
 
+const CARD_GRADIENTS: Record<string, string> = {
+  EUR: 'linear-gradient(135deg, #1e3a6e 0%, #2563eb 100%)',
+  USD: 'linear-gradient(135deg, #064e3b 0%, #059669 100%)',
+  UAH: 'linear-gradient(135deg, #3b1f0d 0%, #b45309 100%)',
+};
+
 export const HomePage = () => {
   const [activeNav, setActiveNav] = useState(0);
   const { safeAreaInsets } = useTelegramPlatform();
   useKeyboardSafe();
   const { user } = useAuth();
-  const { currency: mainCurrency, formatValue, convertToMain, CURRENCY_SYMBOLS } = useCurrency();
+  const { currency: mainCurrency, formatValue, convertToMain, CURRENCY_SYMBOLS, EXCHANGE_RATES, walletNames } = useCurrency();
   const { names: CATEGORY_NAMES } = useCategories();
   const currentMonth = getCurrentMonth();
 
@@ -85,6 +92,15 @@ export const HomePage = () => {
   const [isUserQrOpen, setIsUserQrOpen] = useState(false);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [pullQrDistance, setPullQrDistance] = useState(0);
+  const [activeWallet, setActiveWallet] = useState(0);
+  const cardsScrollRef = useRef<HTMLDivElement>(null);
+  // Wallet management from home screen
+  const [isAddingWallet, setIsAddingWallet] = useState(false);
+  const [newWalletCurrency, setNewWalletCurrency] = useState<Currency>('USD');
+  const [newWalletAmount, setNewWalletAmount] = useState('');
+  const [editingName, setEditingName] = useState('');
+  const [menuCur, setMenuCur] = useState<Currency | null>(null);
+  const [menuStep, setMenuStep] = useState<'main' | 'rename' | 'delete'>('main');
 
   const navItems = [
     { icon: <HomeIcon />, id: 0 },
@@ -337,6 +353,42 @@ export const HomePage = () => {
     setPullQrDistance(0);
   };
 
+  const handleWalletCurrencyChange = async (newCurrency: Currency) => {
+    if (!user) return;
+    await updateUserSettings(user.id, { currency: newCurrency });
+  };
+
+  const handleWalletSaveName = async (c: Currency) => {
+    if (!user) return;
+    await updateUserSettings(user.id, { walletNames: { ...walletNames, [c]: editingName } });
+    setMenuCur(null);
+    setMenuStep('main');
+  };
+
+  const handleWalletDelete = async (c: Currency) => {
+    if (!user) return;
+    await deleteWalletData(user.id, currentMonth, c);
+    setMenuCur(null);
+    setMenuStep('main');
+  };
+
+  const handleWalletAdd = async () => {
+    if (!user || !newWalletAmount) return;
+    const amount = parseFloat(newWalletAmount);
+    if (!isNaN(amount) && amount > 0) {
+      await addWalletBalance(user.id, currentMonth, newWalletCurrency, amount);
+      setIsAddingWallet(false);
+      setNewWalletAmount('');
+    }
+  };
+
+  const convertDirect = (amount: number, from: Currency, to: Currency) => {
+    const inEur = amount / EXCHANGE_RATES[from];
+    return inEur * EXCHANGE_RATES[to];
+  };
+
+  const ALL_CURRENCIES: Currency[] = ['EUR', 'USD', 'UAH'];
+
   const monthName = new Date().toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
   const getIndicatorLeft = () => `calc(4px + ${activeNav} * (100% - 8px) / 4)`;
 
@@ -499,24 +551,180 @@ export const HomePage = () => {
         </div>
       </div>
 
-      {/* Balance Display */}
-      <div className="balance-section">
-        <div className="balance-amount">
-          <AnimatedNumber value={walletBalances[mainCurrency] || 0} formatter={formatValue} />
-        </div>
-        <div className="balance-sub">
-          Капітал: <AnimatedNumber value={currentBalance} formatter={formatValue} />
-        </div>
-      </div>
+      {/* Wallet Cards Carousel */}
+      {(() => {
+        // Main wallet always first
+        const sortedEntries = Object.entries(walletBalances).sort(([a]) => a === mainCurrency ? -1 : 1);
+        const totalSlides = sortedEntries.length + 1; // +1 for "+" card
 
-      {/* Budget Bubble */}
-      <BudgetBubble
-        spent={periodExpenses}
-        limit={budgetLimit}
-        formatValue={formatValue}
-        onSetLimit={() => setShowLimitModal(true)}
-        period={budgetLimitPeriod}
-      />
+        return (
+          <div className="wallet-cards-section">
+            <div
+              className="wallet-cards-track"
+              ref={cardsScrollRef}
+              onScroll={() => {
+                if (!cardsScrollRef.current) return;
+                const el = cardsScrollRef.current;
+                setActiveWallet(Math.round(el.scrollLeft / el.offsetWidth));
+              }}
+            >
+              {sortedEntries.map(([cur, amount]) => (
+                <div key={cur} className="wallet-card-slide">
+                  <div className="wallet-card" style={{ background: CARD_GRADIENTS[cur] ?? CARD_GRADIENTS['EUR'] }}>
+                    <div className="wallet-card-deco" style={{ width: 140, height: 140, right: -28, top: -28, background: 'rgba(255,255,255,0.08)' }} />
+                    <div className="wallet-card-deco" style={{ width: 90, height: 90, right: 50, bottom: -36, background: 'rgba(255,255,255,0.05)' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 650, opacity: 0.85 }}>
+                        {walletNames[cur] || `Гаманець ${cur}`}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuCur(cur as Currency); setMenuStep('main'); setEditingName(walletNames[cur] || `Гаманець ${cur}`); }}
+                        style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: '8px', padding: '3px 10px', color: 'white', fontSize: '18px', cursor: 'pointer', lineHeight: 1, letterSpacing: '2px' }}
+                      >
+                        ···
+                      </button>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.1 }}>
+                        <AnimatedNumber value={amount} formatter={(v) => formatValue(v, cur as Currency)} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                        {ALL_CURRENCIES.filter(oc => oc !== cur).map(oc => (
+                          <span key={oc} style={{ fontSize: '12px', opacity: 0.6 }}>
+                            ≈ {convertDirect(amount, cur as Currency, oc).toLocaleString('en-US', { maximumFractionDigits: 0 })} {CURRENCY_SYMBOLS[oc]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* "+" card */}
+              <div className="wallet-card-slide">
+                <button
+                  onClick={() => setIsAddingWallet(true)}
+                  style={{
+                    width: '100%', height: '168px', border: '2px dashed var(--card-bg-3)',
+                    borderRadius: '24px', background: 'var(--card-bg)',
+                    color: 'var(--accent)', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  }}
+                >
+                  <span style={{ fontSize: '32px', lineHeight: 1 }}>+</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>Додати гаманець</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Dots */}
+            <div className="wallet-dots">
+              {Array.from({ length: totalSlides }).map((_, i) => (
+                <div key={i} className={`wallet-dot ${activeWallet === i ? 'active' : ''}`} style={{ width: activeWallet === i ? 18 : 6 }} />
+              ))}
+            </div>
+
+            {/* Add wallet form */}
+            {isAddingWallet && (
+              <div style={{ padding: '10px 16px 0' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: '18px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Новий гаманець</span>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <select value={newWalletCurrency} onChange={e => setNewWalletCurrency(e.target.value as Currency)}
+                      style={{ background: 'var(--card-bg-2)', color: 'var(--text-primary)', border: 'none', borderRadius: '12px', padding: '10px', outline: 'none', fontFamily: 'var(--font-text)' }}>
+                      <option value="EUR">EUR</option>
+                      <option value="USD">USD</option>
+                      <option value="UAH">UAH</option>
+                    </select>
+                    <input type="number" placeholder="Сума" value={newWalletAmount} onChange={e => setNewWalletAmount(e.target.value)}
+                      style={{ flex: 1, background: 'var(--card-bg-2)', color: 'var(--text-primary)', border: 'none', borderRadius: '12px', padding: '10px', outline: 'none', fontFamily: 'var(--font-text)' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => setIsAddingWallet(false)}
+                      style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '12px', background: 'var(--card-bg-2)', color: 'var(--text-primary)', fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-text)' }}>
+                      Скасувати
+                    </button>
+                    <button onClick={handleWalletAdd} disabled={!newWalletAmount}
+                      style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', opacity: newWalletAmount ? 1 : 0.4, fontFamily: 'var(--font-text)' }}>
+                      Додати
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Budget Progress Bar */}
+      {budgetLimit > 0 ? (
+        <div style={{ padding: '8px 16px 0' }}>
+          <div style={{ background: 'var(--card-bg)', borderRadius: '14px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Ліміт {budgetLimitPeriod === 'day' ? 'на день' : budgetLimitPeriod === 'week' ? 'на тиждень' : 'на місяць'}
+              </span>
+              <button onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                Змінити
+              </button>
+            </div>
+            <div style={{ height: '6px', borderRadius: '3px', background: 'var(--card-bg-3)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.min(100, (periodExpenses / budgetLimit) * 100)}%`, background: periodExpenses >= budgetLimit ? 'var(--danger)' : 'var(--accent)', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>{formatValue(periodExpenses)}</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>з {formatValue(budgetLimit)}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+            + Встановити ліміт
+          </button>
+        </div>
+      )}
+
+      {/* Wallet menu overlay */}
+      {menuCur && (
+        <div className="modal-overlay" style={{ zIndex: 200, alignItems: 'flex-end', padding: '16px' }} onClick={() => { setMenuCur(null); setMenuStep('main'); }}>
+          <div style={{ width: '100%', background: 'var(--card-bg)', borderRadius: '20px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={e => e.stopPropagation()}>
+            {menuStep === 'main' && (<>
+              <button onClick={() => setMenuStep('rename')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)' }}>
+                ✎ Перейменувати
+              </button>
+              {menuCur !== mainCurrency && (
+                <button onClick={() => { handleWalletCurrencyChange(menuCur); setMenuCur(null); }} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)' }}>
+                  ⭐ Зробити головним
+                </button>
+              )}
+              <button onClick={() => setMenuStep('delete')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--danger)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)' }}>
+                🗑 Видалити гаманець
+              </button>
+            </>)}
+            {menuStep === 'rename' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-tertiary)', fontWeight: 600, paddingLeft: '4px' }}>Нова назва</span>
+                <input autoFocus value={editingName} onChange={e => setEditingName(e.target.value)}
+                  style={{ padding: '10px 14px', borderRadius: '12px', border: 'none', background: 'var(--card-bg-2)', color: 'var(--text-primary)', fontSize: '15px', outline: 'none', fontFamily: 'var(--font-text)' }} />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setMenuStep('main')} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: '12px', background: 'var(--card-bg-2)', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-text)' }}>Назад</button>
+                  <button onClick={() => handleWalletSaveName(menuCur)} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: '12px', background: 'var(--accent)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-text)' }}>Зберегти</button>
+                </div>
+              </div>
+            )}
+            {menuStep === 'delete' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px' }}>
+                <span style={{ fontSize: '14px', color: 'var(--text-secondary)', textAlign: 'center', padding: '8px 0' }}>Видалити гаманець <strong>{walletNames[menuCur] || menuCur}</strong>?</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setMenuStep('main')} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: '12px', background: 'var(--card-bg-2)', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-text)' }}>Скасувати</button>
+                  <button onClick={() => handleWalletDelete(menuCur)} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: '12px', background: 'var(--danger)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-text)' }}>Видалити</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Card */}
       <div className="bottom-card">

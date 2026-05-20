@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python3 *)",
       "PowerShell($content = Get-Content \"C:\\\\Users\\\\boris\\\\Desktop\\\\my app\\\\expense-tracker\\\\src\\\\components\\\\NumericKeypad.tsx\" -Encoding UTF8; $content[108..120] | ForEach-Object { [System.Convert]::ToBase64String\\([System.Text.Encoding]::UTF8.GetBytes\\($_\\)\\) })",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(npm run *)"
     ]
   }
 }
