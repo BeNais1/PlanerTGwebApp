@@ -7,6 +7,7 @@ export function useCategories() {
   const { user } = useAuth();
   const [customCategories, setCustomCategories] = useState<Category[]>([]);
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<string[]>([]);
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -14,15 +15,23 @@ export function useCategories() {
     const unsubscribe = subscribeToSettings(user.id, (settings: UserSettings | null) => {
       setCustomCategories(settings?.customCategories || []);
       setHiddenCategoryIds(settings?.hiddenCategories || []);
+      setCategoryOrder(settings?.categoryOrder || []);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  const categories = useMemo(
-    () => getMergedCategories(hiddenCategoryIds, customCategories),
-    [hiddenCategoryIds, customCategories]
-  );
+  const categories = useMemo(() => {
+    const merged = getMergedCategories(hiddenCategoryIds, customCategories);
+    if (!categoryOrder.length) return merged;
+
+    const orderMap = new Map(categoryOrder.map((id, i) => [id, i]));
+    return [...merged].sort((a, b) => {
+      const ai = orderMap.has(a.id) ? orderMap.get(a.id)! : 99999;
+      const bi = orderMap.has(b.id) ? orderMap.get(b.id)! : 99999;
+      return ai - bi;
+    });
+  }, [hiddenCategoryIds, customCategories, categoryOrder]);
 
   const { icons, names, colors } = useMemo(
     () => buildCategoryMaps(categories),
@@ -37,13 +46,11 @@ export function useCategories() {
 
   const removeCategory = useCallback(async (categoryId: string) => {
     if (!user) return;
-    // If it's a default category, hide it
     const isDefault = DEFAULT_CATEGORIES.some(c => c.id === categoryId);
     if (isDefault) {
       const updated = [...hiddenCategoryIds, categoryId];
       await updateUserSettings(user.id, { hiddenCategories: updated });
     } else {
-      // If it's custom, remove from custom list
       const updated = customCategories.filter(c => c.id !== categoryId);
       await updateUserSettings(user.id, { customCategories: updated });
     }
@@ -55,6 +62,11 @@ export function useCategories() {
     await updateUserSettings(user.id, { hiddenCategories: updated });
   }, [user, hiddenCategoryIds]);
 
+  const reorderCategories = useCallback(async (orderedIds: string[]) => {
+    if (!user) return;
+    await updateUserSettings(user.id, { categoryOrder: orderedIds });
+  }, [user]);
+
   return {
     categories,
     icons: icons as Record<string, string>,
@@ -63,6 +75,7 @@ export function useCategories() {
     addCategory,
     removeCategory,
     restoreCategory,
+    reorderCategories,
     hiddenCategoryIds,
     defaultCategories: DEFAULT_CATEGORIES,
   };

@@ -236,7 +236,7 @@
 }
 
 .hub-form input[type="date"] {
-  color-scheme: dark;
+  color-scheme: light dark;
 }
 
 .hub-form button,
@@ -250,6 +250,22 @@
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.hub-form .hub-amount-btn,
+.hub-form .hub-date-field {
+  background: var(--card-bg-2);
+  color: var(--text-primary);
+}
+
+.hub-form .hub-amount-btn span,
+.hub-form .hub-date-field span {
+  color: var(--text-tertiary);
+}
+
+.hub-form .hub-amount-btn strong,
+.hub-form .hub-date-field strong {
+  color: var(--text-primary);
 }
 
 .hub-row.compact button {

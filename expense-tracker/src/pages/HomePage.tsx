@@ -6,6 +6,7 @@ import { HomeIcon } from "../components/icons/HomeIcon";
 import { HistoryIcon } from "../components/icons/HistoryIcon";
 import { BookmarkIcon } from "../components/icons/BookmarkIcon";
 import { AnalyticsIcon } from "../components/icons/AnalyticsIcon";
+import { JointCheckIcon } from "../components/icons/JointCheckIcon";
 import { SearchIcon } from "../components/icons/SearchIcon";
 import { PaymentIcon } from "../components/PaymentIcon";
 import { useTelegramPlatform } from "../hooks/useTelegramPlatform";
@@ -529,7 +530,7 @@ export const HomePage = () => {
             <span>Дохід</span>
           </div>
           <div className="action-btn" onClick={() => setIsJointCheckOpen(true)}>
-            <span style={{ fontSize: '19px', lineHeight: 1 }}>▦</span>
+            <JointCheckIcon />
             <span>Спільний</span>
           </div>
         </div>

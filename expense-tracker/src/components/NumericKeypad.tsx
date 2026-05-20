@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import './NumericKeypad.css';
 
 interface NumericKeypadProps {
@@ -107,10 +107,21 @@ export const NumericKeypad = ({
     return 0;
   };
 
-  const displayValue = value || '0';
+  const formatThousands = (raw: string): string => {
+    if (!raw) return '0';
+    const parts = raw.split(/([\+\-\×\÷])/);
+    return parts.map(part => {
+      if (['+', '-', '×', '÷'].includes(part)) return part;
+      const [integer, decimal] = part.split('.');
+      const formattedInt = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      return decimal !== undefined ? `${formattedInt}.${decimal}` : formattedInt;
+    }).join('');
+  };
+
+  const displayValue = formatThousands(value);
   const numericResult = hasExpression ? evaluateExpression(value) : parseFloat(value || '0');
   const isValid = !isNaN(numericResult) && numericResult > 0 && !/[\+\-\×\÷]$/.test(value);
-  const needsSmallFont = displayValue.length > 8;
+  const needsSmallFont = (value || '0').length > 8;
 
   const keys = [
     ['1', '2', '3', '+'],
@@ -138,7 +149,7 @@ export const NumericKeypad = ({
           marginTop: '-8px',
           marginBottom: '4px',
         }}>
-          = {numericResult.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} {currencySymbol}
+          = {formatThousands(String(numericResult % 1 === 0 ? numericResult : numericResult.toFixed(2)))} {currencySymbol}
         </div>
       )}
 

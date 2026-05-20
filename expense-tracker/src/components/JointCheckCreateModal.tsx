@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
 import { NumericKeypad, getKeypadNumericValue } from "./NumericKeypad";
@@ -22,6 +22,10 @@ export const JointCheckCreateModal = ({ walletBalances, onClose }: JointCheckCre
   const [amount, setAmount] = useState("");
   const [title, setTitle] = useState("Спільний чек");
   const [currency, setCurrency] = useState<Currency>(mainCurrency);
+
+  useEffect(() => {
+    setCurrency(mainCurrency);
+  }, [mainCurrency]);
   const [participants, setParticipants] = useState<JointCheckParticipant[]>([]);
   const [manualCode, setManualCode] = useState("");
   const [isScannerOpen, setIsScannerOpen] = useState(false);

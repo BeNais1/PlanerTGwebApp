@@ -98,17 +98,14 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!isActive || !user) {
-      setIsLoading(false);
-      return;
-    }
+    if (!user) return;
 
     setIsLoading(true);
     return subscribeToAllTransactions(user.id, (transactions) => {
       setAllTransactions(transactions);
       setIsLoading(false);
     });
-  }, [isActive, user]);
+  }, [user]);
 
   const range = useMemo(() => getRangeBounds(dateRange), [dateRange]);
 

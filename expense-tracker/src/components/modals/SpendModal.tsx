@@ -91,7 +91,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, walletBalances }: Spen
                 display: 'flex', alignItems: 'center', gap: '4px',
                 padding: '6px 10px', borderRadius: '12px', border: 'none',
                 background: category === cat.id ? 'var(--accent)' : 'var(--card-bg-2)',
-                color: 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
+                color: category === cat.id ? 'white' : 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
                 cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                 transition: 'all 0.2s ease',
               }}

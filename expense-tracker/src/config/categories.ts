@@ -23,13 +23,18 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'other', icon: '📦', name: 'Інше', color: '#8E8E93' },
 ];
 
+// System categories that are always present regardless of user settings
+export const SYSTEM_CATEGORIES: Category[] = [
+  { id: 'joint_check_payment', icon: '🤝', name: 'Спільний чек', color: '#30B0C7' },
+];
+
 // Build lookup maps from any category array
 export function buildCategoryMaps(categories: Category[]) {
   const icons: Record<string, string> = {};
   const names: Record<string, string> = {};
   const colors: Record<string, string> = {};
 
-  categories.forEach(c => {
+  [...SYSTEM_CATEGORIES, ...categories].forEach(c => {
     icons[c.id] = c.icon;
     names[c.id] = c.name;
     colors[c.id] = c.color;

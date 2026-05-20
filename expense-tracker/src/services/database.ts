@@ -111,6 +111,7 @@ export interface UserSettings {
   debts?: DebtItem[];
   monthlyPlanAmount?: number;
   monthlyPlanCurrency?: string;
+  categoryOrder?: string[];
 }
 
 // Legacy — kept for backward compat with old deep links

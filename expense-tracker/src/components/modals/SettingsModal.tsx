@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
@@ -15,7 +15,7 @@ interface SettingsModalProps {
 export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) => {
   const { user } = useAuth();
   const { currency, walletNames, CURRENCY_SYMBOLS, EXCHANGE_RATES, formatValue } = useCurrency();
-  const { categories, addCategory, removeCategory, restoreCategory, hiddenCategoryIds, defaultCategories } = useCategories();
+  const { categories, addCategory, removeCategory, restoreCategory, reorderCategories, hiddenCategoryIds, defaultCategories } = useCategories();
   const [isAddingWallet, setIsAddingWallet] = useState(false);
   const [newWalletCurrency, setNewWalletCurrency] = useState<Currency>('USD');
   const [newWalletAmount, setNewWalletAmount] = useState('');
@@ -35,6 +35,16 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
   const [newCatName, setNewCatName] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('📌');
   const [newCatColor, setNewCatColor] = useState('#007AFF');
+
+  // Category drag-and-drop
+  const [orderedCategories, setOrderedCategories] = useState(categories);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const catListRef = useRef<HTMLDivElement>(null);
+  const dragStateRef = useRef<{ dIdx: number; hIdx: number } | null>(null);
+  const orderedCatRef = useRef(categories);
+  useEffect(() => { orderedCatRef.current = orderedCategories; }, [orderedCategories]);
+  useEffect(() => { if (draggingIdx === null) setOrderedCategories(categories); }, [categories, draggingIdx]);
 
   // Load budget limit
   useEffect(() => {
@@ -185,6 +195,51 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
         });
       }
     }
+  };
+
+  const getCatHoverIdx = (clientY: number, startIdx: number): number => {
+    if (!catListRef.current) return startIdx;
+    const items = Array.from(catListRef.current.querySelectorAll<HTMLElement>('[data-drag-idx]'));
+    let best = startIdx, bestDist = Infinity;
+    items.forEach(el => {
+      const i = parseInt(el.getAttribute('data-drag-idx')!);
+      const r = el.getBoundingClientRect();
+      const dist = Math.abs(clientY - (r.top + r.height / 2));
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    return best;
+  };
+
+  const handleCatDragStart = (idx: number, e: React.PointerEvent) => {
+    e.preventDefault();
+    dragStateRef.current = { dIdx: idx, hIdx: idx };
+    setDraggingIdx(idx);
+    setHoverIdx(idx);
+
+    const onMove = (ev: PointerEvent) => {
+      if (!dragStateRef.current) return;
+      const h = getCatHoverIdx(ev.clientY, dragStateRef.current.dIdx);
+      dragStateRef.current.hIdx = h;
+      setHoverIdx(h);
+    };
+
+    const onUp = () => {
+      const ds = dragStateRef.current;
+      dragStateRef.current = null;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      setDraggingIdx(null);
+      setHoverIdx(null);
+      if (!ds || ds.hIdx === ds.dIdx) return;
+      const arr = [...orderedCatRef.current];
+      const [item] = arr.splice(ds.dIdx, 1);
+      arr.splice(ds.hIdx, 0, item);
+      setOrderedCategories(arr);
+      reorderCategories(arr.map(c => c.id));
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
   };
 
   const tabItems = [
@@ -419,24 +474,48 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
             <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '1px' }}>
               Активні категорії
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {categories.map(cat => (
-                <div key={cat.id} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
-                  background: 'var(--card-bg-2)', borderRadius: '14px',
-                }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: '20px' }}>{cat.icon}</span>
-                  <span style={{ flex: 1, fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>{cat.name}</span>
-                  {cat.isCustom && (
-                    <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', background: 'var(--card-bg-3)', padding: '2px 8px', borderRadius: '6px' }}>Власна</span>
-                  )}
-                  <button onClick={() => removeCategory(cat.id)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '0 4px', fontSize: '14px' }}>
-                    ✕
-                  </button>
-                </div>
-              ))}
+            <div ref={catListRef} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {orderedCategories.map((cat, i) => {
+                const isDraggingThis = draggingIdx === i;
+                const showLineAbove = hoverIdx === i && draggingIdx !== null && hoverIdx !== draggingIdx && hoverIdx < draggingIdx!;
+                const showLineBelow = hoverIdx === i && draggingIdx !== null && hoverIdx !== draggingIdx && hoverIdx > draggingIdx!;
+                return (
+                  <div
+                    key={cat.id}
+                    data-drag-idx={i}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
+                      background: 'var(--card-bg-2)', borderRadius: '14px',
+                      opacity: isDraggingThis ? 0.4 : 1,
+                      borderTop: showLineAbove ? '2px solid var(--accent)' : '2px solid transparent',
+                      borderBottom: showLineBelow ? '2px solid var(--accent)' : '2px solid transparent',
+                      userSelect: 'none',
+                      transition: 'opacity 0.15s ease, border-color 0.1s ease',
+                    }}
+                  >
+                    <div
+                      onPointerDown={(e) => handleCatDragStart(i, e)}
+                      style={{
+                        touchAction: 'none', cursor: 'grab', flexShrink: 0,
+                        color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1,
+                        padding: '4px 6px 4px 0',
+                      }}
+                    >
+                      ⠿
+                    </div>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: '20px' }}>{cat.icon}</span>
+                    <span style={{ flex: 1, fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>{cat.name}</span>
+                    {cat.isCustom && (
+                      <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', background: 'var(--card-bg-3)', padding: '2px 8px', borderRadius: '6px' }}>Власна</span>
+                    )}
+                    <button onClick={() => removeCategory(cat.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '0 4px', fontSize: '14px' }}>
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Hidden default categories */}

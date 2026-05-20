@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { type Transaction, getMonthlyBalance, getTransactions, type PrivacyMode, createReceiptShare, toggleReceiptShare, getShareStatus } from '../../services/database';
+import { SYSTEM_CATEGORIES } from '../../config/categories';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { toPng } from 'html-to-image';
 import './Modals.css';
@@ -229,7 +230,8 @@ export const TransactionDetailModal = ({
     transaction.currency || 'EUR',
     ...Object.keys(walletBalances),
   ])) as Currency[];
-  const catObj = categories.find(c => c.id === transaction.category);
+  const catObj = categories.find(c => c.id === transaction.category)
+    ?? SYSTEM_CATEGORIES.find(c => c.id === transaction.category);
 
   return (
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
@@ -284,7 +286,7 @@ export const TransactionDetailModal = ({
                         display: 'flex', alignItems: 'center', gap: '4px',
                         padding: '6px 10px', borderRadius: '12px', border: 'none',
                         background: category === cat.id ? 'var(--accent)' : 'var(--card-bg-2)',
-                        color: 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
+                        color: category === cat.id ? 'white' : 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
                         cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                       }}>
                       <span>{cat.icon}</span>
