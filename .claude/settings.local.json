@@ -4,7 +4,14 @@
       "Bash(python3 *)",
       "PowerShell($content = Get-Content \"C:\\\\Users\\\\boris\\\\Desktop\\\\my app\\\\expense-tracker\\\\src\\\\components\\\\NumericKeypad.tsx\" -Encoding UTF8; $content[108..120] | ForEach-Object { [System.Convert]::ToBase64String\\([System.Text.Encoding]::UTF8.GetBytes\\($_\\)\\) })",
       "Skill(update-config)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(firebase deploy *)",
+      "Bash(firebase projects:list)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\boris\\\\Desktop\\\\my app\\\\expense-tracker\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(head -50)",
+      "Bash(xargs grep -l \"useEffect\\\\|setInterval\\\\|cron\\\\|schedule\")",
+      "Bash(npx vercel *)"
     ]
   }
 }

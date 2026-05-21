@@ -7,7 +7,6 @@ import {
   getReceiptShare,
   subscribeToAllTransactions,
   subscribeToSavedReceipts,
-  subscribeToSubscriptions,
   subscribeToUserSettings,
   updateTransaction,
   updateUserSettings,
@@ -15,10 +14,10 @@ import {
   type ReceiptShare,
   type SavedSharedReceipt,
   type SmartGoal,
-  type Subscription,
   type Transaction,
   type UserSettings,
 } from "../services/database";
+import { SubscriptionsView } from "./SubscriptionsView";
 import "./FinancialHubView.css";
 
 type HubTab = "goals" | "auto" | "search" | "recurring" | "debts" | "receipts";
@@ -39,7 +38,7 @@ const TABS: { id: HubTab; label: string }[] = [
   { id: "goals", label: "Цілі" },
   { id: "auto", label: "Авто-категорії" },
   { id: "search", label: "Пошук" },
-  { id: "recurring", label: "Повтори" },
+  { id: "recurring", label: "Повторні списання" },
   { id: "debts", label: "Борги" },
   { id: "receipts", label: "Чеки" },
 ];
@@ -76,7 +75,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
   const { names: categoryNames, icons: categoryIcons } = useCategories();
   const [activeTab, setActiveTab] = useState<HubTab>("goals");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [savedReceipts, setSavedReceipts] = useState<SavedSharedReceipt[]>([]);
   const [receiptCache, setReceiptCache] = useState<Record<string, ReceiptShare | null>>({});
   const [settings, setSettings] = useState<UserSettings>({});
@@ -96,12 +94,10 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     if (!isActive || !user) return;
     const unsubTransactions = subscribeToAllTransactions(user.id, setTransactions);
     const unsubSettings = subscribeToUserSettings(user.id, setSettings);
-    const unsubSubscriptions = subscribeToSubscriptions(user.id, setSubscriptions);
     const unsubSavedReceipts = subscribeToSavedReceipts(user.id, setSavedReceipts);
     return () => {
       unsubTransactions();
       unsubSettings();
-      unsubSubscriptions();
       unsubSavedReceipts();
     };
   }, [isActive, user]);
@@ -139,7 +135,6 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     }).slice(0, 40);
   }, [categoryNames, search, transactions]);
 
-  const upcomingSubscriptions = subscriptions.filter((sub) => sub.isActive).slice(0, 8);
   const totalDebtsToMe = debts.filter((debt) => !debt.isPaid && debt.direction === "owed_to_me")
     .reduce((sum, debt) => sum + convertToMain(debt.amount, (debt.currency || "EUR") as Currency), 0);
   const totalDebtsIOwe = debts.filter((debt) => !debt.isPaid && debt.direction === "i_owe")
@@ -235,7 +230,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
       <div className="financial-hub-header">
         <div>
           <h2>Фінанси</h2>
-          <p>Цілі, автокатегорії, пошук, борги, повтори та чеки в одному місці</p>
+          <p>Цілі, автокатегорії, пошук, повторні списання, борги та чеки в одному місці</p>
         </div>
         <span>{Object.keys(walletBalances).length} гаман.</span>
       </div>
@@ -335,19 +330,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
       )}
 
       {activeTab === "recurring" && (
-        <section className="hub-section">
-          <SummaryCard title="Повторювані операції" value={`${upcomingSubscriptions.length}`} detail="активних списань" />
-          <div className="hub-list">
-            {upcomingSubscriptions.length === 0 ? <EmptyState text="Повторюваних операцій поки немає" /> : upcomingSubscriptions.map((sub) => (
-              <div key={sub.id} className="hub-card slim">
-                <div className="hub-row">
-                  <div><strong>{sub.icon} {sub.name}</strong><small>{new Date(sub.nextDate).toLocaleDateString("uk-UA")}</small></div>
-                  <b>{formatValue(sub.amount, sub.currency as Currency)}</b>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <SubscriptionsView isActive={true} />
       )}
 
       {activeTab === "debts" && (

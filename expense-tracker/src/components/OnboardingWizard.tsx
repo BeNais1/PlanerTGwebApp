@@ -1,24 +1,13 @@
 import { useState, useCallback } from 'react';
-import { NumericKeypad, getKeypadNumericValue } from './NumericKeypad';
 import { useAuth } from '../context/AuthContext';
 import {
   updateUserSettings,
-  setMonthlyBalance,
-  getCurrentMonth,
   type OnboardingData,
 } from '../services/database';
 import type { Category } from '../config/categories';
 import './OnboardingWizard.css';
 
-type Currency = 'EUR' | 'USD' | 'UAH';
-
-const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  EUR: '€',
-  USD: '$',
-  UAH: '₴',
-};
-
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -36,8 +25,6 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const [ageGroup, setAgeGroup] = useState<'<18' | '18+' | '25+' | '50+' | null>(null);
   const [married, setMarried] = useState<boolean | null>(null);
   const [pets, setPets] = useState<('cat' | 'dog')[]>([]);
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('EUR');
-  const [balanceInput, setBalanceInput] = useState('');
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -96,18 +83,11 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
 
       // Save settings
       await updateUserSettings(user.id, {
-        currency: selectedCurrency,
         onboardingCompleted: true,
         onboarding: onboardingData,
         theme,
         ...(petCategories.length > 0 ? { customCategories: petCategories } : {}),
       });
-
-      // Set initial balance
-      const amount = getKeypadNumericValue(balanceInput);
-      if (amount > 0) {
-        await setMonthlyBalance(user.id, getCurrentMonth(), amount, selectedCurrency);
-      }
 
       // Apply theme
       document.documentElement.setAttribute('data-theme', theme);
@@ -136,9 +116,8 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
       case 1: return gender !== null;
       case 2: return ageGroup !== null;
       case 3: return married !== null;
-      case 4: return true; // pets can be empty (none)
-      case 5: return true; // balance can be 0
-      case 6: return true;
+      case 4: return true; // pets can be empty
+      case 5: return true;
       default: return false;
     }
   };
@@ -325,43 +304,8 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
         </div>
       )}
 
-      {/* Step 5: Currency & Balance */}
+      {/* Step 5: Theme */}
       {step === 5 && (
-        <div className="onboarding-step" key="step-5">
-          <span className="onboarding-emoji">💰</span>
-          <h1 className="onboarding-title">Ваш гаманець</h1>
-          <p className="onboarding-subtitle">Оберіть валюту та введіть початковий баланс</p>
-
-          <div className="onboarding-currency-selector">
-            {(['EUR', 'USD', 'UAH'] as Currency[]).map(cur => (
-              <button
-                key={cur}
-                className={`onboarding-currency-btn ${selectedCurrency === cur ? 'active' : ''}`}
-                onClick={() => setSelectedCurrency(cur)}
-              >
-                {CURRENCY_SYMBOLS[cur]} {cur}
-              </button>
-            ))}
-          </div>
-
-          <div className="onboarding-keypad-wrapper">
-            <NumericKeypad
-              value={balanceInput}
-              onChange={setBalanceInput}
-              currencySymbol={CURRENCY_SYMBOLS[selectedCurrency]}
-              onSubmit={goNext}
-              submitLabel="Далі"
-            />
-          </div>
-
-          <div className="onboarding-nav">
-            <button className="onboarding-back-btn" onClick={goBack}>←</button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 6: Theme */}
-      {step === 6 && (
         <div className="onboarding-step" key="step-6">
           <span className="onboarding-emoji">🎨</span>
           <h1 className="onboarding-title">Оберіть тему</h1>
@@ -401,7 +345,7 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
               onClick={handleFinish}
               disabled={isSaving}
             >
-              {isSaving ? 'Зберігаємо...' : 'Почати! 🚀'}
+              {isSaving ? 'Зберігаємо...' : 'Далі →'}
             </button>
           </div>
         </div>

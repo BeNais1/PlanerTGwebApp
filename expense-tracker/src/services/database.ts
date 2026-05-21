@@ -23,15 +23,27 @@ export interface UserData {
   registeredAt: number;
 }
 
+export interface Wallet {
+  id?: string;
+  name: string;
+  currency: string; // 'EUR' | 'USD' | 'UAH'
+  balance: number;
+  createdAt: number;
+}
+
 export interface Transaction {
   id?: string;
-  type: 'expense' | 'income';
+  type: 'expense' | 'income' | 'transfer';
   amount: number;
   category: string;
   description: string;
   date: number;
   month: string; // "YYYY-MM"
-  currency?: string; // e.g. "EUR" "USD"
+  currency?: string;
+  walletId?: string;           // source wallet
+  fromWalletId?: string;       // transfer: source
+  toWalletId?: string;         // transfer: destination
+  convertedAmount?: number;    // transfer: amount in destination currency
   jointCheckId?: string;
   isJointCheck?: boolean;
   excludeFromBalance?: boolean;
@@ -49,8 +61,10 @@ export interface Subscription {
   currency: string;
   category: string;
   icon: string;
-  period: 'weekly' | 'monthly' | 'yearly';
+  period: 'daily' | 'weekly' | 'monthly' | 'yearly';
   nextDate: number; // timestamp of next charge
+  time?: string; // "HH:mm" — hour of day for the charge
+  walletId?: string; // wallet currency key (e.g. "EUR")
   createdAt: number;
   isActive: boolean;
 }
@@ -341,17 +355,142 @@ export async function getMonthlyBalance(
   return null;
 }
 
+// ====== Wallets ======
+
+export async function addWallet(
+  userId: number,
+  wallet: Omit<Wallet, 'id'>
+): Promise<string> {
+  const walletsRef = ref(database, `users/${userId}/wallets`);
+  const newRef = push(walletsRef);
+  await set(newRef, wallet);
+  return newRef.key!;
+}
+
+export async function updateWallet(
+  userId: number,
+  walletId: string,
+  data: Partial<Omit<Wallet, 'id'>>
+): Promise<void> {
+  const walletRef = ref(database, `users/${userId}/wallets/${walletId}`);
+  await update(walletRef, data);
+}
+
+export async function deleteWallet(
+  userId: number,
+  walletId: string
+): Promise<void> {
+  const walletRef = ref(database, `users/${userId}/wallets/${walletId}`);
+  await remove(walletRef);
+}
+
+export function subscribeToWallets(
+  userId: number,
+  callback: (wallets: Wallet[]) => void
+): Unsubscribe {
+  const walletsRef = ref(database, `users/${userId}/wallets`);
+  return onValue(walletsRef, (snapshot) => {
+    if (!snapshot.exists()) { callback([]); return; }
+    const data = snapshot.val();
+    const wallets: Wallet[] = Object.entries(data).map(([id, w]) => ({
+      id,
+      ...(w as Omit<Wallet, 'id'>),
+    }));
+    wallets.sort((a, b) => a.createdAt - b.createdAt);
+    callback(wallets);
+  });
+}
+
+export async function getWallets(userId: number): Promise<Wallet[]> {
+  const walletsRef = ref(database, `users/${userId}/wallets`);
+  const snap = await get(walletsRef);
+  if (!snap.exists()) return [];
+  const data = snap.val();
+  return Object.entries(data)
+    .map(([id, w]) => ({ id, ...(w as Omit<Wallet, 'id'>) }))
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
 // ====== Transactions ======
+
+async function adjustWalletBalance(
+  userId: number,
+  walletId: string,
+  delta: number,
+  updates: Record<string, unknown>
+): Promise<void> {
+  const walletSnap = await get(ref(database, `users/${userId}/wallets/${walletId}`));
+  if (walletSnap.exists()) {
+    const wallet = walletSnap.val() as Wallet;
+    updates[`users/${userId}/wallets/${walletId}/balance`] = (wallet.balance || 0) + delta;
+  }
+}
 
 export async function addTransaction(
   userId: number,
   transaction: Omit<Transaction, 'id'>
 ): Promise<string> {
-  const txRef = ref(database, `users/${userId}/transactions`);
-  const newRef = push(txRef);
-  // Default legacy currency to EUR if not provided
+  const txsRef = ref(database, `users/${userId}/transactions`);
+  const newRef = push(txsRef);
   const txToSave = transaction.currency ? transaction : { ...transaction, currency: 'EUR' };
-  await set(newRef, txToSave);
+
+  const updates: Record<string, unknown> = {};
+  updates[`users/${userId}/transactions/${newRef.key}`] = txToSave;
+
+  if (transaction.walletId && !transaction.excludeFromBalance && transaction.type !== 'transfer') {
+    const delta = transaction.type === 'income' ? transaction.amount : -transaction.amount;
+    await adjustWalletBalance(userId, transaction.walletId, delta, updates);
+  }
+
+  await update(ref(database), updates);
+  return newRef.key!;
+}
+
+export async function addTransfer(
+  userId: number,
+  {
+    fromWalletId, toWalletId, amount, convertedAmount, description, date,
+  }: {
+    fromWalletId: string;
+    toWalletId: string;
+    amount: number;
+    convertedAmount: number;
+    description?: string;
+    date: number;
+  }
+): Promise<string> {
+  const [fromSnap, toSnap] = await Promise.all([
+    get(ref(database, `users/${userId}/wallets/${fromWalletId}`)),
+    get(ref(database, `users/${userId}/wallets/${toWalletId}`)),
+  ]);
+  if (!fromSnap.exists() || !toSnap.exists()) throw new Error('Wallet not found');
+  const fromWallet = fromSnap.val() as Wallet;
+  const toWallet = toSnap.val() as Wallet;
+
+  const month = new Date(date).toISOString().slice(0, 7);
+  const txsRef = ref(database, `users/${userId}/transactions`);
+  const newRef = push(txsRef);
+
+  const tx: Omit<Transaction, 'id'> = {
+    type: 'transfer',
+    amount,
+    currency: fromWallet.currency,
+    category: 'transfer',
+    description: description || `${fromWallet.name} → ${toWallet.name}`,
+    date,
+    month,
+    walletId: fromWalletId,
+    fromWalletId,
+    toWalletId,
+    convertedAmount,
+  };
+
+  const updates: Record<string, unknown> = {};
+  updates[`users/${userId}/transactions/${newRef.key}`] = tx;
+  updates[`users/${userId}/wallets/${fromWalletId}/balance`] = (fromWallet.balance || 0) - amount;
+  updates[`users/${userId}/wallets/${toWalletId}/balance`] = (toWallet.balance || 0) + convertedAmount;
+
+  await update(ref(database), updates);
   return newRef.key!;
 }
 
@@ -379,38 +518,55 @@ export async function updateTransaction(
 ): Promise<void> {
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
   const beforeSnap = await get(txRef);
-  const before = beforeSnap.exists()
-    ? ({ id: txId, ...(beforeSnap.val() as Omit<Transaction, 'id'>) } as Transaction)
-    : null;
+  if (!beforeSnap.exists()) { await update(txRef, data); return; }
 
-  await update(txRef, data);
+  const before = { id: txId, ...(beforeSnap.val() as Omit<Transaction, 'id'>) } as Transaction;
+  const after: Transaction = { ...before, ...data, id: txId };
 
-  if (!before) return;
+  const updates: Record<string, unknown> = {};
+  updates[`users/${userId}/transactions/${txId}`] = after;
 
-  const updatedTransaction: Transaction = { ...before, ...data, id: txId };
+  // Reverse old balance delta, apply new — only for non-transfer regular transactions
+  const isBalanceTx = (tx: Transaction) =>
+    tx.type !== 'transfer' && tx.walletId && !tx.excludeFromBalance;
 
+  if (isBalanceTx(before)) {
+    const oldDelta = before.type === 'income' ? before.amount : -before.amount;
+    const walletSnap = await get(ref(database, `users/${userId}/wallets/${before.walletId!}`));
+    if (walletSnap.exists()) {
+      const w = walletSnap.val() as Wallet;
+      let newBal = (w.balance || 0) - oldDelta; // reverse old
+      if (after.walletId === before.walletId && isBalanceTx(after)) {
+        const newDelta = after.type === 'income' ? after.amount : -after.amount;
+        newBal += newDelta;
+      }
+      updates[`users/${userId}/wallets/${before.walletId!}/balance`] = newBal;
+    }
+  }
+  // If wallet changed, apply delta to new wallet
+  if (isBalanceTx(after) && after.walletId !== before.walletId) {
+    const walletSnap = await get(ref(database, `users/${userId}/wallets/${after.walletId!}`));
+    if (walletSnap.exists()) {
+      const w = walletSnap.val() as Wallet;
+      const newDelta = after.type === 'income' ? after.amount : -after.amount;
+      updates[`users/${userId}/wallets/${after.walletId!}/balance`] = (w.balance || 0) + newDelta;
+    }
+  }
+
+  await update(ref(database), updates);
+
+  // Sync shared receipt if exists
   try {
-    const mappingRef = ref(database, `user_shares/${String(userId)}/${txId}`);
-    const mappingSnap = await get(mappingRef);
+    const mappingSnap = await get(ref(database, `user_shares/${String(userId)}/${txId}`));
     if (!mappingSnap.exists()) return;
-
     const shareCode = mappingSnap.val() as string;
-    const shareRef = ref(database, `shared_receipts/${shareCode}`);
-    await update(shareRef, {
-      transaction: updatedTransaction,
-      updatedAt: Date.now(),
-    });
-
-    const oldCurrency = before.currency || 'EUR';
-    const newCurrency = updatedTransaction.currency || 'EUR';
-    if (before.amount !== updatedTransaction.amount || oldCurrency !== newCurrency) {
-      const historyRef = push(ref(database, `shared_receipts/${shareCode}/amountHistory`));
-      await set(historyRef, {
-        changedAt: Date.now(),
-        oldAmount: before.amount,
-        newAmount: updatedTransaction.amount,
-        oldCurrency,
-        newCurrency,
+    await update(ref(database, `shared_receipts/${shareCode}`), { transaction: after, updatedAt: Date.now() });
+    const oldCur = before.currency || 'EUR';
+    const newCur = after.currency || 'EUR';
+    if (before.amount !== after.amount || oldCur !== newCur) {
+      await set(push(ref(database, `shared_receipts/${shareCode}/amountHistory`)), {
+        changedAt: Date.now(), oldAmount: before.amount, newAmount: after.amount,
+        oldCurrency: oldCur, newCurrency: newCur,
       } satisfies ReceiptAmountChange);
     }
   } catch (err) {
@@ -423,21 +579,50 @@ export async function deleteTransaction(
   txId: string
 ): Promise<void> {
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
-  await set(txRef, null);
-  
-  // Deactivate any shared receipt link for this transaction
+  const txSnap = await get(txRef);
+
+  const updates: Record<string, unknown> = {};
+  updates[`users/${userId}/transactions/${txId}`] = null;
+
+  if (txSnap.exists()) {
+    const tx = txSnap.val() as Transaction;
+    // Reverse wallet balance
+    if (tx.walletId && !tx.excludeFromBalance) {
+      if (tx.type !== 'transfer') {
+        const wSnap = await get(ref(database, `users/${userId}/wallets/${tx.walletId}`));
+        if (wSnap.exists()) {
+          const w = wSnap.val() as Wallet;
+          const delta = tx.type === 'income' ? -tx.amount : tx.amount; // reverse
+          updates[`users/${userId}/wallets/${tx.walletId}/balance`] = (w.balance || 0) + delta;
+        }
+      } else {
+        // Reverse transfer
+        const [fromSnap, toSnap] = await Promise.all([
+          tx.fromWalletId ? get(ref(database, `users/${userId}/wallets/${tx.fromWalletId}`)) : Promise.resolve(null),
+          tx.toWalletId ? get(ref(database, `users/${userId}/wallets/${tx.toWalletId}`)) : Promise.resolve(null),
+        ]);
+        if (fromSnap?.exists()) {
+          const w = fromSnap.val() as Wallet;
+          updates[`users/${userId}/wallets/${tx.fromWalletId!}/balance`] = (w.balance || 0) + tx.amount;
+        }
+        if (toSnap?.exists()) {
+          const w = toSnap.val() as Wallet;
+          updates[`users/${userId}/wallets/${tx.toWalletId!}/balance`] = (w.balance || 0) - (tx.convertedAmount ?? tx.amount);
+        }
+      }
+    }
+  }
+
+  await update(ref(database), updates);
+
   try {
     const mappingRef = ref(database, `user_shares/${userId}/${txId}`);
     const mappingSnap = await get(mappingRef);
     if (mappingSnap.exists()) {
       const shareCode = mappingSnap.val() as string;
-      const shareRef = ref(database, `shared_receipts/${shareCode}`);
-      await update(shareRef, {
-        isActive: false,
-        disabledReason: 'receipt_deleted',
-        updatedAt: Date.now(),
+      await update(ref(database, `shared_receipts/${shareCode}`), {
+        isActive: false, disabledReason: 'receipt_deleted', updatedAt: Date.now(),
       });
-      // Remove the mapping
       await set(mappingRef, null);
     }
   } catch (err) {

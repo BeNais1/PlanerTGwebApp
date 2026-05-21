@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { HomePage } from './pages/HomePage'
 import { TelegramOnlyScreen } from './components/auth/TelegramOnlyScreen'
 import { OnboardingWizard } from './components/OnboardingWizard'
+import { WalletSetupScreen } from './components/WalletSetupScreen'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
-import { getUserSettings, getReceiptShare, getSharedReceipt, type ReceiptShare } from './services/database'
+import { getUserSettings, getReceiptShare, getSharedReceipt, getWallets, addWallet, type ReceiptShare } from './services/database'
 import { SharedReceiptView } from './components/SharedReceiptView'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
@@ -12,6 +13,7 @@ import './components/auth/TelegramOnlyScreen.css'
 function AppContent() {
   const { user, isLoading: authLoading } = useAuth();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
+  const [walletReady, setWalletReady] = useState<boolean | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [activeShare, setActiveShare] = useState<ReceiptShare | null>(null);
   const [checkingReceipt, setCheckingReceipt] = useState(false);
@@ -78,9 +80,14 @@ function AppContent() {
     let cancelled = false;
     (async () => {
       try {
-        const settings = await getUserSettings(user.id);
+        const [settings, wallets] = await Promise.all([
+          getUserSettings(user.id),
+          getWallets(user.id),
+        ]);
         if (!cancelled) {
-          setOnboardingDone(settings.onboardingCompleted === true);
+          const onboardingCompleted = settings.onboardingCompleted === true;
+          setOnboardingDone(onboardingCompleted);
+          setWalletReady(wallets.length > 0);
 
           // Apply saved theme
           const savedTheme = settings.theme || localStorage.getItem('app-theme') || 'dark';
@@ -100,7 +107,10 @@ function AppContent() {
         }
       } catch (err) {
         console.error('Error checking onboarding:', err);
-        if (!cancelled) setOnboardingDone(false);
+        if (!cancelled) {
+          setOnboardingDone(false);
+          setWalletReady(false);
+        }
       } finally {
         if (!cancelled) setCheckingOnboarding(false);
       }
@@ -111,6 +121,12 @@ function AppContent() {
 
   const handleOnboardingComplete = () => {
     setOnboardingDone(true);
+  };
+
+  const handleWalletCreated = async (name: string, currency: string, balance: number) => {
+    if (!user) return;
+    await addWallet(user.id, { name, currency, balance, createdAt: Date.now() });
+    setWalletReady(true);
   };
 
   // Show loading while checking auth or onboarding or receipt
@@ -127,6 +143,11 @@ function AppContent() {
   // Show onboarding if not completed
   if (user && onboardingDone === false) {
     return <OnboardingWizard onComplete={handleOnboardingComplete} />;
+  }
+
+  // Show wallet setup if onboarding done but no wallets yet
+  if (user && onboardingDone === true && walletReady === false) {
+    return <WalletSetupScreen onComplete={handleWalletCreated} />;
   }
 
   return (

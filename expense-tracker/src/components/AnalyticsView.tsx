@@ -198,7 +198,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
         ? date.toLocaleDateString("uk-UA", { month: "short" })
         : date.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" });
       const current = rows.get(key) || { label, expense: 0, income: 0, date: tx.date };
-      current[tx.type] += amountForView(tx);
+      if (tx.type === 'expense' || tx.type === 'income') current[tx.type] += amountForView(tx);
       current.date = Math.min(current.date, tx.date);
       rows.set(key, current);
     });
@@ -220,7 +220,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
         balance: walletBalances[currency] || 0,
         count: 0,
       };
-      current[tx.type] += tx.amount;
+      if (tx.type === 'expense' || tx.type === 'income') current[tx.type] += tx.amount;
       current.count += 1;
       rows.set(currency, current);
     });

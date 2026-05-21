@@ -1,16 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useCurrency, type Currency } from '../../hooks/useCurrency';
+import { CURRENCY_SYMBOLS } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
-import { subscribeToSettings, updateUserSettings, incrementVendorUsage, type UserSettings, type CustomVendor } from '../../services/database';
+import { subscribeToSettings, updateUserSettings, incrementVendorUsage, type UserSettings, type CustomVendor, type Wallet } from '../../services/database';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
+import { WalletPicker, WalletButton } from '../WalletPicker';
 import './Modals.css';
 
 interface QuickSpendModalProps {
   onClose: () => void;
-  onSpend: (amount: number, category: string, description: string, currency: Currency) => void;
+  onSpend: (amount: number, category: string, description: string, walletId: string) => void;
   isLoading?: boolean;
-  walletBalances: Record<string, number>;
+  wallets: Wallet[];
+  defaultWalletId?: string | null;
 }
 
 interface Vendor {
@@ -70,14 +72,14 @@ const DEFAULT_VENDORS: Vendor[] = [
   { id: 'gym', name: 'Спортзал', category: 'health', icon: '💪' },
 ];
 
-export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }: QuickSpendModalProps) => {
+export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWalletId }: QuickSpendModalProps) => {
   const { user } = useAuth();
-  const { currency: mainCurrency, CURRENCY_SYMBOLS } = useCurrency();
   const { categories } = useCategories();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [amount, setAmount] = useState('');
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(mainCurrency);
+  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(defaultWalletId ?? wallets[0]?.id ?? null);
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isClosing, setIsClosing] = useState(false);
   const [usageCounts, setUsageCounts] = useState<Record<string, number>>({});
@@ -86,6 +88,11 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
   const [newVendorName, setNewVendorName] = useState('');
   const [newVendorIcon, setNewVendorIcon] = useState('🛒');
   const [newVendorCategory, setNewVendorCategory] = useState('other');
+
+  const selectedWallet = wallets.find(w => w.id === selectedWalletId) ?? wallets[0] ?? null;
+  const currencySymbol = selectedWallet
+    ? ((CURRENCY_SYMBOLS as Record<string, string>)[selectedWallet.currency] ?? selectedWallet.currency)
+    : '₴';
 
   const handleClose = () => {
     setIsClosing(true);
@@ -103,14 +110,6 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
       if (typeof unsub === 'function') unsub();
     };
   }, [user]);
-
-  useEffect(() => {
-    if (walletBalances[mainCurrency] !== undefined) {
-      setSelectedCurrency(mainCurrency);
-    } else if (Object.keys(walletBalances).length > 0) {
-      setSelectedCurrency(Object.keys(walletBalances)[0] as Currency);
-    }
-  }, [mainCurrency, walletBalances]);
 
   // Merge default + custom vendors, sort by usage frequency
   const allVendors = useMemo((): Vendor[] => {
@@ -142,12 +141,11 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
     const vendorName = selectedVendor ? selectedVendor.name : searchQuery;
     const category = selectedCategory || (selectedVendor ? selectedVendor.category : 'other');
 
-    if (numAmount > 0 && vendorName) {
-      // Track vendor usage
+    if (numAmount > 0 && vendorName && selectedWallet) {
       if (user && selectedVendor && !selectedVendor.isCustom) {
         incrementVendorUsage(user.id, selectedVendor.id);
       }
-      onSpend(numAmount, category, vendorName, selectedCurrency);
+      onSpend(numAmount, category, vendorName, selectedWallet.id!);
     }
   };
 
@@ -170,6 +168,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
   };
 
   return (
+  <>
     <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
       <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
         <div className="modal-header">
@@ -185,7 +184,6 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
               placeholder="Пошук магазину або компанії..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              autoFocus
             />
 
             {/* Custom Vendor Add Form */}
@@ -300,11 +298,17 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
               </button>
             </div>
 
+            <WalletButton
+              wallet={selectedWallet}
+              onClick={() => setWalletPickerOpen(true)}
+              placeholder="Оберіть гаманець"
+            />
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <NumericKeypad
                 value={amount}
                 onChange={setAmount}
-                currencySymbol={CURRENCY_SYMBOLS[selectedCurrency]}
+                currencySymbol={currencySymbol}
                 onSubmit={handleSubmit}
                 submitLabel="Підтвердити витрату"
                 isLoading={isLoading}
@@ -314,5 +318,15 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, walletBalances }:
         )}
       </div>
     </div>
+
+    {walletPickerOpen && (
+      <WalletPicker
+        wallets={wallets}
+        selectedId={selectedWalletId}
+        onSelect={(w) => setSelectedWalletId(w.id!)}
+        onClose={() => setWalletPickerOpen(false)}
+      />
+    )}
+  </>
   );
 };

@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useCurrency, type Currency } from '../hooks/useCurrency';
+import { useCurrency, type Currency, CURRENCY_SYMBOLS as ALL_CURRENCY_SYMBOLS } from '../hooks/useCurrency';
+// Currency used for monthlyCost calculation only
+import { useWallets } from '../hooks/useWallets';
 import {
   type Subscription,
   subscribeToSubscriptions,
   addSubscription,
   updateSubscription,
   deleteSubscription,
+  type Wallet,
 } from '../services/database';
+import { WalletPicker, WalletButton } from './WalletPicker';
 
 const PRESET_SUBSCRIPTIONS = [
   { name: 'Spotify', icon: '🎵', category: 'subscriptions', amount: 9.99 },
@@ -25,56 +29,74 @@ const PRESET_SUBSCRIPTIONS = [
 ];
 
 const PERIOD_LABELS: Record<string, string> = {
-  weekly: 'Щотижня',
+  daily:   'Щодня',
+  weekly:  'Щотижня',
   monthly: 'Щомісяця',
-  yearly: 'Щорічно',
+  yearly:  'Щорічно',
 };
+
+const ALL_PERIODS = ['daily', 'weekly', 'monthly', 'yearly'] as const;
 
 interface SubscriptionsViewProps {
   isActive: boolean;
-  onClose: () => void;
-  walletBalances: Record<string, number>;
+  onClose?: () => void;
 }
 
-export const SubscriptionsView = ({ isActive, onClose, walletBalances }: SubscriptionsViewProps) => {
+export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
   const { user } = useAuth();
-  const { currency: mainCurrency, CURRENCY_SYMBOLS, formatValue, convertToMain } = useCurrency();
+  const { currency: mainCurrency, formatValue, convertToMain } = useCurrency();
+  const { wallets } = useWallets();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false);
 
-  // Form state
   const [formName, setFormName] = useState('');
   const [formAmount, setFormAmount] = useState('');
-  const [formCurrency, setFormCurrency] = useState<Currency>(mainCurrency);
-  const [formPeriod, setFormPeriod] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [formPeriod, setFormPeriod] = useState<Subscription['period']>('monthly');
   const [formNextDate, setFormNextDate] = useState('');
+  const [formTime, setFormTime] = useState('09:00');
+  const [formWalletId, setFormWalletId] = useState<string | null>(null);
   const [formIcon, setFormIcon] = useState('🔄');
   const [formCategory, setFormCategory] = useState('subscriptions');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeToSubscriptions(user.id, (subs) => {
-      setSubscriptions(subs);
-    });
+    const unsub = subscribeToSubscriptions(user.id, setSubscriptions);
     return () => unsub();
   }, [user]);
 
+  // Default to first wallet when wallets load
   useEffect(() => {
-    setFormCurrency(mainCurrency);
-  }, [mainCurrency]);
+    if (!formWalletId && wallets.length > 0) {
+      setFormWalletId(wallets[0].id!);
+    }
+  }, [wallets, formWalletId]);
 
   if (!isActive) return null;
+
+  const selectedWallet: Wallet | null = wallets.find(w => w.id === formWalletId) ?? wallets[0] ?? null;
+  const currSym = selectedWallet
+    ? ((ALL_CURRENCY_SYMBOLS as Record<string, string>)[selectedWallet.currency] ?? selectedWallet.currency)
+    : '₴';
+
+  const getWalletLabel = (walletId: string) => {
+    const w = wallets.find(w => w.id === walletId);
+    return w ? w.name : walletId;
+  };
 
   const resetForm = () => {
     setFormName('');
     setFormAmount('');
     setFormPeriod('monthly');
     setFormNextDate('');
+    setFormTime('09:00');
+    setFormWalletId(wallets[0]?.id ?? null);
     setFormIcon('🔄');
     setFormCategory('subscriptions');
-    setFormCurrency(mainCurrency);
+    setEditingSub(null);
+    setIsAdding(false);
   };
 
   const handleSelectPreset = (preset: typeof PRESET_SUBSCRIPTIONS[0]) => {
@@ -82,345 +104,350 @@ export const SubscriptionsView = ({ isActive, onClose, walletBalances }: Subscri
     setFormAmount(preset.amount.toString());
     setFormIcon(preset.icon);
     setFormCategory(preset.category);
+    setEditingSub(null);
     setIsAdding(true);
+  };
+
+  const getDefaultNextDate = (period: Subscription['period']): number => {
+    const now = new Date();
+    const [h, m] = formTime.split(':').map(Number);
+    now.setHours(h, m, 0, 0);
+    if (period === 'daily') now.setDate(now.getDate() + 1);
+    else if (period === 'weekly') now.setDate(now.getDate() + 7);
+    else if (period === 'monthly') now.setMonth(now.getMonth() + 1);
+    else now.setFullYear(now.getFullYear() + 1);
+    return now.getTime();
   };
 
   const handleSave = async () => {
     if (!user || !formName || !formAmount) return;
     setIsSaving(true);
-
     const amount = parseFloat(formAmount);
     if (isNaN(amount) || amount <= 0) { setIsSaving(false); return; }
 
-    const nextDate = formNextDate
-      ? new Date(formNextDate).getTime()
-      : getDefaultNextDate(formPeriod);
-
-    if (editingSub?.id) {
-      await updateSubscription(user.id, editingSub.id, {
-        name: formName,
-        amount,
-        currency: formCurrency,
-        period: formPeriod,
-        nextDate,
-        icon: formIcon,
-        category: formCategory,
-      });
+    let nextDate: number;
+    if (formNextDate) {
+      const d = new Date(formNextDate);
+      const [h, m] = formTime.split(':').map(Number);
+      d.setHours(h, m, 0, 0);
+      nextDate = d.getTime();
     } else {
-      await addSubscription(user.id, {
-        name: formName,
-        amount,
-        currency: formCurrency,
-        category: formCategory,
-        icon: formIcon,
-        period: formPeriod,
-        nextDate,
-        createdAt: Date.now(),
-        isActive: true,
-      });
+      nextDate = getDefaultNextDate(formPeriod);
     }
 
+    const payload = {
+      name: formName, amount, currency: selectedWallet?.currency ?? mainCurrency,
+      period: formPeriod, nextDate, time: formTime,
+      walletId: formWalletId ?? '', icon: formIcon, category: formCategory,
+    };
+
+    if (editingSub?.id) {
+      await updateSubscription(user.id, editingSub.id, payload);
+    } else {
+      await addSubscription(user.id, { ...payload, createdAt: Date.now(), isActive: true });
+    }
     resetForm();
-    setIsAdding(false);
-    setEditingSub(null);
     setIsSaving(false);
   };
 
   const handleDelete = async (id: string) => {
     if (!user) return;
     await deleteSubscription(user.id, id);
-    setEditingSub(null);
+    resetForm();
   };
 
   const handleEdit = (sub: Subscription) => {
     setEditingSub(sub);
     setFormName(sub.name);
     setFormAmount(sub.amount.toString());
-    setFormCurrency(sub.currency as Currency);
     setFormPeriod(sub.period);
     setFormIcon(sub.icon);
     setFormCategory(sub.category);
+    setFormTime(sub.time || '09:00');
+    setFormWalletId(sub.walletId || wallets[0]?.id || null);
     setFormNextDate(new Date(sub.nextDate).toISOString().split('T')[0]);
     setIsAdding(true);
   };
 
-  // Calculate monthly cost of all subscriptions
-  const monthlyCost = subscriptions
-    .filter(s => s.isActive)
-    .reduce((acc, sub) => {
-      let monthly = sub.amount;
-      if (sub.period === 'weekly') monthly = sub.amount * 4.33;
-      if (sub.period === 'yearly') monthly = sub.amount / 12;
-      return acc + convertToMain(monthly, (sub.currency || 'EUR') as Currency);
-    }, 0);
+  const monthlyCost = subscriptions.filter(s => s.isActive).reduce((acc, sub) => {
+    let monthly = sub.amount;
+    if (sub.period === 'daily') monthly *= 30.44;
+    else if (sub.period === 'weekly') monthly *= 4.33;
+    else if (sub.period === 'yearly') monthly /= 12;
+    return acc + convertToMain(monthly, (sub.currency || 'EUR') as Currency);
+  }, 0);
 
-  const getDefaultNextDate = (period: string): number => {
-    const now = new Date();
-    if (period === 'weekly') {
-      now.setDate(now.getDate() + 7);
-    } else if (period === 'monthly') {
-      now.setMonth(now.getMonth() + 1);
-    } else {
-      now.setFullYear(now.getFullYear() + 1);
-    }
-    return now.getTime();
+  const getDaysUntil = (ts: number) => {
+    const days = Math.ceil((ts - Date.now()) / 86400000);
+    if (days < 0) return { label: 'Прострочено', urgent: true };
+    if (days === 0) return { label: 'Сьогодні', urgent: true };
+    if (days === 1) return { label: 'Завтра', urgent: false };
+    return { label: `Через ${days} дн.`, urgent: false };
   };
 
-  const getDaysUntil = (timestamp: number) => {
-    const diff = timestamp - Date.now();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    if (days < 0) return 'Прострочено';
-    if (days === 0) return 'Сьогодні';
-    if (days === 1) return 'Завтра';
-    return `Через ${days} дн.`;
-  };
+  // ─── styles ────────────────────────────────────────────────────────────────
 
-  const availableWallets = Object.keys(walletBalances) as Currency[];
+  const S = {
+    wrap: {
+      padding: '0 0 80px',
+    } as React.CSSProperties,
+
+    summaryCard: {
+      background: 'linear-gradient(135deg, var(--apple-surface-1) 0%, var(--apple-surface-2) 100%)',
+      borderRadius: '20px', padding: '20px', marginBottom: '12px',
+      border: '1px solid var(--apple-surface-3)',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    } as React.CSSProperties,
+
+    addBtn: {
+      width: '100%', padding: '14px', marginBottom: '16px',
+      background: 'var(--apple-surface-1)',
+      border: '1.5px dashed var(--apple-surface-3)', borderRadius: '16px',
+      color: 'var(--apple-blue)', fontWeight: 600, fontSize: '15px', cursor: 'pointer',
+    } as React.CSSProperties,
+
+    formCard: {
+      background: 'var(--apple-surface-1)', borderRadius: '20px',
+      padding: '18px', marginBottom: '16px',
+      display: 'flex', flexDirection: 'column', gap: '14px',
+    } as React.CSSProperties,
+
+    label: {
+      fontSize: '11px', color: 'var(--apple-text-on-dark-secondary)',
+      fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.6px',
+      marginBottom: '6px', display: 'block',
+    } as React.CSSProperties,
+
+    input: {
+      width: '100%', padding: '12px 14px',
+      background: 'var(--apple-surface-2)', border: 'none',
+      borderRadius: '12px', color: 'var(--text-primary)',
+      fontSize: '15px', fontFamily: 'var(--font-text)', outline: 'none',
+      boxSizing: 'border-box' as const,
+    } as React.CSSProperties,
+
+    pill: (active: boolean) => ({
+      flex: 1, padding: '9px 6px', border: 'none', borderRadius: '10px',
+      background: active ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
+      color: active ? '#fff' : 'var(--text-primary)',
+      fontWeight: 600, fontSize: '13px', cursor: 'pointer', textAlign: 'center' as const,
+      transition: 'background 0.15s',
+    }) as React.CSSProperties,
+
+    subRow: {
+      display: 'flex', alignItems: 'center', gap: '12px',
+      padding: '13px 14px', background: 'var(--apple-surface-1)',
+      borderRadius: '14px', cursor: 'pointer',
+    } as React.CSSProperties,
+
+    iconBox: {
+      width: '42px', height: '42px', borderRadius: '12px',
+      background: 'var(--apple-surface-2)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      fontSize: '20px', flexShrink: 0,
+    } as React.CSSProperties,
+  };
 
   return (
-    <div className="analytics-view" style={{
-      padding: '0 20px 100px 20px',
-      paddingTop: 'calc(var(--safe-area-top, 50px) + 20px)',
-      height: '100%',
-      overflowY: 'auto',
-    }}>
-      {/* Header */}
-      <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <h2 style={{ fontSize: '34px', fontWeight: 'bold', color: 'var(--apple-text-on-dark)' }}>Підписки</h2>
-        <button
-          onClick={onClose}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '8px 16px', borderRadius: 'var(--radius-full)',
-            background: 'var(--apple-surface-2)', color: 'var(--apple-text-on-dark)',
-            border: 'none', fontSize: '15px', fontWeight: '600', width: 'fit-content', cursor: 'pointer'
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-          Закрити
-        </button>
-      </div>
+    <div style={S.wrap}>
 
-      {/* Monthly Summary Card */}
-      <div style={{
-        background: 'linear-gradient(135deg, var(--apple-surface-1) 0%, var(--apple-surface-2) 100%)',
-        borderRadius: '20px', padding: '20px', marginBottom: '24px',
-        border: '1px solid var(--apple-surface-3)',
-      }}>
-        <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-          Витрати на місяць
-        </span>
-        <div style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', marginTop: '8px' }}>
-          {formatValue(monthlyCost)}
+      {/* Summary */}
+      <div style={S.summaryCard}>
+        <div>
+          <div style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+            На місяць
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
+            {formatValue(monthlyCost)}
+          </div>
         </div>
-        <span style={{ color: 'var(--apple-text-on-dark-tertiary)', fontSize: '13px' }}>
-          {subscriptions.filter(s => s.isActive).length} активних підписок
-        </span>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--apple-blue)' }}>
+            {subscriptions.filter(s => s.isActive).length}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)' }}>платежів</div>
+        </div>
       </div>
 
-      {/* Add / Edit Form */}
-      {isAdding ? (
-        <div style={{
-          background: 'var(--apple-surface-1)', borderRadius: '20px', padding: '20px',
-          marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px',
-        }}>
+      {/* Add button */}
+      {!isAdding && (
+        <button style={S.addBtn} onClick={() => { resetForm(); setIsAdding(true); }}>
+          + Додати повторне списання
+        </button>
+      )}
+
+      {/* Form */}
+      {isAdding && (
+        <div style={S.formCard}>
+          {/* Form header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 600 }}>
-              {editingSub ? 'Редагувати' : 'Нова підписка'}
-            </h3>
-            <button onClick={() => { setIsAdding(false); setEditingSub(null); resetForm(); }}
-              style={{ background: 'none', border: 'none', color: 'var(--apple-text-on-dark-tertiary)', fontSize: '24px', cursor: 'pointer' }}>
+            <span style={{ fontSize: '16px', fontWeight: 700 }}>
+              {editingSub ? 'Редагувати' : 'Новий платіж'}
+            </span>
+            <button onClick={resetForm}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--apple-text-on-dark-tertiary)', fontSize: '20px', lineHeight: 1, padding: '4px' }}>
               ✕
             </button>
           </div>
 
-          {/* Icon + Name row */}
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Icon + Name */}
+          <div style={{ display: 'flex', gap: '10px' }}>
             <input
-              type="text"
-              value={formIcon}
-              onChange={(e) => setFormIcon(e.target.value)}
-              style={{
-                width: '48px', height: '48px', textAlign: 'center', fontSize: '24px',
-                background: 'var(--apple-surface-2)', border: 'none', borderRadius: '14px', color: 'var(--text-primary)',
-              }}
-              placeholder="🔄"
+              type="text" value={formIcon} onChange={e => setFormIcon(e.target.value)}
+              style={{ width: '50px', height: '50px', textAlign: 'center', fontSize: '22px', background: 'var(--apple-surface-2)', border: 'none', borderRadius: '12px', flexShrink: 0 }}
             />
             <input
-              type="text"
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="Назва підписки"
-              style={{
-                flex: 1, padding: '14px 16px', background: 'var(--apple-surface-2)',
-                border: 'none', borderRadius: '14px', color: 'var(--text-primary)', fontSize: '16px',
-                fontFamily: 'var(--font-text)', outline: 'none',
-              }}
+              type="text" value={formName} onChange={e => setFormName(e.target.value)}
+              placeholder="Назва платежу"
+              style={{ ...S.input, flex: 1, width: 'auto' }}
             />
           </div>
 
-          {/* Amount */}
-          <input
-            type="text"
-            inputMode="decimal"
-            value={formAmount}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
-              if (val.split('.').length <= 2) setFormAmount(val);
-            }}
-            placeholder={`0.00 ${CURRENCY_SYMBOLS[formCurrency]}`}
-            style={{
-              width: '100%', padding: '14px 16px', background: 'var(--apple-surface-2)',
-              border: 'none', borderRadius: '14px', color: 'var(--text-primary)', fontSize: '24px',
-              fontWeight: 600, textAlign: 'center', fontFamily: 'var(--font-display)', outline: 'none',
-            }}
-          />
-
-          {/* Currency */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {availableWallets.map(c => (
-              <button key={c} onClick={() => setFormCurrency(c)}
-                style={{
-                  flex: 1, padding: '10px', border: 'none', borderRadius: '12px',
-                  background: formCurrency === c ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
-                  color: 'var(--text-primary)', fontWeight: 600, fontSize: '14px', cursor: 'pointer',
+          {/* Amount + Currency always visible */}
+          <div>
+            <span style={S.label}>Сума</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <input
+                  type="text" inputMode="decimal"
+                  value={formAmount}
+                  onChange={e => {
+                    const v = e.target.value.replace(/[^0-9.,]/g, '').replace(',', '.');
+                    if (v.split('.').length <= 2) setFormAmount(v);
+                  }}
+                  placeholder="0.00"
+                  style={{ ...S.input, fontSize: '22px', fontWeight: 700, textAlign: 'center', paddingRight: '52px' }}
+                />
+                <span style={{
+                  position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)',
+                  fontSize: '16px', fontWeight: 700, color: 'var(--apple-blue)',
+                  pointerEvents: 'none',
                 }}>
-                {c}
-              </button>
-            ))}
+                  {currSym}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Wallet */}
+          <div>
+            <span style={S.label}>Гаманець</span>
+            <WalletButton
+              wallet={selectedWallet}
+              onClick={() => setWalletPickerOpen(true)}
+              placeholder="Оберіть гаманець"
+            />
           </div>
 
           {/* Period */}
+          <div>
+            <span style={S.label}>Частота</span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {ALL_PERIODS.map(p => (
+                <button key={p} onClick={() => setFormPeriod(p)} style={S.pill(formPeriod === p)}>
+                  {PERIOD_LABELS[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Date + Time */}
           <div style={{ display: 'flex', gap: '8px' }}>
-            {(['weekly', 'monthly', 'yearly'] as const).map(p => (
-              <button key={p} onClick={() => setFormPeriod(p)}
-                style={{
-                  flex: 1, padding: '10px', border: 'none', borderRadius: '12px',
-                  background: formPeriod === p ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
-                  color: 'var(--text-primary)', fontWeight: 500, fontSize: '13px', cursor: 'pointer',
-                }}>
-                {PERIOD_LABELS[p]}
-              </button>
-            ))}
+            <div style={{ flex: 3 }}>
+              <span style={S.label}>Перша дата</span>
+              <input type="date" value={formNextDate} onChange={e => setFormNextDate(e.target.value)}
+                style={{ ...S.input, colorScheme: 'dark' }} />
+            </div>
+            <div style={{ flex: 2 }}>
+              <span style={S.label}>Час</span>
+              <input type="time" value={formTime} onChange={e => setFormTime(e.target.value)}
+                style={{ ...S.input, colorScheme: 'dark' }} />
+            </div>
           </div>
 
-          {/* Next Date */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)', fontWeight: 500 }}>
-              Наступне списання
-            </label>
-            <input
-              type="date"
-              value={formNextDate}
-              onChange={(e) => setFormNextDate(e.target.value)}
-              style={{
-                padding: '12px 16px', background: 'var(--apple-surface-2)', border: 'none',
-                borderRadius: '14px', color: 'var(--text-primary)', fontSize: '15px', fontFamily: 'var(--font-text)',
-                outline: 'none', colorScheme: 'dark',
-              }}
-            />
-          </div>
-
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '10px' }}>
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
             {editingSub && (
               <button onClick={() => editingSub?.id && handleDelete(editingSub.id)}
-                style={{
-                  flex: 1, padding: '14px', border: 'none', borderRadius: '14px',
-                  background: 'var(--apple-surface-2)', color: '#ff453a', fontWeight: 600,
-                  fontSize: '16px', cursor: 'pointer',
-                }}>
+                style={{ flex: 1, padding: '13px', border: 'none', borderRadius: '12px', background: 'rgba(255,69,58,0.12)', color: '#ff453a', fontWeight: 600, fontSize: '15px', cursor: 'pointer' }}>
                 Видалити
               </button>
             )}
             <button onClick={handleSave} disabled={isSaving || !formName || !formAmount}
-              style={{
-                flex: 2, padding: '14px', border: 'none', borderRadius: '14px',
-                background: 'var(--apple-blue)', color: 'var(--text-primary)', fontWeight: 600,
-                fontSize: '16px', cursor: 'pointer', opacity: (!formName || !formAmount) ? 0.5 : 1,
-              }}>
+              style={{ flex: 2, padding: '13px', border: 'none', borderRadius: '12px', background: 'var(--apple-blue)', color: '#fff', fontWeight: 600, fontSize: '15px', cursor: 'pointer', opacity: (!formName || !formAmount) ? 0.45 : 1 }}>
               {isSaving ? 'Збереження...' : editingSub ? 'Зберегти' : 'Додати'}
             </button>
           </div>
         </div>
-      ) : (
-        /* Add Button */
-        <button onClick={() => { resetForm(); setIsAdding(true); }}
-          style={{
-            width: '100%', padding: '14px', background: 'var(--apple-surface-1)',
-            border: '1px dashed var(--apple-surface-3)', borderRadius: '16px',
-            color: 'var(--apple-blue)', fontWeight: 600, fontSize: '15px',
-            cursor: 'pointer', marginBottom: '20px',
-          }}>
-          + Додати підписку
-        </button>
       )}
 
-      {/* Active Subscriptions */}
-      {subscriptions.length > 0 && (
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '15px', color: 'var(--apple-text-on-dark-secondary)', marginBottom: '12px', fontWeight: 600 }}>
-            Активні підписки
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {subscriptions.filter(s => s.isActive).map(sub => (
-              <div key={sub.id} onClick={() => handleEdit(sub)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '14px',
-                  padding: '14px 16px', background: 'var(--apple-surface-1)',
-                  borderRadius: '16px', cursor: 'pointer',
-                  transition: 'background 0.2s ease',
-                }}>
-                <div style={{
-                  width: '44px', height: '44px', borderRadius: '14px',
-                  background: 'var(--apple-surface-2)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0,
-                }}>
-                  {sub.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)' }}>{sub.name}</div>
-                  <div style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-tertiary)' }}>
-                    {PERIOD_LABELS[sub.period]} · {getDaysUntil(sub.nextDate)}
+      {walletPickerOpen && (
+        <WalletPicker
+          wallets={wallets}
+          selectedId={formWalletId}
+          onSelect={(w) => setFormWalletId(w.id!)}
+          onClose={() => setWalletPickerOpen(false)}
+        />
+      )}
+
+      {/* Active subscriptions */}
+      {subscriptions.filter(s => s.isActive).length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)', fontWeight: 600, marginBottom: '8px' }}>
+            Активні
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {subscriptions.filter(s => s.isActive).map(sub => {
+              const { label, urgent } = getDaysUntil(sub.nextDate);
+              return (
+                <div key={sub.id} style={S.subRow} onClick={() => handleEdit(sub)}>
+                  <div style={S.iconBox}>{sub.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>{sub.name}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)', marginTop: '2px' }}>
+                      {PERIOD_LABELS[sub.period]}
+                      {sub.time ? ` · ${sub.time}` : ''}
+                      {sub.walletId ? ` · ${getWalletLabel(sub.walletId)}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {formatValue(sub.amount, sub.currency as Currency)}
+                    </div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: urgent ? '#ff9f0a' : 'var(--apple-text-on-dark-tertiary)', marginTop: '2px' }}>
+                      {label}
+                    </div>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {formatValue(sub.amount, sub.currency as Currency)}
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Preset suggestions */}
+      {/* Presets */}
       {!isAdding && (
         <div>
-          <h3 style={{ fontSize: '15px', color: 'var(--apple-text-on-dark-secondary)', marginBottom: '12px', fontWeight: 600 }}>
-            Популярні підписки
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ fontSize: '13px', color: 'var(--apple-text-on-dark-secondary)', fontWeight: 600, marginBottom: '8px' }}>
+            Популярні сервіси
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
             {PRESET_SUBSCRIPTIONS
               .filter(p => !subscriptions.some(s => s.name === p.name))
               .map(preset => (
                 <div key={preset.name} onClick={() => handleSelectPreset(preset)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '12px', background: 'var(--apple-surface-1)',
-                    borderRadius: '14px', cursor: 'pointer',
+                    padding: '11px 12px', background: 'var(--apple-surface-1)',
+                    borderRadius: '13px', cursor: 'pointer',
                   }}>
-                  <span style={{ fontSize: '20px' }}>{preset.icon}</span>
+                  <span style={{ fontSize: '18px' }}>{preset.icon}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {preset.name}
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--apple-text-on-dark-tertiary)' }}>
-                      ~{convertToMain(preset.amount, 'EUR' as Currency).toFixed(2)} {CURRENCY_SYMBOLS[mainCurrency]}/міс
+                    <div style={{ fontSize: '11px', color: 'var(--apple-text-on-dark-tertiary)' }}>
+                      ~{convertToMain(preset.amount, 'EUR' as Currency).toFixed(0)} {ALL_CURRENCY_SYMBOLS[mainCurrency]}/міс
                     </div>
                   </div>
                 </div>

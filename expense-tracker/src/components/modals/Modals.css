@@ -18,11 +18,7 @@
   animation: fadeIn 0.3s ease forwards;
 }
 
-/* When keyboard is open, keep overlay at full viewport */
-html.keyboard-open .modal-overlay {
-  height: var(--viewport-height, 100vh);
-  bottom: auto;
-}
+
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -49,10 +45,10 @@ html.keyboard-open .modal-overlay {
   -webkit-overflow-scrolling: touch;
 }
 
-/* When keyboard is open, reduce bottom padding and adjust max height */
+/* When keyboard is open, reduce bottom padding */
 html.keyboard-open .modal-content {
   padding-bottom: 16px !important;
-  max-height: calc(var(--viewport-height, 100vh) - 40px) !important;
+  max-height: 70dvh !important;
 }
 
 .modal-overlay.closing {
