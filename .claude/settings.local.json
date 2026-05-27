@@ -11,7 +11,9 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "PowerShell(head -50)",
       "Bash(xargs grep -l \"useEffect\\\\|setInterval\\\\|cron\\\\|schedule\")",
-      "Bash(npx vercel *)"
+      "Bash(npx vercel *)",
+      "Bash(vercel --prod)",
+      "Bash(vercel deploy *)"
     ]
   }
 }

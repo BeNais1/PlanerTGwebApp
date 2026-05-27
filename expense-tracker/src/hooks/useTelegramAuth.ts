@@ -26,6 +26,35 @@ export const useTelegramAuth = () => {
         const tg = window.Telegram?.WebApp;
         
         if (!tg) {
+          // Check if TEST_MODE is enabled for desktop testing
+          const isTestMode = import.meta.env.VITE_TEST_MODE === 'true' ||
+            localStorage.getItem('ALLOW_DESKTOP') === 'true';
+          
+          if (isTestMode) {
+            // Create a test user for desktop development/testing
+            const testUser: TelegramUser = {
+              id: 999999999,
+              first_name: 'Test',
+              last_name: 'User',
+              username: 'test_dev',
+              language_code: 'uk',
+            };
+
+            const { registerUser } = await import('../services/database');
+            await registerUser(testUser.id, testUser.first_name, testUser.last_name || '', testUser.username || '');
+
+            if (isMounted) {
+              setAuthState({
+                isAuthenticated: true,
+                user: testUser,
+                token: 'test-desktop-session',
+                isLoading: false,
+                error: null,
+              });
+            }
+            return;
+          }
+
           throw new Error('Telegram WebApp not available');
         }
 

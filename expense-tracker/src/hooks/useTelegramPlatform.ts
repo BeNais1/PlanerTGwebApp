@@ -90,6 +90,10 @@ export const useTelegramPlatform = () => {
       } else if (/Android/.test(userAgent)) {
         setPlatform('android');
         setSafeAreaInsets({ top: 48, bottom: 24 });
+      } else {
+        // Desktop browser fallback
+        setPlatform('desktop');
+        setSafeAreaInsets({ top: 20, bottom: 0 });
       }
     }
   }, []);

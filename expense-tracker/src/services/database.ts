@@ -109,6 +109,7 @@ export interface OnboardingData {
 
 export interface UserSettings {
   currency?: string;
+  mainWalletId?: string;
   walletNames?: Record<string, string>;
   customCategories?: Category[];
   hiddenCategories?: string[];
@@ -221,8 +222,8 @@ export interface TemporaryUserCode {
 
 // ====== Helpers ======
 
-export function getCurrentMonth(): string {
-  const now = new Date();
+export function getCurrentMonth(date: number | Date = new Date()): string {
+  const now = date instanceof Date ? date : new Date(date);
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   return `${year}-${month}`;

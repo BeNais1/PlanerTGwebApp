@@ -9,17 +9,14 @@ interface WalletPickerProps {
   onAddWallet?: () => void;
 }
 
-const WALLET_COLORS = [
-  'linear-gradient(135deg,#1e3a6e,#2563eb)',
-  'linear-gradient(135deg,#064e3b,#059669)',
-  'linear-gradient(135deg,#3b1f0d,#b45309)',
-  'linear-gradient(135deg,#2d1b69,#7c3aed)',
-  'linear-gradient(135deg,#7c1f1f,#dc2626)',
-  'linear-gradient(135deg,#1a3a4a,#0891b2)',
-];
+const WALLET_COLORS: Record<string, string> = {
+  UAH: 'linear-gradient(135deg,#1e3a6e,#2563eb)',
+  USD: 'linear-gradient(135deg,#064e3b,#059669)',
+  EUR: 'linear-gradient(135deg,#3b1f0d,#b45309)',
+};
 
-export function walletColor(index: number): string {
-  return WALLET_COLORS[index % WALLET_COLORS.length];
+export function walletColor(currency: string): string {
+  return WALLET_COLORS[currency] ?? 'linear-gradient(135deg,#2d1b69,#7c3aed)';
 }
 
 export const WalletPicker = ({
@@ -58,7 +55,7 @@ export const WalletPicker = ({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {wallets.map((wallet, idx) => {
+          {wallets.map((wallet) => {
             const isSelected = wallet.id === selectedId;
             const balance = wallet.balance ?? 0;
             const currSym = sym(wallet.currency);
@@ -77,7 +74,7 @@ export const WalletPicker = ({
                 {/* Color dot */}
                 <div style={{
                   width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                  background: walletColor(idx),
+                  background: walletColor(wallet.currency),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 16, fontWeight: 700, color: '#fff',
                 }}>
@@ -162,7 +159,7 @@ export const WalletButton = ({ wallet, onClick, placeholder = 'Оберіть г
         <>
           <div style={{
             width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: 'var(--apple-blue)',
+            background: walletColor(wallet.currency),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 14, fontWeight: 700, color: '#fff',
           }}>

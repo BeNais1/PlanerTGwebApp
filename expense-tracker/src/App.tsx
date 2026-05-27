@@ -5,7 +5,7 @@ import { OnboardingWizard } from './components/OnboardingWizard'
 import { WalletSetupScreen } from './components/WalletSetupScreen'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
-import { getUserSettings, getReceiptShare, getSharedReceipt, getWallets, addWallet, type ReceiptShare } from './services/database'
+import { getUserSettings, getReceiptShare, getSharedReceipt, getWallets, addWallet, updateUserSettings, type ReceiptShare } from './services/database'
 import { SharedReceiptView } from './components/SharedReceiptView'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
@@ -125,7 +125,8 @@ function AppContent() {
 
   const handleWalletCreated = async (name: string, currency: string, balance: number) => {
     if (!user) return;
-    await addWallet(user.id, { name, currency, balance, createdAt: Date.now() });
+    const walletId = await addWallet(user.id, { name, currency, balance, createdAt: Date.now() });
+    await updateUserSettings(user.id, { currency, mainWalletId: walletId });
     setWalletReady(true);
   };
 
@@ -187,8 +188,21 @@ function AppContent() {
 }
 
 function App() {
-  // Bug #1 fix: memoize the Telegram check so it doesn't re-run on every render
+  // TEST_MODE: allows desktop browser access for testing
+  // Enable via: localStorage.setItem('ALLOW_DESKTOP', 'true') in browser console
+  // Or via: VITE_TEST_MODE=true in .env.local
+  // To disable: localStorage.removeItem('ALLOW_DESKTOP')
+  const isTestMode = useMemo(() => {
+    try {
+      return import.meta.env.VITE_TEST_MODE === 'true' ||
+        localStorage.getItem('ALLOW_DESKTOP') === 'true';
+    } catch { return false; }
+  }, []);
+
   const isTelegramWebApp = useMemo(() => {
+    // In test mode, allow desktop access
+    if (isTestMode) return true;
+
     const tg = window.Telegram?.WebApp;
     
     if (!tg) {
@@ -204,7 +218,7 @@ function App() {
     
     // Дозволяємо мобільні платформи та десктоп-клієнти Telegram
     return platform === 'ios' || platform === 'android' || platform === 'tdesktop' || platform === 'macos';
-  }, []);
+  }, [isTestMode]);
 
   // Bug #5 fix: auto-update checks still run, but the hook is safe to call
   // unconditionally — it simply fetches /version.json which is harmless

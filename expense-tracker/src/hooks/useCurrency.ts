@@ -71,6 +71,7 @@ async function fetchNBURates(): Promise<Record<Currency, number>> {
 export const useCurrency = () => {
   const { user } = useAuth();
   const [currency, setCurrency] = useState<Currency>('EUR');
+  const [mainWalletId, setMainWalletId] = useState<string | null>(null);
   const [walletNames, setWalletNames] = useState<Record<string, string>>({});
   // Init synchronously from cache so first render already has real rates
   const [exchangeRates, setExchangeRates] = useState<Record<Currency, number>>(
@@ -86,6 +87,7 @@ export const useCurrency = () => {
     if (!user) return;
     const unsubscribe = subscribeToSettings(user.id, (settings: UserSettings | null) => {
       setCurrency((settings?.currency as Currency) || 'EUR');
+      setMainWalletId(settings?.mainWalletId || null);
       setWalletNames(settings?.walletNames || {});
     });
     return () => unsubscribe();
@@ -117,6 +119,7 @@ export const useCurrency = () => {
 
   return {
     currency,
+    mainWalletId,
     walletNames,
     convertToMain,
     formatValue,

@@ -37,6 +37,35 @@ const PERIOD_LABELS: Record<string, string> = {
 
 const ALL_PERIODS = ['daily', 'weekly', 'monthly', 'yearly'] as const;
 
+function getLocalDateInputValue(timestamp: number): string {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getLocalDateTime(dateValue: string, timeValue: string): number {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const [hours = 0, minutes = 0] = timeValue.split(':').map(Number);
+  return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime();
+}
+
+function getDaysUntil(timestamp: number) {
+  const now = Date.now();
+  if (timestamp < now) return { label: 'Прострочено', urgent: true };
+
+  const currentDate = new Date(now);
+  const scheduledDate = new Date(timestamp);
+  const currentDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()).getTime();
+  const scheduledDay = new Date(scheduledDate.getFullYear(), scheduledDate.getMonth(), scheduledDate.getDate()).getTime();
+  const days = Math.round((scheduledDay - currentDay) / 86400000);
+
+  if (days === 0) return { label: 'Сьогодні', urgent: true };
+  if (days === 1) return { label: 'Завтра', urgent: false };
+  return { label: `Через ${days} дн.`, urgent: false };
+}
+
 interface SubscriptionsViewProps {
   isActive: boolean;
   onClose?: () => void;
@@ -44,7 +73,7 @@ interface SubscriptionsViewProps {
 
 export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
   const { user } = useAuth();
-  const { currency: mainCurrency, formatValue, convertToMain } = useCurrency();
+  const { currency: mainCurrency, mainWalletId, formatValue, convertToMain, EXCHANGE_RATES } = useCurrency();
   const { wallets } = useWallets();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -67,16 +96,15 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
     return () => unsub();
   }, [user]);
 
-  // Default to first wallet when wallets load
-  useEffect(() => {
-    if (!formWalletId && wallets.length > 0) {
-      setFormWalletId(wallets[0].id!);
-    }
-  }, [wallets, formWalletId]);
-
   if (!isActive) return null;
 
-  const selectedWallet: Wallet | null = wallets.find(w => w.id === formWalletId) ?? wallets[0] ?? null;
+  const mainWallet: Wallet | null = wallets.find(w => w.id === mainWalletId)
+    ?? wallets.find(w => w.currency === mainCurrency)
+    ?? wallets[0]
+    ?? null;
+  const presetCurrency = (mainWallet?.currency as Currency | undefined) ?? mainCurrency;
+  const presetAmount = (amountInEur: number) => amountInEur * EXCHANGE_RATES[presetCurrency];
+  const selectedWallet: Wallet | null = wallets.find(w => w.id === formWalletId) ?? mainWallet;
   const currSym = selectedWallet
     ? ((ALL_CURRENCY_SYMBOLS as Record<string, string>)[selectedWallet.currency] ?? selectedWallet.currency)
     : '₴';
@@ -92,7 +120,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
     setFormPeriod('monthly');
     setFormNextDate('');
     setFormTime('09:00');
-    setFormWalletId(wallets[0]?.id ?? null);
+    setFormWalletId(mainWallet?.id ?? null);
     setFormIcon('🔄');
     setFormCategory('subscriptions');
     setEditingSub(null);
@@ -101,7 +129,8 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
 
   const handleSelectPreset = (preset: typeof PRESET_SUBSCRIPTIONS[0]) => {
     setFormName(preset.name);
-    setFormAmount(preset.amount.toString());
+    setFormAmount(presetAmount(preset.amount).toFixed(2));
+    setFormWalletId(mainWallet?.id ?? null);
     setFormIcon(preset.icon);
     setFormCategory(preset.category);
     setEditingSub(null);
@@ -110,7 +139,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
 
   const getDefaultNextDate = (period: Subscription['period']): number => {
     const now = new Date();
-    const [h, m] = formTime.split(':').map(Number);
+    const [h = 0, m = 0] = formTime.split(':').map(Number);
     now.setHours(h, m, 0, 0);
     if (period === 'daily') now.setDate(now.getDate() + 1);
     else if (period === 'weekly') now.setDate(now.getDate() + 7);
@@ -127,10 +156,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
 
     let nextDate: number;
     if (formNextDate) {
-      const d = new Date(formNextDate);
-      const [h, m] = formTime.split(':').map(Number);
-      d.setHours(h, m, 0, 0);
-      nextDate = d.getTime();
+      nextDate = getLocalDateTime(formNextDate, formTime);
     } else {
       nextDate = getDefaultNextDate(formPeriod);
     }
@@ -138,7 +164,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
     const payload = {
       name: formName, amount, currency: selectedWallet?.currency ?? mainCurrency,
       period: formPeriod, nextDate, time: formTime,
-      walletId: formWalletId ?? '', icon: formIcon, category: formCategory,
+      walletId: selectedWallet?.id ?? '', icon: formIcon, category: formCategory,
     };
 
     if (editingSub?.id) {
@@ -164,8 +190,8 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
     setFormIcon(sub.icon);
     setFormCategory(sub.category);
     setFormTime(sub.time || '09:00');
-    setFormWalletId(sub.walletId || wallets[0]?.id || null);
-    setFormNextDate(new Date(sub.nextDate).toISOString().split('T')[0]);
+    setFormWalletId(sub.walletId || mainWallet?.id || null);
+    setFormNextDate(getLocalDateInputValue(sub.nextDate));
     setIsAdding(true);
   };
 
@@ -176,14 +202,6 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
     else if (sub.period === 'yearly') monthly /= 12;
     return acc + convertToMain(monthly, (sub.currency || 'EUR') as Currency);
   }, 0);
-
-  const getDaysUntil = (ts: number) => {
-    const days = Math.ceil((ts - Date.now()) / 86400000);
-    if (days < 0) return { label: 'Прострочено', urgent: true };
-    if (days === 0) return { label: 'Сьогодні', urgent: true };
-    if (days === 1) return { label: 'Завтра', urgent: false };
-    return { label: `Через ${days} дн.`, urgent: false };
-  };
 
   // ─── styles ────────────────────────────────────────────────────────────────
 
@@ -384,7 +402,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
       {walletPickerOpen && (
         <WalletPicker
           wallets={wallets}
-          selectedId={formWalletId}
+          selectedId={selectedWallet?.id ?? null}
           onSelect={(w) => setFormWalletId(w.id!)}
           onClose={() => setWalletPickerOpen(false)}
         />
@@ -447,7 +465,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
                       {preset.name}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--apple-text-on-dark-tertiary)' }}>
-                      ~{convertToMain(preset.amount, 'EUR' as Currency).toFixed(0)} {ALL_CURRENCY_SYMBOLS[mainCurrency]}/міс
+                      ~{presetAmount(preset.amount).toFixed(0)} {ALL_CURRENCY_SYMBOLS[presetCurrency]}/міс
                     </div>
                   </div>
                 </div>

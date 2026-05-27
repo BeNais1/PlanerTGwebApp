@@ -5,11 +5,12 @@ import { useCategories } from '../../hooks/useCategories';
 import { subscribeToSettings, updateUserSettings, incrementVendorUsage, type UserSettings, type CustomVendor, type Wallet } from '../../services/database';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { WalletPicker, WalletButton } from '../WalletPicker';
+import { TransactionDateField } from './TransactionDateField';
 import './Modals.css';
 
 interface QuickSpendModalProps {
   onClose: () => void;
-  onSpend: (amount: number, category: string, description: string, walletId: string) => void;
+  onSpend: (amount: number, category: string, description: string, walletId: string, date: number) => void;
   isLoading?: boolean;
   wallets: Wallet[];
   defaultWalletId?: string | null;
@@ -78,6 +79,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultW
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [amount, setAmount] = useState('');
+  const [transactionDate, setTransactionDate] = useState(() => Date.now());
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(defaultWalletId ?? wallets[0]?.id ?? null);
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -145,7 +147,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultW
       if (user && selectedVendor && !selectedVendor.isCustom) {
         incrementVendorUsage(user.id, selectedVendor.id);
       }
-      onSpend(numAmount, category, vendorName, selectedWallet.id!);
+      onSpend(numAmount, category, vendorName, selectedWallet.id!, transactionDate);
     }
   };
 
@@ -303,6 +305,8 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultW
               onClick={() => setWalletPickerOpen(true)}
               placeholder="Оберіть гаманець"
             />
+
+            <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <NumericKeypad

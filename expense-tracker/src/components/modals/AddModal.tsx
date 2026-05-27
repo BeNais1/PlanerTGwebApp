@@ -3,11 +3,12 @@ import { CURRENCY_SYMBOLS } from '../../hooks/useCurrency';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { WalletPicker, WalletButton } from '../WalletPicker';
 import { type Wallet } from '../../services/database';
+import { TransactionDateField } from './TransactionDateField';
 import './Modals.css';
 
 interface AddModalProps {
   onClose: () => void;
-  onAdd: (amount: number, description: string, walletId: string) => void;
+  onAdd: (amount: number, description: string, walletId: string, date: number) => void;
   isLoading?: boolean;
   wallets: Wallet[];
   defaultWalletId?: string | null;
@@ -16,6 +17,7 @@ interface AddModalProps {
 export const AddModal = ({ onClose, onAdd, isLoading, wallets, defaultWalletId }: AddModalProps) => {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [transactionDate, setTransactionDate] = useState(() => Date.now());
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(defaultWalletId ?? wallets[0]?.id ?? null);
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -33,7 +35,7 @@ export const AddModal = ({ onClose, onAdd, isLoading, wallets, defaultWalletId }
   const handleSubmit = () => {
     const numAmount = getKeypadNumericValue(amount);
     if (numAmount > 0 && selectedWallet) {
-      onAdd(numAmount, description, selectedWallet.id!);
+      onAdd(numAmount, description, selectedWallet.id!, transactionDate);
     }
   };
 
@@ -56,6 +58,8 @@ export const AddModal = ({ onClose, onAdd, isLoading, wallets, defaultWalletId }
             onChange={(e) => setDescription(e.target.value)}
             style={{ fontSize: '14px', padding: '10px 14px' }}
           />
+
+          <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
 
           <NumericKeypad
             value={amount}

@@ -5,14 +5,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--apple-black);
+  background: var(--bg);
   padding: 20px;
 }
 
 .telegram-only-content {
   max-width: 420px;
   width: 100%;
-  background: var(--apple-surface-1);
+  background: var(--card-bg);
   border-radius: var(--radius-xl);
   padding: 40px 32px;
   text-align: center;
@@ -30,7 +30,7 @@
   font-weight: 600;
   line-height: 1.14;
   letter-spacing: 0.196px;
-  color: var(--apple-text-on-dark);
+  color: var(--text-primary);
   margin: 0 0 8px 0;
 }
 
@@ -40,12 +40,12 @@
   font-weight: 400;
   line-height: 1.43;
   letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark-tertiary);
+  color: var(--text-tertiary);
   margin: 0 0 32px 0;
 }
 
 .qr-code-container {
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
   border-radius: var(--radius-lg);
   padding: 24px;
   margin-bottom: 24px;
@@ -64,12 +64,12 @@
   font-family: var(--font-text);
   font-size: 12px;
   letter-spacing: -0.12px;
-  color: var(--apple-text-on-dark-tertiary);
+  color: var(--text-tertiary);
 }
 
 .telegram-only-instructions {
   text-align: left;
-  background: var(--apple-surface-2);
+  background: var(--card-bg-2);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
   margin-bottom: 24px;
@@ -80,7 +80,7 @@
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.224px;
-  color: var(--apple-text-on-dark);
+  color: var(--text-primary);
   margin: 0 0 10px 0;
 }
 
@@ -92,7 +92,7 @@
 .telegram-only-instructions li {
   font-family: var(--font-text);
   font-size: 14px;
-  color: var(--apple-text-on-dark-secondary);
+  color: var(--text-secondary);
   margin-bottom: 6px;
   line-height: 1.43;
   letter-spacing: -0.224px;
@@ -100,8 +100,8 @@
 
 .telegram-button {
   display: inline-block;
-  background: var(--apple-blue);
-  color: var(--apple-white);
+  background: var(--accent);
+  color: var(--text-primary);
   padding: 8px 24px;
   border-radius: var(--radius-md);
   font-family: var(--font-text);

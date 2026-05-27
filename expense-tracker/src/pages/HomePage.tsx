@@ -2,12 +2,11 @@ import { useState, useEffect, useMemo, useRef, type TouchEvent } from "react";
 import { ArrowDown } from "../components/icons/ArrowDown";
 import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
-import { HomeIcon } from "../components/icons/HomeIcon";
 import { HistoryIcon } from "../components/icons/HistoryIcon";
 import { BookmarkIcon } from "../components/icons/BookmarkIcon";
 import { AnalyticsIcon } from "../components/icons/AnalyticsIcon";
 import { JointCheckIcon } from "../components/icons/JointCheckIcon";
-import { SearchIcon } from "../components/icons/SearchIcon";
+import { SvgRepoIcon } from "../components/icons/SvgRepoIcon";
 import { PaymentIcon } from "../components/PaymentIcon";
 import { useTelegramPlatform } from "../hooks/useTelegramPlatform";
 import { useKeyboardSafe } from "../hooks/useKeyboardSafe";
@@ -53,7 +52,7 @@ export const HomePage = () => {
   const { safeAreaInsets } = useTelegramPlatform();
   useKeyboardSafe();
   const { user } = useAuth();
-  const { currency: mainCurrency, formatValue, convertToMain } = useCurrency();
+  const { currency: mainCurrency, mainWalletId, formatValue, convertToMain } = useCurrency();
   const currSym = (CURRENCY_SYMBOLS as Record<string, string>)[mainCurrency] ?? mainCurrency;
   const { names: CATEGORY_NAMES } = useCategories();
   const { wallets, isLoaded: walletsLoaded, createWallet, renameWallet, removeWallet } = useWallets();
@@ -102,7 +101,7 @@ export const HomePage = () => {
   const [editingName, setEditingName] = useState('');
 
   const navItems = [
-    { icon: <HomeIcon />, id: 0 },
+    { icon: <SvgRepoIcon name="home" />, id: 0 },
     { icon: <HistoryIcon />, id: 1 },
     { icon: <BookmarkIcon />, id: 2 },
     { icon: <AnalyticsIcon />, id: 3 },
@@ -149,6 +148,30 @@ export const HomePage = () => {
     return map;
   }, [wallets]);
 
+  const selectedMainWalletId = useMemo(() => {
+    const savedWallet = wallets.find(w => w.id === mainWalletId);
+    if (savedWallet) return savedWallet.id ?? null;
+
+    return wallets.find(w => w.currency === mainCurrency)?.id ?? null;
+  }, [wallets, mainWalletId, mainCurrency]);
+
+  const displayedWallets = useMemo(() => {
+    const mainIndex = wallets.findIndex(wallet => wallet.id === selectedMainWalletId);
+    if (mainIndex <= 0) return wallets;
+
+    return [
+      wallets[mainIndex],
+      ...wallets.slice(0, mainIndex),
+      ...wallets.slice(mainIndex + 1),
+    ];
+  }, [wallets, selectedMainWalletId]);
+
+  const defaultWalletId = selectedMainWalletId ?? wallets[0]?.id ?? null;
+
+  useEffect(() => {
+    setActiveWallet(0);
+    cardsScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+  }, [selectedMainWalletId]);
 
 
   const periodExpenses = useMemo(() => {
@@ -176,14 +199,14 @@ export const HomePage = () => {
       .reduce((acc, t) => acc + convertToMain(t.amount, (t.currency || mainCurrency) as Currency), 0);
   }, [transactions, mainCurrency, convertToMain, budgetLimitStartDate, budgetLimitPeriod]);
 
-  const handleSpend = async (amount: number, category: string, description: string, walletId: string) => {
+  const handleSpend = async (amount: number, category: string, description: string, walletId: string, date: number) => {
     if (!user) return;
     setIsSaving(true);
     try {
       const wallet = wallets.find(w => w.id === walletId);
       await addTransaction(user.id, {
         type: 'expense', amount, category, description,
-        date: Date.now(), month: currentMonth,
+        date, month: getCurrentMonth(date),
         currency: wallet?.currency || mainCurrency,
         walletId,
       });
@@ -196,14 +219,14 @@ export const HomePage = () => {
     }
   };
 
-  const handleAdd = async (amount: number, description: string, walletId: string) => {
+  const handleAdd = async (amount: number, description: string, walletId: string, date: number) => {
     if (!user) return;
     setIsSaving(true);
     try {
       const wallet = wallets.find(w => w.id === walletId);
       await addTransaction(user.id, {
         type: 'income', amount, category: 'income', description,
-        date: Date.now(), month: currentMonth,
+        date, month: getCurrentMonth(date),
         currency: wallet?.currency || mainCurrency,
         walletId,
       });
@@ -216,14 +239,14 @@ export const HomePage = () => {
     }
   };
 
-  const handleQuickSpend = async (amount: number, category: string, description: string, walletId: string) => {
+  const handleQuickSpend = async (amount: number, category: string, description: string, walletId: string, date: number) => {
     if (!user) return;
     setIsSaving(true);
     try {
       const wallet = wallets.find(w => w.id === walletId);
       await addTransaction(user.id, {
         type: 'expense', amount, category, description,
-        date: Date.now(), month: currentMonth,
+        date, month: getCurrentMonth(date),
         currency: wallet?.currency || mainCurrency,
         walletId,
       });
@@ -309,9 +332,26 @@ export const HomePage = () => {
     setMenuStep('main');
   };
 
+  const handleMainWalletChange = async () => {
+    if (!user || !menuWallet?.id) return;
+    await updateUserSettings(user.id, {
+      currency: menuWallet.currency,
+      mainWalletId: menuWallet.id,
+    });
+    setMenuWalletId(null);
+    setMenuStep('main');
+  };
+
   const handleWalletDelete = async () => {
     if (!menuWalletId) return;
+    const replacementWallet = wallets.find(wallet => wallet.id !== menuWalletId);
     await removeWallet(menuWalletId);
+    if (menuWalletId === selectedMainWalletId && replacementWallet?.id && user) {
+      await updateUserSettings(user.id, {
+        currency: replacementWallet.currency,
+        mainWalletId: replacementWallet.id,
+      });
+    }
     setMenuWalletId(null);
     setMenuStep('main');
   };
@@ -365,11 +405,11 @@ export const HomePage = () => {
       onTouchEnd={handleTouchEnd}
     >
       {/* Modals */}
-      {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} wallets={wallets} />}
-      {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} wallets={wallets} />}
+      {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
+      {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
       {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} walletBalances={walletBalances} />}
-      {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} wallets={wallets} />}
+      {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
       {isTransferOpen && wallets.length >= 2 && (
         <TransferModal
           onClose={() => setIsTransferOpen(false)}
@@ -385,7 +425,6 @@ export const HomePage = () => {
           onDelete={handleDeleteTransaction}
           onUpdate={handleUpdateTransaction}
           isLoading={isTxActionLoading}
-          walletBalances={walletBalances}
         />
       )}
       {jointCheckId && <JointCheckDetailModal jointCheckId={jointCheckId} onClose={() => setJointCheckId(null)} />}
@@ -490,21 +529,22 @@ export const HomePage = () => {
                 setActiveWallet(Math.round(el.scrollLeft / el.offsetWidth));
               }}
             >
-              {wallets.map((wallet, idx) => {
+              {displayedWallets.map((wallet) => {
                 const sym = (CURRENCY_SYMBOLS as Record<string, string>)[wallet.currency] ?? wallet.currency;
                 const balance = wallet.balance ?? 0;
                 return (
                   <div key={wallet.id} className="wallet-card-slide">
-                    <div className="wallet-card" style={{ background: walletColor(idx) }}>
+                    <div className="wallet-card" style={{ background: walletColor(wallet.currency) }}>
                       <div className="wallet-card-deco" style={{ width: 140, height: 140, right: -28, top: -28, background: 'rgba(255,255,255,0.08)' }} />
                       <div className="wallet-card-deco" style={{ width: 90, height: 90, right: 50, bottom: -36, background: 'rgba(255,255,255,0.05)' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
                         <span style={{ fontSize: '14px', fontWeight: 650, opacity: 0.85 }}>{wallet.name}</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setMenuWalletId(wallet.id!); setMenuStep('main'); setEditingName(wallet.name); }}
-                          style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: '8px', padding: '3px 10px', color: 'white', fontSize: '18px', cursor: 'pointer', lineHeight: 1, letterSpacing: '2px' }}
+                          aria-label="Відкрити меню гаманця"
+                          style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: '8px', padding: '4px 7px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
-                          ···
+                          <SvgRepoIcon name="dots" className="wallet-card-menu-icon" />
                         </button>
                       </div>
                       <div style={{ position: 'relative' }}>
@@ -539,7 +579,7 @@ export const HomePage = () => {
 
             {/* Dots */}
             <div className="wallet-dots">
-              {Array.from({ length: wallets.length + 1 }).map((_, i) => (
+              {Array.from({ length: displayedWallets.length + 1 }).map((_, i) => (
                 <div key={i} className={`wallet-dot ${activeWallet === i ? 'active' : ''}`} style={{ width: activeWallet === i ? 18 : 6 }} />
               ))}
             </div>
@@ -615,11 +655,20 @@ export const HomePage = () => {
             <div className="modal-overlay" style={{ zIndex: 200, alignItems: 'flex-end', padding: '16px' }} onClick={() => { setMenuWalletId(null); setMenuStep('main'); }}>
               <div style={{ width: '100%', background: 'var(--card-bg)', borderRadius: '20px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={e => e.stopPropagation()}>
                 {menuStep === 'main' && (<>
-                  <button onClick={() => setMenuStep('rename')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)' }}>
-                    ✎ Перейменувати
+                  <button onClick={() => setMenuStep('rename')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <SvgRepoIcon name="rename" /> Перейменувати
                   </button>
-                  <button onClick={() => setMenuStep('delete')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--danger)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)' }}>
-                    🗑 Видалити гаманець
+                  {menuWallet?.id === selectedMainWalletId ? (
+                    <div style={{ padding: '14px 16px', color: 'var(--text-tertiary)', fontSize: '15px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <SvgRepoIcon name="favorite" /> Головний гаманець
+                    </div>
+                  ) : (
+                    <button onClick={handleMainWalletChange} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <SvgRepoIcon name="favorite" /> Зробити головним
+                    </button>
+                  )}
+                  <button onClick={() => setMenuStep('delete')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--danger)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <SvgRepoIcon name="delete" /> Видалити гаманець
                   </button>
                 </>)}
                 {menuStep === 'rename' && (
@@ -659,7 +708,7 @@ export const HomePage = () => {
               </div>
               {wallets.length >= 2 && (
                 <div className="action-btn" onClick={() => setIsTransferOpen(true)}>
-                  <span style={{ fontSize: '20px', lineHeight: 1 }}>↕</span>
+                  <SvgRepoIcon name="transfer" />
                   <span>Переказ</span>
                 </div>
               )}
@@ -732,7 +781,9 @@ export const HomePage = () => {
             ))}
           </div>
           <div className="search-btn" onClick={() => setIsQuickSpendOpen(true)}>
-            <SearchIcon />
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
           </div>
         </div>
       </div>

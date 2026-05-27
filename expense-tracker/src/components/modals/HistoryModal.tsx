@@ -12,10 +12,10 @@ import '../JointCheck.css';
 
 interface HistoryModalProps {
   onClose: () => void;
-  walletBalances: Record<string, number>;
+  walletBalances?: Record<string, number>;
 }
 
-export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => {
+export const HistoryModal = ({ onClose }: HistoryModalProps) => {
   const { user } = useAuth();
   const { formatValue } = useCurrency();
   const { names: CATEGORY_NAMES } = useCategories();
@@ -96,7 +96,6 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
           onDelete={handleDelete}
           onUpdate={handleUpdate}
           isLoading={isTxActionLoading}
-          walletBalances={walletBalances}
         />
       )}
       {selectedJointCheckId && (
@@ -121,15 +120,15 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
 
         <div className="history-list-container" style={{ flex: 1, overflowY: 'auto', paddingTop: '10px' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Завантаження...</div>
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)' }}>Завантаження...</div>
           ) : history.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Немає транзакцій</div>
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)' }}>Немає транзакцій</div>
           ) : filteredHistory.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--apple-text-on-dark-tertiary)' }}>Нічого не знайдено</div>
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)' }}>Нічого не знайдено</div>
           ) : (
             Object.entries(groupedHistory).map(([monthStr, txs]) => (
               <div key={monthStr} className="history-month-group">
-                <h3 style={{ fontSize: '15px', color: 'var(--apple-text-on-dark-secondary)', marginBottom: '8px', paddingLeft: '4px' }}>
+                <h3 style={{ fontSize: '15px', color: 'var(--text-secondary)', marginBottom: '8px', paddingLeft: '4px' }}>
                   {monthStr}
                 </h3>
                  <div className="payment-list" style={{ overflow: 'visible', gap: '8px' }}>
@@ -144,7 +143,7 @@ export const HistoryModal = ({ onClose, walletBalances }: HistoryModalProps) => 
                           {item.description || new Date(item.date).toLocaleDateString()}
                         </span>
                       </div>
-                      <span className={`payment-amount ${item.type === 'expense' ? 'expense' : 'income'}`} style={{ color: item.type === 'income' ? 'var(--apple-blue)' : 'var(--apple-text-on-dark)' }}>
+                      <span className={`payment-amount ${item.type === 'expense' ? 'expense' : 'income'}`} style={{ color: item.type === 'income' ? 'var(--accent)' : 'var(--text-primary)' }}>
                         {item.type === 'expense' ? '-' : '+'}{formatValue(item.amount, item.currency as Currency || 'EUR')}
                       </span>
                     </div>

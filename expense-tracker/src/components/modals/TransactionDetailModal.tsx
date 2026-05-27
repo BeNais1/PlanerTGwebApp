@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
-import { type Transaction, getMonthlyBalance, getTransactions, type PrivacyMode, createReceiptShare, toggleReceiptShare, getShareStatus } from '../../services/database';
+import { useWallets } from '../../hooks/useWallets';
+import { type Transaction, type PrivacyMode, createReceiptShare, toggleReceiptShare, getShareStatus } from '../../services/database';
 import { SYSTEM_CATEGORIES } from '../../config/categories';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { toPng } from 'html-to-image';
@@ -14,7 +15,6 @@ interface TransactionDetailModalProps {
   onDelete: (id: string) => Promise<void>;
   onUpdate: (id: string, data: Partial<Transaction>) => Promise<void>;
   isLoading?: boolean;
-  walletBalances: Record<string, number>;
 }
 
 const ReceiptIcon = () => (
@@ -38,10 +38,10 @@ export const TransactionDetailModal = ({
   onDelete, 
   onUpdate,
   isLoading,
-  walletBalances
 }: TransactionDetailModalProps) => {
   const { formatValue, CURRENCY_SYMBOLS } = useCurrency();
   const { categories, names: CATEGORY_NAMES, icons: CATEGORY_ICONS } = useCategories();
+  const { wallets } = useWallets();
   const [isEditing, setIsEditing] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -58,15 +58,17 @@ export const TransactionDetailModal = ({
   const [amount, setAmount] = useState(transaction.amount.toString());
   const [category, setCategory] = useState(transaction.category);
   const [description, setDescription] = useState(transaction.description || '');
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(transaction.currency as Currency || 'EUR');
+  const VALID_CURS: Currency[] = ['EUR', 'USD', 'UAH'];
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>(
+    VALID_CURS.includes(transaction.currency as Currency) ? (transaction.currency as Currency) : 'UAH'
+  );
   const { user } = useAuth();
-  const [balanceAfter, setBalanceAfter] = useState<number | null>(null);
 
   useEffect(() => {
     setAmount(transaction.amount.toString());
     setCategory(transaction.category);
     setDescription(transaction.description || '');
-    setSelectedCurrency(transaction.currency as Currency || 'EUR');
+    setSelectedCurrency(VALID_CURS.includes(transaction.currency as Currency) ? (transaction.currency as Currency) : 'UAH');
   }, [transaction]);
 
   // Load share status on mount (not on button click)
@@ -92,40 +94,6 @@ export const TransactionDetailModal = ({
     });
     return () => { cancelled = true; };
   }, [user, transaction.id]);
-
-  useEffect(() => {
-    if (!user || !transaction.month) return;
-
-    const calculateBalanceAfter = async () => {
-      const mData = await getMonthlyBalance(user.id, transaction.month);
-      const txs = await getTransactions(user.id, transaction.month);
-      
-      let runningBalance = 0;
-      const cur = transaction.currency || 'EUR';
-
-      if (mData) {
-        if (cur === 'EUR' && mData.initialBalance) {
-          runningBalance = mData.initialBalance;
-        } else if (mData.balances && mData.balances[cur] !== undefined) {
-          runningBalance = mData.balances[cur];
-        }
-      }
-
-      const sortedTxs = [...txs].sort((a, b) => a.date - b.date);
-
-      for (const tx of sortedTxs) {
-        if ((tx.currency || 'EUR') === cur) {
-          if (tx.type === 'income') runningBalance += tx.amount;
-          else runningBalance -= tx.amount;
-        }
-        if (tx.id === transaction.id) break;
-      }
-
-      setBalanceAfter(runningBalance);
-    };
-
-    calculateBalanceAfter();
-  }, [user, transaction]);
 
   const handleShare = async () => {
     if (!receiptRef.current || isSharing) return;
@@ -226,10 +194,11 @@ export const TransactionDetailModal = ({
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  const availableWallets = Array.from(new Set([
-    transaction.currency || 'EUR',
-    ...Object.keys(walletBalances),
-  ])) as Currency[];
+  const VALID_CURRENCIES: Currency[] = ['EUR', 'USD', 'UAH'];
+  const txCurrency: Currency = VALID_CURRENCIES.includes(transaction.currency as Currency)
+    ? (transaction.currency as Currency)
+    : (wallets.find(w => w.id === transaction.walletId)?.currency as Currency) ?? 'UAH';
+
   const catObj = categories.find(c => c.id === transaction.category)
     ?? SYSTEM_CATEGORIES.find(c => c.id === transaction.category);
 
@@ -262,16 +231,8 @@ export const TransactionDetailModal = ({
 
             <div className="modal-input-group">
               <label className="modal-label">Гаманець</label>
-              <div className="currency-selector" style={{ flexWrap: 'wrap' }}>
-                {availableWallets.map((c) => (
-                  <button key={c}
-                    className={`currency-btn ${selectedCurrency === c ? 'active' : ''}`}
-                    style={{ padding: '8px 4px', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}
-                    onClick={() => setSelectedCurrency(c)}>
-                    <span>{c}</span>
-                    <span style={{ fontSize: '11px', opacity: 0.8 }}>{formatValue(walletBalances[c], c)}</span>
-                  </button>
-                ))}
+              <div style={{ fontSize: '14px', color: 'var(--text-secondary)', padding: '8px 0' }}>
+                {wallets.find(w => w.id === transaction.walletId)?.name ?? '—'}
               </div>
             </div>
 
@@ -309,23 +270,23 @@ export const TransactionDetailModal = ({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '10px 0' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '48px', fontWeight: '700', color: transaction.type === 'income' ? 'var(--apple-blue)' : 'var(--apple-text-on-dark)' }}>
-                {transaction.type === 'expense' ? '-' : '+'}{formatValue(transaction.amount, selectedCurrency)}
+              <div style={{ fontSize: '48px', fontWeight: '700', color: transaction.type === 'income' ? 'var(--accent)' : 'var(--text-primary)' }}>
+                {transaction.type === 'expense' ? '-' : '+'}{formatValue(transaction.amount, txCurrency)}
               </div>
-              <div style={{ color: 'var(--apple-text-on-dark-tertiary)', fontSize: '14px', marginTop: '4px' }}>
+              <div style={{ color: 'var(--text-tertiary)', fontSize: '14px', marginTop: '4px' }}>
                 {dateStr}
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--apple-surface-2)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--card-bg-2)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Тип</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Тип</span>
                 <span style={{ fontWeight: '500' }}>{transaction.type === 'income' ? 'Дохід' : 'Витрата'}</span>
               </div>
               
               {transaction.type === 'expense' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Категорія</span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Категорія</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>{catObj?.icon || CATEGORY_ICONS[transaction.category] || '📦'}</span>
                     <span style={{ fontWeight: '500' }}>{catObj?.name || CATEGORY_NAMES[transaction.category] || transaction.category}</span>
@@ -333,30 +294,25 @@ export const TransactionDetailModal = ({
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Гаманець</span>
-                <span style={{ fontWeight: '500' }}>{selectedCurrency}</span>
-              </div>
-
-              {balanceAfter !== null && (
+              {transaction.walletId && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '15px' }}>Баланс після</span>
-                  <span style={{ fontWeight: '600', color: 'var(--apple-text-on-dark)' }}>
-                    {formatValue(balanceAfter, selectedCurrency as Currency)}
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Гаманець</span>
+                  <span style={{ fontWeight: '500' }}>
+                    {wallets.find(w => w.id === transaction.walletId)?.name ?? transaction.walletId}
                   </span>
                 </div>
               )}
 
               {transaction.description && (
-                <div style={{ borderTop: '1px solid var(--apple-surface-3)', paddingTop: '16px', marginTop: '4px' }}>
-                  <span style={{ color: 'var(--apple-text-on-dark-secondary)', fontSize: '13px', display: 'block', marginBottom: '4px' }}>Коментар</span>
+                <div style={{ borderTop: '1px solid var(--card-bg-3)', paddingTop: '16px', marginTop: '4px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '13px', display: 'block', marginBottom: '4px' }}>Коментар</span>
                   <p style={{ fontSize: '16px', lineHeight: '1.4' }}>{transaction.description}</p>
                 </div>
               )}
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-              <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--apple-surface-2)', color: '#ff453a' }} onClick={handleDelete} disabled={isLoading}>
+              <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--card-bg-2)', color: 'var(--danger)' }} onClick={handleDelete} disabled={isLoading}>
                 Видалити
               </button>
               <button className="modal-btn-primary" style={{ flex: 2 }} onClick={() => setIsEditing(true)}>
@@ -396,7 +352,7 @@ export const TransactionDetailModal = ({
 
                 {/* Expanded Share Panel */}
                 {isSharingOptionsOpen && (
-                  <div style={{ background: 'var(--apple-surface-2)', borderRadius: '16px', padding: '16px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ background: 'var(--card-bg-2)', borderRadius: '16px', padding: '16px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     
                     {/* Privacy Mode (only when creating new) */}
                     {!shareExists && (
@@ -471,7 +427,7 @@ export const TransactionDetailModal = ({
                             {/* Send to Telegram */}
                             <button 
                               className="modal-btn-primary" 
-                              style={{ width: '100%', background: 'var(--apple-blue)', color: 'white' }} 
+                              style={{ width: '100%', background: 'var(--accent)', color: 'white' }} 
                               onClick={handleSendToChat} 
                             >
                               Відправити в Telegram
@@ -514,11 +470,11 @@ export const TransactionDetailModal = ({
         <div ref={receiptRef} className="receipt-template">
           <div className="receipt-header">
             <div className="receipt-logo">PLANER</div>
-            <div className="receipt-brand">Expense Tracker</div>
+            <div className="receipt-brand">Planer</div>
           </div>
           <div className="receipt-divider" />
           <div className="receipt-amount" style={{ color: transaction.type === 'income' ? '#007aff' : '#1c1c1e' }}>
-            {transaction.type === 'expense' ? '-' : '+'}{formatValue(transaction.amount, transaction.currency as Currency || 'EUR')}
+            {transaction.type === 'expense' ? '-' : '+'}{formatValue(transaction.amount, txCurrency)}
           </div>
           <div style={{ color: '#8e8e93', fontSize: '13px', marginBottom: '10px' }}>{dateStr}</div>
           <div className="receipt-divider" />
@@ -533,14 +489,12 @@ export const TransactionDetailModal = ({
                 <span className="receipt-value">{catObj?.name || CATEGORY_NAMES[transaction.category] || transaction.category}</span>
               </div>
             )}
-            <div className="receipt-row">
-              <span className="receipt-label">Гаманець</span>
-              <span className="receipt-value">{transaction.currency}</span>
-            </div>
-            {balanceAfter !== null && (
+            {transaction.walletId && (
               <div className="receipt-row">
-                <span className="receipt-label">Баланс після</span>
-                <span className="receipt-value">{formatValue(balanceAfter, transaction.currency as Currency || 'EUR')}</span>
+                <span className="receipt-label">Гаманець</span>
+                <span className="receipt-value">
+                  {wallets.find(w => w.id === transaction.walletId)?.name ?? transaction.walletId}
+                </span>
               </div>
             )}
             {transaction.description && (

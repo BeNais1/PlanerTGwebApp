@@ -40,10 +40,17 @@ export const WalletSetupScreen = ({ onComplete }: WalletSetupScreenProps) => {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12 }}>
             <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 8 }}>💰</div>
             <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Expense Tracker
+              Planer
             </h1>
+            <span style={{
+              padding: '5px 12px', borderRadius: 999,
+              background: 'var(--accent-dim)', color: 'var(--accent)',
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.6px',
+            }}>
+              BETA-ВЕРСІЯ
+            </span>
             <p style={{ fontSize: 16, color: 'var(--apple-text-on-dark-secondary)', margin: 0, lineHeight: 1.5, maxWidth: 280 }}>
-              Відстежуй витрати, доходи та баланс по кожному гаманцю — просто й зручно
+              Відстежуйте витрати, доходи та баланс по кожному гаманцю. Деякі функції ще тестуються.
             </p>
 
             <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>

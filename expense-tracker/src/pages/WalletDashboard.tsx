@@ -102,13 +102,13 @@ const WalletDashboard: React.FC = () => {
   }, [transactions]);
 
   // Handlers
-  const handleSpend = async (amount: number, category: string, description: string, _walletId: string) => {
+  const handleSpend = async (amount: number, category: string, description: string, _walletId: string, date: number) => {
     if (!user) return;
     setIsSaving(true);
     try {
       await addTransaction(user.id, {
         type: 'expense', amount, category, description,
-        date: Date.now(), month: currentMonth, currency: mainCurrency
+        date, month: getCurrentMonth(date), currency: mainCurrency
       });
       setIsSpendOpen(false);
     } catch (error) {
@@ -119,13 +119,13 @@ const WalletDashboard: React.FC = () => {
     }
   };
 
-  const handleAdd = async (amount: number, description: string, _walletId: string) => {
+  const handleAdd = async (amount: number, description: string, _walletId: string, date: number) => {
     if (!user) return;
     setIsSaving(true);
     try {
       await addTransaction(user.id, {
         type: 'income', amount, category: 'income', description,
-        date: Date.now(), month: currentMonth, currency: mainCurrency
+        date, month: getCurrentMonth(date), currency: mainCurrency
       });
       setIsAddOpen(false);
     } catch (error) {
@@ -308,7 +308,6 @@ const WalletDashboard: React.FC = () => {
             onDelete={handleDeleteTransaction}
             onUpdate={handleUpdateTransaction}
             isLoading={isSaving}
-            walletBalances={walletBalances}
           />
         )}
       </div>

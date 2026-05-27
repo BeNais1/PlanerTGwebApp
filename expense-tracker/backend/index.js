@@ -36,6 +36,13 @@ const bot = new Telegraf(token);
 
 const CURRENCY_SYMBOLS = { EUR: '€', USD: '$', UAH: '₴' };
 
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function getSymbol(currency) {
   return CURRENCY_SYMBOLS[currency] || currency;
 }
@@ -152,11 +159,23 @@ bot.on('callback_query', async (ctx) => {
       const date = new Date(now);
       const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
+      // Lookup wallet to get real currency
+      let confirmCurrency = sub.currency || 'UAH';
+      let confirmSymbol = getSymbol(confirmCurrency);
+      if (sub.walletId) {
+        const wSnap = await db.ref(`users/${userId}/wallets/${sub.walletId}`).get();
+        if (wSnap.exists()) {
+          confirmCurrency = wSnap.val().currency || confirmCurrency;
+          confirmSymbol = getSymbol(confirmCurrency);
+        }
+      }
+
       // Додаємо транзакцію
       await db.ref(`users/${userId}/transactions`).push({
         type: 'expense',
         amount: sub.amount,
-        currency: sub.walletId || sub.currency,
+        currency: confirmCurrency,
+        walletId: sub.walletId || null,
         category: sub.category || 'subscriptions',
         description: sub.name,
         date: now,
@@ -172,10 +191,10 @@ bot.on('callback_query', async (ctx) => {
 
       await ctx.answerCbQuery('✅ Платіж додано!');
       await ctx.editMessageText(
-        `✅ *${sub.icon} ${sub.name}* — платіж підтверджено!\n\n` +
-        `Сума: *${sub.amount} ${getSymbol(sub.walletId || sub.currency)}*\n` +
-        `Наступне списання: *${formatDate(nextDate)}*`,
-        { parse_mode: 'Markdown' }
+        `✅ <b>${escHtml(sub.icon)} ${escHtml(sub.name)}</b> — платіж підтверджено!\n\n` +
+        `Сума: <b>${escHtml(sub.amount)} ${escHtml(confirmSymbol)}</b>\n` +
+        `Наступне списання: <b>${escHtml(formatDate(nextDate))}</b>`,
+        { parse_mode: 'HTML' }
       );
     } catch (err) {
       console.error('Помилка підтвердження платежу:', err);
@@ -295,16 +314,25 @@ app.get('/api/cron', async (req, res) => {
 
         // Надсилаємо повідомлення
         try {
-          const symbol = getSymbol(sub.walletId || sub.currency);
-          const walletLabel = sub.walletId ? ` (${sub.walletId})` : '';
+          // Lookup wallet for name + currency
+          let symbol = getSymbol(sub.currency);
+          let walletLabel = '';
+          if (sub.walletId) {
+            const walletSnap = await db.ref(`users/${userId}/wallets/${sub.walletId}`).get();
+            if (walletSnap.exists()) {
+              const wallet = walletSnap.val();
+              symbol = getSymbol(wallet.currency);
+              walletLabel = ` · ${wallet.name}`;
+            }
+          }
 
           const msg = await bot.telegram.sendMessage(
             parseInt(userId),
-            `💳 *${sub.icon} ${sub.name}*\n\n` +
-            `Сума: *${sub.amount} ${symbol}*${walletLabel}\n` +
+            `💳 <b>${escHtml(sub.icon)} ${escHtml(sub.name)}</b>\n\n` +
+            `Сума: <b>${escHtml(sub.amount)} ${escHtml(symbol)}</b>${escHtml(walletLabel)}\n` +
             `Платіж пройшов?`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: {
                 inline_keyboard: [[
                   { text: '✅ Так, оплачено', callback_data: `confirm:${subId}` },

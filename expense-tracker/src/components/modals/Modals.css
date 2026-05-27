@@ -191,6 +191,36 @@ html.keyboard-open .modal-content {
   background: var(--card-bg-2);
 }
 
+.transfer-beta-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 159, 10, 0.12);
+  color: var(--text-secondary);
+}
+
+.transfer-beta-badge {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(255, 159, 10, 0.2);
+  color: #ff9f0a;
+  font-family: var(--font-text);
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.transfer-beta-notice p {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 /* Forms */
 .modal-amount-input {
   width: 100%;

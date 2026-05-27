@@ -89,6 +89,13 @@ export const TransferModal = ({ onClose, onTransfer, wallets, defaultFromWalletI
             <div className="modal-close" onClick={handleClose}>✕</div>
           </div>
 
+          <div className="transfer-beta-notice" role="note">
+            <span className="transfer-beta-badge">BETA</span>
+            <p>
+              Перекази та розрахунок курсу валют ще тестуються. Можливі помилки, тому перевірте суми перед підтвердженням.
+            </p>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <span className="modal-label">З гаманця</span>
@@ -131,7 +138,7 @@ export const TransferModal = ({ onClose, onTransfer, wallets, defaultFromWalletI
               onChange={setAmount}
               currencySymbol={fromWallet ? sym(fromWallet.currency) : '₴'}
               onSubmit={handleSubmit}
-              submitLabel={isLoading ? 'Переказ...' : 'Перекласти'}
+              submitLabel={isLoading ? 'Переказуємо...' : 'Переказати'}
               isLoading={isLoading || !canSubmit}
             />
           </div>

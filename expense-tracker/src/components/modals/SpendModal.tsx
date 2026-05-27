@@ -4,11 +4,12 @@ import { useCategories } from '../../hooks/useCategories';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { WalletPicker, WalletButton } from '../WalletPicker';
 import { type Wallet } from '../../services/database';
+import { TransactionDateField } from './TransactionDateField';
 import './Modals.css';
 
 interface SpendModalProps {
   onClose: () => void;
-  onSpend: (amount: number, category: string, description: string, walletId: string) => void;
+  onSpend: (amount: number, category: string, description: string, walletId: string, date: number) => void;
   isLoading?: boolean;
   wallets: Wallet[];
   defaultWalletId?: string | null;
@@ -19,6 +20,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
+  const [transactionDate, setTransactionDate] = useState(() => Date.now());
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(defaultWalletId ?? wallets[0]?.id ?? null);
   const [walletPickerOpen, setWalletPickerOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -42,7 +44,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
   const handleSubmit = () => {
     const numAmount = getKeypadNumericValue(amount);
     if (numAmount > 0 && selectedWallet) {
-      onSpend(numAmount, category, description, selectedWallet.id!);
+      onSpend(numAmount, category, description, selectedWallet.id!, transactionDate);
     }
   };
 
@@ -65,6 +67,8 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
             onChange={(e) => setDescription(e.target.value)}
             style={{ fontSize: '14px', padding: '10px 14px' }}
           />
+
+          <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
 
           <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
             {categories.map((cat) => (

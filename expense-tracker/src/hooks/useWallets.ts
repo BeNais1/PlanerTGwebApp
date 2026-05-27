@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { subscribeToWallets, addWallet, updateWallet, deleteWallet, type Wallet } from '../services/database';
 import { type Currency } from './useCurrency';
 
-const FALLBACK_RATES: Record<string, number> = { EUR: 1.0, USD: 1.08, UAH: 44.0 };
+// Must match FALLBACK_RATES in useCurrency.ts to avoid calculation mismatches
+const FALLBACK_RATES: Record<string, number> = { EUR: 1.0, USD: 1.12, UAH: 49.5 };
 
 function loadRates(): Record<string, number> {
   try {

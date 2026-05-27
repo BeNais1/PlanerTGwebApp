@@ -196,3 +196,56 @@ body {
   align-items: stretch;
   overflow: hidden;
 }
+
+/* === Desktop Adaptation === */
+@media (min-width: 481px) {
+  body {
+    overflow: auto;
+    position: relative;
+    background: linear-gradient(145deg, #0a0a1a 0%, #121228 30%, #0d0d22 60%, #080818 100%);
+  }
+
+  #root {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  .phone-frame {
+    max-width: 430px;
+    max-height: 932px;
+    height: 100%;
+    border-radius: 40px;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 25px 80px rgba(0, 0, 0, 0.5),
+      0 10px 30px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+  }
+
+  /* Modals should center on desktop, not slide from bottom */
+  .modal-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .modal-content {
+    max-width: 430px;
+    margin: 0 auto;
+  }
+}
+
+/* Tablet-specific adjustments */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .phone-frame {
+    max-height: 85vh;
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1200px) {
+  .phone-frame {
+    max-height: 90vh;
+  }
+}
