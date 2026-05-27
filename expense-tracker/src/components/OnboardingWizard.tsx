@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   updateUserSettings,
@@ -8,10 +8,108 @@ import type { Category } from '../config/categories';
 import './OnboardingWizard.css';
 
 const TOTAL_STEPS = 5;
+const SETUP_LINES = [
+  { text: 'Перевіряємо налаштування профілю.', tone: 'success' },
+  { text: 'Додаємо безпеку даних.', tone: 'success' },
+  { text: 'Підлаштовуємо досвід під вас.', tone: 'success' },
+  { text: 'Готуємо персональні категорії.', tone: 'success' },
+  { text: 'Налаштовуємо ваш перший гаманець.', tone: 'success' },
+  { text: 'Вмикаємо корисні фінансові підказки.', tone: 'info' },
+] as const;
 
 interface OnboardingWizardProps {
   onComplete: () => void;
 }
+
+interface TypingAnimationProps {
+  text: string;
+  speed?: number;
+  reducedMotion: boolean;
+}
+
+const TypingAnimation = ({ text, speed = 18, reducedMotion }: TypingAnimationProps) => {
+  const [visibleText, setVisibleText] = useState(() => reducedMotion ? text : '');
+
+  useEffect(() => {
+    if (reducedMotion) return;
+
+    const timers = Array.from(text).map((_, index) => window.setTimeout(() => {
+      setVisibleText(text.slice(0, index + 1));
+    }, speed * (index + 1)));
+
+    return () => {
+      timers.forEach(timer => window.clearTimeout(timer));
+    };
+  }, [reducedMotion, speed, text]);
+
+  return (
+    <span className="setup-typing" aria-label={text}>
+      <span aria-hidden="true">{visibleText}</span>
+      {!reducedMotion && visibleText.length < text.length && <span className="setup-cursor" aria-hidden="true" />}
+    </span>
+  );
+};
+
+const OnboardingSetupScreen = ({ onComplete }: OnboardingWizardProps) => {
+  const reducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const [visibleLines, setVisibleLines] = useState(() => reducedMotion ? SETUP_LINES.length : 0);
+
+  useEffect(() => {
+    const timers = reducedMotion
+      ? []
+      : SETUP_LINES.map((_, index) => window.setTimeout(() => {
+          setVisibleLines(index + 1);
+        }, 820 + (index * 440)));
+    const completionTimer = window.setTimeout(onComplete, reducedMotion ? 900 : 4300);
+
+    return () => {
+      timers.forEach(timer => window.clearTimeout(timer));
+      window.clearTimeout(completionTimer);
+    };
+  }, [onComplete, reducedMotion]);
+
+  return (
+    <div className="onboarding-wizard onboarding-setup-screen">
+      <div className="setup-copy">
+        <h1 className="onboarding-title">Майже готово</h1>
+        <p className="onboarding-subtitle">Завершуємо налаштування вашого простору</p>
+      </div>
+
+      <div className="setup-terminal" role="status" aria-live="polite">
+        <div className="setup-terminal-header">
+          <div className="setup-terminal-dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+          <span className="setup-terminal-title">Planer setup</span>
+        </div>
+
+        <div className="setup-terminal-body">
+          <div className="setup-terminal-command">
+            <TypingAnimation text="> Створюємо ваш акаунт..." speed={24} reducedMotion={reducedMotion} />
+          </div>
+
+          {SETUP_LINES.slice(0, visibleLines).map((line) => (
+            <div key={line.text} className={`setup-terminal-line ${line.tone}`}>
+              <span className="setup-terminal-marker" aria-hidden="true">
+                {line.tone === 'success' ? '✓' : 'i'}
+              </span>
+              <TypingAnimation text={line.text} speed={10} reducedMotion={reducedMotion} />
+            </div>
+          ))}
+
+          {visibleLines === SETUP_LINES.length && (
+            <div className="setup-terminal-finish">
+              <TypingAnimation text="Готово! Починаємо планувати." speed={22} reducedMotion={reducedMotion} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const { user } = useAuth();
@@ -27,6 +125,7 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   const [pets, setPets] = useState<('cat' | 'dog')[]>([]);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [isSaving, setIsSaving] = useState(false);
+  const [showSetupScreen, setShowSetupScreen] = useState(false);
 
   const goNext = useCallback(() => {
     if (isAnimating) return;
@@ -95,16 +194,16 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
 
       // Update Telegram header colors
       try {
-        const tg = (window as any).Telegram?.WebApp;
+        const tg = window.Telegram?.WebApp;
         if (tg) {
           const headerColor = theme === 'light' ? '#F2F2F7' : '#000000';
           const bgColor = theme === 'light' ? '#F2F2F7' : '#000000';
           if (tg.setHeaderColor) tg.setHeaderColor(headerColor);
           if (tg.setBackgroundColor) tg.setBackgroundColor(bgColor);
         }
-      } catch (e) { /* ignore */ }
+      } catch { /* ignore */ }
 
-      onComplete();
+      setShowSetupScreen(true);
     } catch (err) {
       console.error('Onboarding save error:', err);
       setIsSaving(false);
@@ -127,6 +226,10 @@ export const OnboardingWizard = ({ onComplete }: OnboardingWizardProps) => {
   // Dynamic marriage text based on gender
   const marriedLabel = gender === 'female' ? 'Заміжня' : 'Одружений';
   const notMarriedLabel = gender === 'female' ? 'Не заміжня' : 'Не одружений';
+
+  if (showSetupScreen) {
+    return <OnboardingSetupScreen onComplete={onComplete} />;
+  }
 
   return (
     <div className="onboarding-wizard">

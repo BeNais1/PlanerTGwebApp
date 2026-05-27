@@ -23,6 +23,21 @@ export interface UserData {
   registeredAt: number;
 }
 
+export const ADMIN_TELEGRAM_ID = 7801680802;
+
+export interface AdminStats {
+  userCount: number;
+  usersWithWallets: number;
+  walletCount: number;
+  transactionCount: number;
+  totalCapitalByCurrency: Record<string, number>;
+  totalSpentByCurrency: Record<string, number>;
+  spentTodayByCurrency: Record<string, number>;
+  spentThisMonthByCurrency: Record<string, number>;
+  lastExpenseAt: number | null;
+  receivedAt: number;
+}
+
 export interface Wallet {
   id?: string;
   name: string;
@@ -254,6 +269,87 @@ export async function getUserData(userId: number): Promise<UserData | null> {
   const userRef = ref(database, `users/${userId}`);
   const snapshot = await get(userRef);
   return snapshot.exists() ? (snapshot.val() as UserData) : null;
+}
+
+// ====== Admin Dashboard ======
+
+interface AdminStoredUser {
+  wallets?: Record<string, Partial<Wallet>>;
+  transactions?: Record<string, Partial<Transaction>>;
+}
+
+function addCurrencyTotal(target: Record<string, number>, currency: string, amount: number) {
+  target[currency] = (target[currency] || 0) + amount;
+}
+
+export function subscribeToAdminStats(
+  requestingUserId: number,
+  callback: (stats: AdminStats) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  if (requestingUserId !== ADMIN_TELEGRAM_ID) {
+    onError?.(new Error('Admin access denied'));
+    return () => undefined;
+  }
+
+  return onValue(ref(database, 'users'), (snapshot) => {
+    const users = snapshot.exists()
+      ? snapshot.val() as Record<string, AdminStoredUser>
+      : {};
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const stats: AdminStats = {
+      userCount: Object.keys(users).length,
+      usersWithWallets: 0,
+      walletCount: 0,
+      transactionCount: 0,
+      totalCapitalByCurrency: {},
+      totalSpentByCurrency: {},
+      spentTodayByCurrency: {},
+      spentThisMonthByCurrency: {},
+      lastExpenseAt: null,
+      receivedAt: Date.now(),
+    };
+
+    Object.values(users).forEach((storedUser) => {
+      const wallets = Object.values(storedUser.wallets || {});
+      if (wallets.length > 0) stats.usersWithWallets += 1;
+      stats.walletCount += wallets.length;
+
+      wallets.forEach((wallet) => {
+        if (typeof wallet.balance !== 'number') return;
+        addCurrencyTotal(stats.totalCapitalByCurrency, wallet.currency || 'EUR', wallet.balance);
+      });
+
+      Object.values(storedUser.transactions || {}).forEach((transaction) => {
+        stats.transactionCount += 1;
+        if (
+          transaction.type !== 'expense'
+          || transaction.excludeFromBalance === true
+          || typeof transaction.amount !== 'number'
+        ) return;
+
+        const currency = transaction.currency || 'EUR';
+        addCurrencyTotal(stats.totalSpentByCurrency, currency, transaction.amount);
+
+        if (typeof transaction.date === 'number') {
+          if (transaction.date >= monthStart) {
+            addCurrencyTotal(stats.spentThisMonthByCurrency, currency, transaction.amount);
+          }
+          if (transaction.date >= todayStart) {
+            addCurrencyTotal(stats.spentTodayByCurrency, currency, transaction.amount);
+          }
+          if (stats.lastExpenseAt === null || transaction.date > stats.lastExpenseAt) {
+            stats.lastExpenseAt = transaction.date;
+          }
+        }
+      });
+    });
+
+    callback(stats);
+  }, (error) => onError?.(error));
 }
 
 // ====== Monthly Balance ======

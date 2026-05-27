@@ -42,33 +42,59 @@ export const AddModal = ({ onClose, onAdd, isLoading, wallets, defaultWalletId }
   return (
     <>
       <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-        <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ gap: '12px' }}>
-          <div className="modal-header">
-            <h2 className="modal-title" style={{ color: 'var(--accent)' }}>Дохід</h2>
-            <div className="modal-close" onClick={handleClose}>✕</div>
-          </div>
+        <div className={`modal-content transaction-compose-modal transaction-income-modal ${isClosing ? 'closing' : ''}`}>
+          <section className="transaction-compose-details">
+            <div className="modal-header transaction-compose-header">
+              <div>
+                <span className="transaction-compose-kicker">Нова операція</span>
+                <h2 className="modal-title">Дохід</h2>
+                <p className="transaction-compose-description">Додайте надходження до обраного гаманця.</p>
+              </div>
+              <button type="button" className="modal-close" onClick={handleClose} aria-label="Закрити">
+                ✕
+              </button>
+            </div>
 
-          <WalletButton wallet={selectedWallet} onClick={() => setWalletPickerOpen(true)} placeholder="Оберіть гаманець" />
+            <div className="transaction-compose-field">
+              <span className="transaction-compose-field-label">Гаманець</span>
+              <WalletButton wallet={selectedWallet} onClick={() => setWalletPickerOpen(true)} placeholder="Оберіть гаманець" />
+            </div>
 
-          <input
-            type="text"
-            className="modal-input"
-            placeholder="Коментар..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            style={{ fontSize: '14px', padding: '10px 14px' }}
-          />
+            <label className="transaction-compose-field">
+              <span className="transaction-compose-field-label">Коментар</span>
+              <input
+                type="text"
+                className="modal-input"
+                placeholder="Коментар..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </label>
 
-          <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
+            <div className="transaction-compose-field">
+              <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
+            </div>
 
-          <NumericKeypad
-            value={amount}
-            onChange={setAmount}
-            currencySymbol={currencySymbol}
-            onSubmit={handleSubmit}
-            submitLabel="Поповнити"
-            isLoading={isLoading}
-          />
+            <div className="transaction-compose-note" role="note">
+              <strong>Надходження</strong>
+              <p>Після підтвердження сума одразу збільшить баланс вибраного гаманця.</p>
+            </div>
+          </section>
+
+          <section className="transaction-compose-entry" aria-label="Сума доходу">
+            <div className="transaction-compose-entry-head">
+              <span>Введіть суму</span>
+              <small>{selectedWallet?.name ?? 'Гаманець не обрано'}</small>
+            </div>
+            <NumericKeypad
+              value={amount}
+              onChange={setAmount}
+              currencySymbol={currencySymbol}
+              onSubmit={handleSubmit}
+              submitLabel="Поповнити"
+              isLoading={isLoading}
+            />
+          </section>
         </div>
       </div>
 

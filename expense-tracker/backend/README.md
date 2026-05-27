@@ -20,10 +20,14 @@ npm install
 Создайте файл `.env`:
 
 ```
-BOT_TOKEN=8385111399:AAEzQknMtLi3-daazEwCkvd0GbwgPcqXvjk
+BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_WEBHOOK_SECRET=your_random_webhook_secret
 JWT_SECRET=your_jwt_secret_key
 PORT=3000
 FIREBASE_PROJECT_ID=planer-app-3a0f2
+API_PUBLIC_URL=https://your-backend-url.vercel.app
+APP_WEB_URL=https://planer-app-3a0f2.web.app
+VAULT_PRICE_STARS=250
 ```
 
 ## Запуск локально
@@ -60,9 +64,23 @@ vercel --prod
 4. Установите переменные окружения в Vercel:
 ```bash
 vercel env add BOT_TOKEN
+vercel env add TELEGRAM_WEBHOOK_SECRET
 vercel env add JWT_SECRET
 vercel env add FIREBASE_PROJECT_ID
+vercel env add API_PUBLIC_URL
+vercel env add APP_WEB_URL
+vercel env add VAULT_PRICE_STARS
 ```
+
+## Vault через Telegram Stars
+
+Подписка Vault создается нативным инвойсом Telegram в валюте `XTR`.
+`VAULT_PRICE_STARS=250` задает цену за период в 30 дней.
+
+Бот обрабатывает `pre_checkout_query`, сохраняет оплату только после
+`successful_payment` и предоставляет команды `/terms` и `/paysupport`.
+Для тестирования администратором доступна отдельная demo-активация, которая
+не создает invoice и не списывает Stars.
 
 ### Последующие деплои:
 

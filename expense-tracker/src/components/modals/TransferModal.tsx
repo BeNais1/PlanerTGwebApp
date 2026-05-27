@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { type Wallet } from '../../services/database';
 import { CURRENCY_SYMBOLS } from '../../hooks/useCurrency';
 import { WalletPicker, WalletButton } from '../WalletPicker';
@@ -11,7 +11,9 @@ function loadRates(): Record<string, number> {
   try {
     const d = localStorage.getItem('nbu_rates_v2');
     if (d) return JSON.parse(d);
-  } catch {}
+  } catch {
+    return FALLBACK_RATES;
+  }
   return FALLBACK_RATES;
 }
 
@@ -57,12 +59,12 @@ export const TransferModal = ({ onClose, onTransfer, wallets, defaultFromWalletI
     setTimeout(onClose, 300);
   };
 
-  useEffect(() => {
-    if (fromWalletId && fromWalletId === toWalletId) {
-      const other = wallets.find(w => w.id !== fromWalletId);
-      setToWalletId(other?.id ?? null);
+  const handleFromWalletSelect = (wallet: Wallet) => {
+    setFromWalletId(wallet.id!);
+    if (wallet.id === toWalletId) {
+      setToWalletId(wallets.find((item) => item.id !== wallet.id)?.id ?? null);
     }
-  }, [fromWalletId, toWalletId, wallets]);
+  };
 
   const handleSubmit = async () => {
     if (!fromWallet || !toWallet || numAmount <= 0 || isLoading) return;
@@ -83,65 +85,78 @@ export const TransferModal = ({ onClose, onTransfer, wallets, defaultFromWalletI
         className={`modal-overlay ${isClosing ? 'closing' : ''}`}
         onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
       >
-        <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-          <div className="modal-header">
-            <h2 className="modal-title">Переказ між гаманцями</h2>
-            <div className="modal-close" onClick={handleClose}>✕</div>
-          </div>
-
-          <div className="transfer-beta-notice" role="note">
-            <span className="transfer-beta-badge">BETA</span>
-            <p>
-              Перекази та розрахунок курсу валют ще тестуються. Можливі помилки, тому перевірте суми перед підтвердженням.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span className="modal-label">З гаманця</span>
-              <WalletButton wallet={fromWallet} onClick={() => setFromPickerOpen(true)} placeholder="Оберіть гаманець" />
+        <div className={`modal-content transfer-compose-modal ${isClosing ? 'closing' : ''}`}>
+          <section className="transfer-compose-details">
+            <div className="modal-header transfer-compose-header">
+              <div>
+                <span className="transfer-compose-kicker">Нова операція</span>
+                <h2 className="modal-title">Переказ</h2>
+                <p className="transfer-compose-description">Перемістіть кошти між своїми гаманцями.</p>
+              </div>
+              <button type="button" className="modal-close" onClick={handleClose} aria-label="Закрити">
+                ✕
+              </button>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', fontSize: 24, color: 'var(--apple-blue)' }}>
-              ↕
+            <div className="transfer-beta-notice" role="note">
+              <span className="transfer-beta-badge">BETA</span>
+              <p>
+                Розрахунок курсу валют ще тестується. Перевірте суму перед підтвердженням.
+              </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span className="modal-label">На гаманець</span>
-              <WalletButton wallet={toWallet} onClick={() => setToPickerOpen(true)} placeholder="Оберіть гаманець" />
+            <div className="transfer-route">
+              <div className="transfer-wallet-field">
+                <span className="modal-label">З гаманця</span>
+                <WalletButton wallet={fromWallet} onClick={() => setFromPickerOpen(true)} placeholder="Оберіть гаманець" />
+              </div>
+
+              <div className="transfer-direction" aria-hidden="true">→</div>
+
+              <div className="transfer-wallet-field">
+                <span className="modal-label">На гаманець</span>
+                <WalletButton wallet={toWallet} onClick={() => setToPickerOpen(true)} placeholder="Оберіть гаманець" />
+              </div>
             </div>
 
             {fromWallet && toWallet && fromWallet.currency !== toWallet.currency && numAmount > 0 && (
-              <div style={{
-                background: 'var(--apple-surface-2)', borderRadius: 12, padding: '10px 14px',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}>
-                <span style={{ fontSize: 13, color: 'var(--apple-text-on-dark-secondary)' }}>Конвертація (НБУ)</span>
-                <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+              <div className="transfer-conversion">
+                <span>Конвертація за курсом НБУ</span>
+                <strong>
                   {numAmount.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {sym(fromWallet.currency)}
                   {' → '}
                   {convertedAmount.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {sym(toWallet.currency)}
-                </span>
+                </strong>
               </div>
             )}
 
-            <input
-              type="text"
-              className="modal-input"
-              placeholder="Примітка (необов'язково)"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-            />
+            <label className="transfer-note-field">
+              <span className="modal-label">Примітка</span>
+              <input
+                type="text"
+                className="modal-input"
+                placeholder="Необов'язково"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+              />
+            </label>
+          </section>
 
+          <section className="transfer-compose-entry" aria-label="Сума переказу">
+            <div className="transfer-compose-entry-head">
+              <span>Сума переказу</span>
+              <small>{fromWallet ? `З ${fromWallet.name}` : 'Оберіть гаманець'}</small>
+            </div>
             <NumericKeypad
               value={amount}
               onChange={setAmount}
               currencySymbol={fromWallet ? sym(fromWallet.currency) : '₴'}
               onSubmit={handleSubmit}
               submitLabel={isLoading ? 'Переказуємо...' : 'Переказати'}
-              isLoading={isLoading || !canSubmit}
+              isLoading={isLoading}
+              disabled={!canSubmit}
             />
-          </div>
+          </section>
         </div>
       </div>
 
@@ -149,7 +164,7 @@ export const TransferModal = ({ onClose, onTransfer, wallets, defaultFromWalletI
         <WalletPicker
           wallets={wallets}
           selectedId={fromWalletId}
-          onSelect={(w) => setFromWalletId(w.id!)}
+          onSelect={handleFromWalletSelect}
           onClose={() => setFromPickerOpen(false)}
         />
       )}

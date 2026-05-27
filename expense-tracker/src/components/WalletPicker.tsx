@@ -1,5 +1,7 @@
+import { type CSSProperties } from 'react';
 import { type Wallet } from '../services/database';
 import { CURRENCY_SYMBOLS } from '../hooks/useCurrency';
+import './WalletPicker.css';
 
 interface WalletPickerProps {
   wallets: Wallet[];
@@ -15,9 +17,15 @@ const WALLET_COLORS: Record<string, string> = {
   EUR: 'linear-gradient(135deg,#3b1f0d,#b45309)',
 };
 
+// Wallet cards reuse the same currency gradient as picker items.
+// eslint-disable-next-line react-refresh/only-export-components
 export function walletColor(currency: string): string {
   return WALLET_COLORS[currency] ?? 'linear-gradient(135deg,#2d1b69,#7c3aed)';
 }
+
+const walletAccentStyle = (currency: string): CSSProperties => ({
+  '--wallet-accent': walletColor(currency),
+} as CSSProperties);
 
 export const WalletPicker = ({
   wallets,
@@ -31,73 +39,52 @@ export const WalletPicker = ({
 
   return (
     <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1100,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-      }}
+      className="wallet-picker-overlay"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
-        background: 'var(--apple-surface-1)',
-        borderRadius: '20px 20px 0 0',
-        padding: '12px 0 32px',
-        maxHeight: '70vh',
-        overflowY: 'auto',
-      }}>
-        {/* Handle */}
-        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--apple-surface-3)', margin: '0 auto 16px' }} />
+      <section className="wallet-picker-sheet" role="dialog" aria-modal="true" aria-labelledby="wallet-picker-title">
+        <div className="wallet-picker-handle" />
 
-        <div style={{ padding: '0 16px', marginBottom: 12 }}>
-          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Оберіть гаманець
-          </span>
-        </div>
+        <header className="wallet-picker-header">
+          <div>
+            <span className="wallet-picker-kicker">Ваші гаманці</span>
+            <h2 id="wallet-picker-title">Оберіть гаманець</h2>
+            <p>Операція буде застосована до вибраного балансу.</p>
+          </div>
+          <button type="button" className="wallet-picker-close" onClick={onClose} aria-label="Закрити">
+            ×
+          </button>
+        </header>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="wallet-picker-list">
           {wallets.map((wallet) => {
             const isSelected = wallet.id === selectedId;
             const balance = wallet.balance ?? 0;
             const currSym = sym(wallet.currency);
             return (
               <button
+                type="button"
                 key={wallet.id}
                 onClick={() => { onSelect(wallet); onClose(); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '13px 16px',
-                  background: isSelected ? 'var(--apple-surface-2)' : 'transparent',
-                  border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left',
-                  transition: 'background 0.15s',
-                }}
+                className={`wallet-picker-option ${isSelected ? 'is-selected' : ''}`}
               >
-                {/* Color dot */}
-                <div style={{
-                  width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                  background: walletColor(wallet.currency),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, fontWeight: 700, color: '#fff',
-                }}>
+                <div className="wallet-picker-icon" style={walletAccentStyle(wallet.currency)}>
                   {wallet.name.charAt(0).toUpperCase()}
                 </div>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {wallet.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--apple-text-on-dark-tertiary)', marginTop: 2 }}>
-                    {wallet.currency}
-                  </div>
+                <div className="wallet-picker-copy">
+                  <strong>{wallet.name}</strong>
+                  <small>{wallet.currency}</small>
                 </div>
 
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>
+                <div className="wallet-picker-balance">
+                  <strong>
                     {balance.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currSym}
-                  </div>
+                  </strong>
                   {isSelected && (
-                    <div style={{ fontSize: 11, color: 'var(--apple-blue)', fontWeight: 600, marginTop: 2 }}>
+                    <small>
                       Вибрано ✓
-                    </div>
+                    </small>
                   )}
                 </div>
               </button>
@@ -106,28 +93,16 @@ export const WalletPicker = ({
 
           {onAddWallet && (
             <button
+              type="button"
+              className="wallet-picker-add"
               onClick={() => { onClose(); onAddWallet(); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 14,
-                padding: '13px 16px', background: 'transparent', border: 'none',
-                cursor: 'pointer', width: '100%', textAlign: 'left', marginTop: 4,
-              }}
             >
-              <div style={{
-                width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-                background: 'var(--apple-surface-2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22, color: 'var(--apple-blue)',
-              }}>
-                +
-              </div>
-              <span style={{ fontSize: 16, color: 'var(--apple-blue)', fontWeight: 500 }}>
-                Додати гаманець
-              </span>
+              <span className="wallet-picker-add-icon">+</span>
+              <span>Додати гаманець</span>
             </button>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 };
@@ -147,46 +122,30 @@ export const WalletButton = ({ wallet, onClick, placeholder = 'Оберіть г
     <button
       type="button"
       onClick={onClick}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 14px',
-        background: 'var(--apple-surface-2)',
-        border: 'none', borderRadius: 14, cursor: 'pointer',
-        textAlign: 'left',
-      }}
+      className="wallet-trigger"
     >
       {wallet ? (
         <>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: walletColor(wallet.currency),
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 700, color: '#fff',
-          }}>
+          <span className="wallet-trigger-icon" style={walletAccentStyle(wallet.currency)}>
             {wallet.name.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{wallet.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--apple-text-on-dark-tertiary)' }}>
+          </span>
+          <span className="wallet-trigger-copy">
+            <strong>{wallet.name}</strong>
+            <small>
               {balance.toLocaleString('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {sym}
-            </div>
-          </div>
-          <span style={{ color: 'var(--apple-text-on-dark-tertiary)', fontSize: 18 }}>›</span>
+            </small>
+          </span>
+          <span className="wallet-trigger-arrow">›</span>
         </>
       ) : (
         <>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: 'var(--apple-surface-3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, color: 'var(--apple-text-on-dark-tertiary)',
-          }}>
+          <span className="wallet-trigger-icon is-placeholder">
             💳
-          </div>
-          <span style={{ fontSize: 15, color: 'var(--apple-text-on-dark-secondary)', flex: 1 }}>
+          </span>
+          <span className="wallet-trigger-placeholder">
             {placeholder}
           </span>
-          <span style={{ color: 'var(--apple-text-on-dark-tertiary)', fontSize: 18 }}>›</span>
+          <span className="wallet-trigger-arrow">›</span>
         </>
       )}
     </button>

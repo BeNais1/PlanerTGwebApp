@@ -220,8 +220,7 @@ function App() {
     return platform === 'ios' || platform === 'android' || platform === 'tdesktop' || platform === 'macos';
   }, [isTestMode]);
 
-  // Bug #5 fix: auto-update checks still run, but the hook is safe to call
-  // unconditionally — it simply fetches /version.json which is harmless
+  // Reload any open Mini App shortly after a new hosting build is deployed.
   useAutoUpdate();
 
   if (!isTelegramWebApp) {

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
+import { createVaultRoutes, registerVaultPaymentHandlers } from './routes/vault.js';
 import { Telegraf } from 'telegraf';
 import admin from 'firebase-admin';
 
@@ -30,6 +31,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const token = (process.env.BOT_TOKEN || "").trim();
+const webhookSecret = (process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
 const bot = new Telegraf(token);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ bot.start(async (ctx) => {
     });
   }
 
-  ctx.reply(
+  return ctx.reply(
     `Привіт, ${first_name}! 👋\n\nЯ твій трекер витрат 💰\nВідстежуй витрати, підписки та повторні платежі прямо в Telegram.`,
     {
       reply_markup: {
@@ -222,6 +224,8 @@ bot.on('callback_query', async (ctx) => {
   await ctx.answerCbQuery();
 });
 
+registerVaultPaymentHandlers({ bot, db });
+
 // ─── Express Middleware ────────────────────────────────────────────────────────
 
 app.use(cors({
@@ -234,8 +238,9 @@ app.use(cors({
 }));
 
 // Webhook — перед express.json (Telegraf сам парсить body)
-app.use(bot.webhookCallback('/api/webhook'));
+app.use(bot.webhookCallback('/api/webhook', webhookSecret ? { secretToken: webhookSecret } : {}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
@@ -245,19 +250,36 @@ app.use((req, res, next) => {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 app.use('/api/auth', authRoutes);
+app.use('/api/vault', createVaultRoutes({ db, bot }));
 
 // Webhook setup
-app.get('/api/set-webhook', async (req, res) => {
+function requireAdminSecret(req, res, next) {
+  const secret = req.query.secret || req.headers['x-admin-secret'];
+  const isValidSecret = secret
+    && (secret === process.env.CRON_SECRET || secret === webhookSecret);
+
+  if (!isValidSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  return next();
+}
+
+app.get('/api/set-webhook', requireAdminSecret, async (req, res) => {
   try {
+    if (!webhookSecret) {
+      return res.status(503).json({ error: 'TELEGRAM_WEBHOOK_SECRET is not configured' });
+    }
+
     const url = `https://${req.headers.host}/api/webhook`;
-    await bot.telegram.setWebhook(url);
+    await bot.telegram.setWebhook(url, { secret_token: webhookSecret });
     res.json({ success: true, url });
   } catch (error) {
     res.status(500).json({ error: 'Не вдалося встановити webhook' });
   }
 });
 
-app.get('/api/del-webhook', async (req, res) => {
+app.get('/api/del-webhook', requireAdminSecret, async (req, res) => {
   try {
     await bot.telegram.deleteWebhook();
     res.json({ success: true });

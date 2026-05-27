@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
-import { updateUserSettings, subscribeToUserSettings, deleteUserAccount, type UserSettings } from '../../services/database';
+import { updateUserSettings, subscribeToUserSettings, deleteUserAccount, ADMIN_TELEGRAM_ID, type UserSettings } from '../../services/database';
+import { AdminPanel } from '../AdminPanel';
 import { AnimatedNumber } from '../AnimatedNumber';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import './Modals.css';
 
+type SettingsTab = 'wallets' | 'categories' | 'limits' | 'theme' | 'admin';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -15,10 +17,11 @@ interface SettingsModalProps {
 
 export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) => {
   const { user } = useAuth();
+  const isAdmin = user?.id === ADMIN_TELEGRAM_ID;
   const { currency, CURRENCY_SYMBOLS, EXCHANGE_RATES, formatValue } = useCurrency();
   const { categories, addCategory, removeCategory, restoreCategory, reorderCategories, hiddenCategoryIds, defaultCategories } = useCategories();
   const [isClosing, setIsClosing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'wallets' | 'categories' | 'limits' | 'theme'>('wallets');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('wallets');
   const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>(
     (localStorage.getItem('app-theme') as 'dark' | 'light') || 'dark'
   );
@@ -200,11 +203,12 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     document.addEventListener('pointerup', onUp);
   };
 
-  const tabItems = [
+  const tabItems: { id: SettingsTab; label: string }[] = [
     { id: 'wallets' as const, label: 'Гаманці' },
     { id: 'limits' as const, label: 'Ліміт' },
     { id: 'categories' as const, label: 'Категорії' },
     { id: 'theme' as const, label: 'Тема' },
+    ...(isAdmin ? [{ id: 'admin' as const, label: 'Адмін' }] : []),
   ];
 
   return (
@@ -442,6 +446,8 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
               </button>
             )}
           </div>
+        ) : activeTab === 'admin' && isAdmin ? (
+          <AdminPanel />
         ) : (
           /* Theme Tab */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
 import { NumericKeypad, getKeypadNumericValue } from "./NumericKeypad";
@@ -21,11 +21,8 @@ export const JointCheckCreateModal = ({ walletBalances, onClose }: JointCheckCre
   const { currency: mainCurrency, CURRENCY_SYMBOLS, formatValue } = useCurrency();
   const [amount, setAmount] = useState("");
   const [title, setTitle] = useState("Спільний чек");
-  const [currency, setCurrency] = useState<Currency>(mainCurrency);
-
-  useEffect(() => {
-    setCurrency(mainCurrency);
-  }, [mainCurrency]);
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency | null>(null);
+  const currency = selectedCurrency ?? mainCurrency;
   const [participants, setParticipants] = useState<JointCheckParticipant[]>([]);
   const [manualCode, setManualCode] = useState("");
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -82,27 +79,39 @@ export const JointCheckCreateModal = ({ walletBalances, onClose }: JointCheckCre
 
   return (
     <div className="modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="modal-content" style={{ maxHeight: "92vh", overflowY: "auto" }}>
-        <div className="modal-header">
-          <h2 className="modal-title">Спільний чек</h2>
-          <div className="modal-close" onClick={onClose}>×</div>
+      <div className="modal-content joint-create-modal">
+        <div className="modal-header joint-create-header">
+          <div>
+            <span className="joint-create-kicker">Разом легше</span>
+            <h2 className="modal-title">Спільний чек</h2>
+            <p className="joint-create-description">Створіть рахунок та запросіть учасників через QR або ID.</p>
+          </div>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Закрити">×</button>
         </div>
 
-        <div className="joint-form">
+        <section className="joint-form joint-create-basics" aria-label="Параметри чека">
+          <span className="joint-section-title">Назва і валюта</span>
           <input className="joint-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Назва чека" />
 
-          <div className="currency-selector" style={{ flexWrap: "wrap" }}>
+          <div className="currency-selector joint-currency-selector">
             {availableWallets.map((walletCurrency) => (
               <button
+                type="button"
                 key={walletCurrency}
                 className={`currency-btn ${currency === walletCurrency ? "active" : ""}`}
-                onClick={() => setCurrency(walletCurrency)}
+                onClick={() => setSelectedCurrency(walletCurrency)}
               >
                 {walletCurrency}
               </button>
             ))}
           </div>
+        </section>
 
+        <section className="joint-create-amount" aria-label="Сума спільного чека">
+          <div className="joint-create-entry-head">
+            <span>Загальна сума</span>
+            <small>{currency}</small>
+          </div>
           <NumericKeypad
             value={amount}
             onChange={setAmount}
@@ -111,7 +120,14 @@ export const JointCheckCreateModal = ({ walletBalances, onClose }: JointCheckCre
             submitLabel={isSaving ? "Створення..." : "Створити чек"}
             disabled={isSaving}
           />
+          {amount && (
+            <p className="joint-create-footnote">
+              Після збереження у всіх учасників з'явиться окрема операція на {formatValue(getKeypadNumericValue(amount), currency)}.
+            </p>
+          )}
+        </section>
 
+        <section className="joint-form joint-create-people" aria-label="Учасники">
           <div className="joint-section-title">Учасники</div>
           <div className="joint-action-grid">
             <button className="joint-secondary-btn" type="button" onClick={() => setIsScannerOpen(true)}>Сканувати QR</button>
@@ -140,13 +156,8 @@ export const JointCheckCreateModal = ({ walletBalances, onClose }: JointCheckCre
             ))}
           </div>
 
-          {error && <p style={{ margin: 0, color: "var(--danger)", fontSize: "13px" }}>{error}</p>}
-          {amount && (
-            <p style={{ margin: 0, color: "var(--text-tertiary)", fontSize: "12px", textAlign: "center" }}>
-              Після збереження у всіх учасників з'явиться окрема операція на {formatValue(getKeypadNumericValue(amount), currency)}.
-            </p>
-          )}
-        </div>
+          {error && <p className="joint-create-error">{error}</p>}
+        </section>
       </div>
 
       {isScannerOpen && (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type TouchEvent } from "react";
+import { useState, useEffect, useMemo, useRef, type PointerEvent, type TouchEvent, type WheelEvent } from "react";
 import { ArrowDown } from "../components/icons/ArrowDown";
 import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
@@ -23,6 +23,7 @@ import {
   addTransfer,
   subscribeToUserSettings,
   updateUserSettings,
+  ADMIN_TELEGRAM_ID,
   type Transaction,
   type UserSettings
 } from "../services/database";
@@ -34,6 +35,7 @@ import { HistoryModal } from "../components/modals/HistoryModal";
 import { QuickSpendModal } from "../components/modals/QuickSpendModal";
 import { TransferModal } from "../components/modals/TransferModal";
 import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
+import { VaultModal } from "../components/modals/VaultModal";
 import { AnimatedNumber } from "../components/AnimatedNumber";
 import { AnalyticsView } from "../components/AnalyticsView";
 import { NumericKeypad, getKeypadNumericValue } from "../components/NumericKeypad";
@@ -52,6 +54,7 @@ export const HomePage = () => {
   const { safeAreaInsets } = useTelegramPlatform();
   useKeyboardSafe();
   const { user } = useAuth();
+  const isAdmin = user?.id === ADMIN_TELEGRAM_ID;
   const { currency: mainCurrency, mainWalletId, formatValue, convertToMain } = useCurrency();
   const currSym = (CURRENCY_SYMBOLS as Record<string, string>)[mainCurrency] ?? mainCurrency;
   const { names: CATEGORY_NAMES } = useCategories();
@@ -70,6 +73,7 @@ export const HomePage = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isQuickSpendOpen, setIsQuickSpendOpen] = useState(false);
+  const [isVaultOpen, setIsVaultOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -90,6 +94,9 @@ export const HomePage = () => {
   // Wallet carousel
   const [activeWallet, setActiveWallet] = useState(0);
   const cardsScrollRef = useRef<HTMLDivElement>(null);
+  const walletDragRef = useRef<{ pointerId: number; startX: number; scrollLeft: number } | null>(null);
+  const walletWheelTimeoutRef = useRef<number | null>(null);
+  const [isDraggingWallets, setIsDraggingWallets] = useState(false);
 
   // Wallet management
   const [isAddingWallet, setIsAddingWallet] = useState(false);
@@ -101,10 +108,10 @@ export const HomePage = () => {
   const [editingName, setEditingName] = useState('');
 
   const navItems = [
-    { icon: <SvgRepoIcon name="home" />, id: 0 },
-    { icon: <HistoryIcon />, id: 1 },
-    { icon: <BookmarkIcon />, id: 2 },
-    { icon: <AnalyticsIcon />, id: 3 },
+    { icon: <SvgRepoIcon name="home" />, id: 0, label: 'Головна' },
+    { icon: <HistoryIcon />, id: 1, label: 'Фінанси' },
+    { icon: <BookmarkIcon />, id: 2, label: 'Чеки' },
+    { icon: <AnalyticsIcon />, id: 3, label: 'Аналітика' },
   ];
 
   useEffect(() => {
@@ -172,6 +179,68 @@ export const HomePage = () => {
     setActiveWallet(0);
     cardsScrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
   }, [selectedMainWalletId]);
+
+  useEffect(() => () => {
+    if (walletWheelTimeoutRef.current !== null) {
+      window.clearTimeout(walletWheelTimeoutRef.current);
+    }
+  }, []);
+
+  const isDesktopPointer = () => window.matchMedia('(min-width: 900px) and (pointer: fine)').matches;
+
+  const scrollToWallet = (index: number) => {
+    const track = cardsScrollRef.current;
+    if (!track) return;
+    const target = Math.max(0, Math.min(displayedWallets.length, index));
+    track.scrollTo({ left: target * track.clientWidth, behavior: 'smooth' });
+  };
+
+  const handleWalletWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (!isDesktopPointer() || walletWheelTimeoutRef.current !== null) return;
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (delta === 0) return;
+
+    const target = Math.max(0, Math.min(displayedWallets.length, activeWallet + (delta > 0 ? 1 : -1)));
+    if (target === activeWallet) return;
+
+    event.preventDefault();
+    scrollToWallet(target);
+    walletWheelTimeoutRef.current = window.setTimeout(() => {
+      walletWheelTimeoutRef.current = null;
+    }, 360);
+  };
+
+  const handleWalletPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!isDesktopPointer() || event.pointerType !== 'mouse' || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest('button, input, select, textarea, a')) return;
+
+    walletDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      scrollLeft: event.currentTarget.scrollLeft,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsDraggingWallets(true);
+  };
+
+  const handleWalletPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = walletDragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.currentTarget.scrollLeft = dragState.scrollLeft - (event.clientX - dragState.startX);
+  };
+
+  const finishWalletDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const dragState = walletDragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+    const track = event.currentTarget;
+    if (track.hasPointerCapture(event.pointerId)) {
+      track.releasePointerCapture(event.pointerId);
+    }
+    walletDragRef.current = null;
+    setIsDraggingWallets(false);
+    scrollToWallet(Math.round(track.scrollLeft / track.clientWidth));
+  };
 
 
   const periodExpenses = useMemo(() => {
@@ -301,7 +370,7 @@ export const HomePage = () => {
         budgetLimitPeriod: limitPeriodInput,
         budgetLimitIncludePrior: limitIncludePriorInput,
         budgetLimitStartDate: limitIncludePriorInput ? null : Date.now()
-      } as any);
+      });
       setShowLimitModal(false);
       setLimitInput('');
       setLimitIncludePriorInput(true);
@@ -314,6 +383,10 @@ export const HomePage = () => {
       return;
     }
     setSelectedTx(transaction);
+  };
+
+  const handleCloseVault = () => {
+    setIsVaultOpen(false);
   };
 
   const handleWalletAdd = async () => {
@@ -408,6 +481,7 @@ export const HomePage = () => {
       {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
       {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
+      {isAdmin && isVaultOpen && <VaultModal onClose={handleCloseVault} />}
       {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} walletBalances={walletBalances} />}
       {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
       {isTransferOpen && wallets.length >= 2 && (
@@ -509,20 +583,32 @@ export const HomePage = () => {
         <SavedReceiptsView isActive={activeNav === 2} onOpenReceipt={(share) => setViewingShare(share)} />
         {viewingShare && <SharedReceiptView share={viewingShare} onClose={() => setViewingShare(null)} />}
 
-        <div style={{ display: (activeNav === 3 || activeNav === 1 || activeNav === 2) ? 'none' : 'contents' }}>
+        <main className="home-dashboard" style={{ display: (activeNav === 3 || activeNav === 1 || activeNav === 2) ? 'none' : undefined }}>
           {/* Header */}
           <div className="header">
             <span className="month-label">{monthName}</span>
-            <div className="settings-btn" onClick={() => setIsSettingsOpen(true)}>
-              <SettingsIcon />
+            <div className="header-actions">
+              {isAdmin && (
+                <button type="button" className="vault-entry-btn" onClick={() => setIsVaultOpen(true)}>
+                  Підписка Vault
+                </button>
+              )}
+              <div className="settings-btn" onClick={() => setIsSettingsOpen(true)}>
+                <SettingsIcon />
+              </div>
             </div>
           </div>
 
           {/* Wallet Cards Carousel */}
           <div className="wallet-cards-section">
             <div
-              className="wallet-cards-track"
+              className={`wallet-cards-track ${isDraggingWallets ? 'is-dragging' : ''}`}
               ref={cardsScrollRef}
+              onWheel={handleWalletWheel}
+              onPointerDown={handleWalletPointerDown}
+              onPointerMove={handleWalletPointerMove}
+              onPointerUp={finishWalletDrag}
+              onPointerCancel={finishWalletDrag}
               onScroll={() => {
                 if (!cardsScrollRef.current) return;
                 const el = cardsScrollRef.current;
@@ -577,6 +663,27 @@ export const HomePage = () => {
               </div>
             </div>
 
+            <div className="wallet-card-controls">
+              <button
+                type="button"
+                className="wallet-card-control previous"
+                onClick={() => scrollToWallet(activeWallet - 1)}
+                disabled={activeWallet === 0}
+                aria-label="Попередній гаманець"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="wallet-card-control next"
+                onClick={() => scrollToWallet(activeWallet + 1)}
+                disabled={activeWallet === displayedWallets.length}
+                aria-label="Наступний гаманець"
+              >
+                ›
+              </button>
+            </div>
+
             {/* Dots */}
             <div className="wallet-dots">
               {Array.from({ length: displayedWallets.length + 1 }).map((_, i) => (
@@ -623,7 +730,7 @@ export const HomePage = () => {
 
           {/* Budget Progress Bar */}
           {budgetLimit > 0 ? (
-            <div style={{ padding: '8px 16px 0' }}>
+            <div className="budget-section" style={{ padding: '8px 16px 0' }}>
               <div style={{ background: 'var(--card-bg)', borderRadius: '14px', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -643,7 +750,7 @@ export const HomePage = () => {
               </div>
             </div>
           ) : (
-            <div style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="budget-section" style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
                 + Встановити ліміт
               </button>
@@ -764,28 +871,39 @@ export const HomePage = () => {
               </div>
             </div>
           </div>
-        </div>
+        </main>
 
         {/* Bottom Navigation */}
-        <div className="bottom-nav">
+        <nav className="bottom-nav" aria-label="Основна навігація">
           <div className="nav-pills">
             <div className="nav-active-indicator" style={{ left: getIndicatorLeft() }} />
             {navItems.map((item) => (
-              <div
+              <button
+                type="button"
                 key={item.id}
                 className={`nav-item ${activeNav === item.id ? "active" : ""}`}
                 onClick={() => setActiveNav(item.id)}
+                aria-label={item.label}
+                aria-current={activeNav === item.id ? 'page' : undefined}
+                data-label={item.label}
               >
                 {item.icon}
-              </div>
+              </button>
             ))}
           </div>
-          <div className="search-btn" onClick={() => setIsQuickSpendOpen(true)}>
+          <button
+            type="button"
+            className="search-btn"
+            onClick={() => setIsQuickSpendOpen(true)}
+            aria-label="Швидка витрата"
+            data-label="Швидка витрата"
+          >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <line x1="15.5" y1="15.5" x2="21" y2="21" />
             </svg>
-          </div>
-        </div>
+          </button>
+        </nav>
       </div>
     </div>
   );

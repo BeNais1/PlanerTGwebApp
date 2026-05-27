@@ -273,6 +273,504 @@ html.keyboard-open .modal-content {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+/* Income / expense composer */
+.transaction-compose-modal {
+  --transaction-highlight: var(--accent);
+  --transaction-highlight-soft: var(--accent-dim);
+  --transaction-highlight-border: rgba(10, 132, 255, 0.16);
+  --transaction-highlight-shadow: rgba(10, 132, 255, 0.22);
+  gap: 12px;
+}
+
+.transaction-expense-modal {
+  --transaction-highlight: var(--danger);
+  --transaction-highlight-soft: rgba(255, 69, 58, 0.12);
+  --transaction-highlight-border: rgba(255, 69, 58, 0.16);
+  --transaction-highlight-shadow: rgba(255, 69, 58, 0.22);
+}
+
+.transaction-compose-modal .modal-title {
+  color: var(--transaction-highlight);
+}
+
+.transaction-compose-modal .modal-close {
+  flex-shrink: 0;
+  border: 0;
+  font-family: var(--font-text);
+}
+
+.transaction-compose-details,
+.transaction-compose-entry,
+.transaction-compose-field {
+  display: contents;
+}
+
+.transaction-compose-kicker,
+.transaction-compose-description,
+.transaction-compose-field-label,
+.transaction-compose-note,
+.transaction-compose-entry-head {
+  display: none;
+}
+
+.transaction-compose-categories {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.transaction-compose-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.transaction-compose-category {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--card-bg-2);
+  color: var(--text-primary);
+  font: 500 12px var(--font-text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+
+.transaction-compose-category.active {
+  background: var(--transaction-highlight);
+  color: #fff;
+}
+
+.transaction-compose-category:active {
+  transform: scale(0.96);
+}
+
+@media (min-width: 900px) {
+  .transaction-compose-modal {
+    width: min(920px, 100%);
+    max-width: 920px;
+    min-height: 590px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(350px, 0.9fr) minmax(400px, 1fr);
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid rgba(128, 128, 128, 0.12);
+    border-radius: 30px;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.24);
+  }
+
+  .transaction-compose-details {
+    display: flex;
+    flex-direction: column;
+    gap: 17px;
+    padding: 30px 28px 28px;
+    background:
+      radial-gradient(circle at 0 0, var(--transaction-highlight-soft), transparent 46%),
+      var(--card-bg);
+  }
+
+  .transaction-compose-entry {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 29px 34px 28px;
+    border-left: 1px solid rgba(128, 128, 128, 0.1);
+    background: var(--bg-elevated);
+  }
+
+  .transaction-compose-header {
+    align-items: flex-start;
+    margin-bottom: 5px;
+  }
+
+  .transaction-compose-kicker {
+    display: block;
+    margin-bottom: 9px;
+    color: var(--transaction-highlight);
+    font: 700 11px var(--font-text);
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+  }
+
+  .transaction-compose-modal .modal-title {
+    font-size: 31px;
+    line-height: 1.08;
+    letter-spacing: -0.7px;
+  }
+
+  .transaction-compose-description {
+    display: block;
+    max-width: 270px;
+    margin-top: 8px;
+    color: var(--text-secondary);
+    font: 400 14px/1.45 var(--font-text);
+  }
+
+  .transaction-compose-modal .modal-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+  }
+
+  .transaction-compose-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .transaction-compose-field-label {
+    display: block;
+    padding-left: 3px;
+    color: var(--text-tertiary);
+    font: 700 11px var(--font-text);
+    letter-spacing: 0.72px;
+    text-transform: uppercase;
+  }
+
+  .transaction-compose-field > .modal-input,
+  .transaction-compose-field .modal-input {
+    min-height: 52px;
+    padding: 14px 15px !important;
+    font-size: 14px !important;
+  }
+
+  .transaction-compose-field > .modal-input-group {
+    gap: 7px;
+  }
+
+  .transaction-compose-note {
+    display: block;
+    margin-top: auto;
+    padding: 15px 16px;
+    border: 1px solid var(--transaction-highlight-border);
+    border-radius: 17px;
+    background: var(--transaction-highlight-soft);
+  }
+
+  .transaction-compose-note strong {
+    display: block;
+    margin-bottom: 5px;
+    color: var(--transaction-highlight);
+    font: 700 13px var(--font-text);
+  }
+
+  .transaction-compose-note p {
+    margin: 0;
+    color: var(--text-secondary);
+    font: 400 12px/1.45 var(--font-text);
+  }
+
+  .transaction-compose-categories {
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 7px;
+    max-height: 92px;
+    overflow-x: visible;
+    overflow-y: auto;
+    padding-bottom: 0;
+  }
+
+  .transaction-compose-category {
+    padding: 8px 11px;
+    border-radius: 11px;
+    font-size: 12px;
+  }
+
+  .transaction-compose-entry-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 5px 12px;
+  }
+
+  .transaction-compose-entry-head span {
+    color: var(--text-secondary);
+    font: 600 13px var(--font-text);
+  }
+
+  .transaction-compose-entry-head small {
+    overflow: hidden;
+    max-width: 190px;
+    color: var(--text-tertiary);
+    font: 500 12px var(--font-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .transaction-compose-entry .keypad-container {
+    gap: 12px;
+  }
+
+  .transaction-compose-entry .keypad-display {
+    min-height: 85px;
+    padding: 5px 12px 17px;
+  }
+
+  .transaction-compose-entry .keypad-display-value {
+    font-size: 48px;
+  }
+
+  .transaction-compose-entry .keypad-grid {
+    gap: 10px;
+    padding: 0;
+  }
+
+  .transaction-compose-entry .keypad-btn {
+    height: 58px;
+    border-radius: 17px;
+  }
+
+  .transaction-compose-entry .keypad-submit {
+    margin-top: 4px;
+    padding: 18px;
+    border-radius: 17px;
+  }
+
+  .transaction-compose-entry .keypad-submit:not(:disabled) {
+    background: var(--transaction-highlight);
+    color: #fff;
+    box-shadow: 0 12px 24px var(--transaction-highlight-shadow);
+  }
+}
+
+/* Wallet transfer composer */
+.transfer-compose-modal {
+  gap: 16px;
+}
+
+.transfer-compose-details,
+.transfer-compose-entry {
+  display: contents;
+}
+
+.transfer-compose-kicker,
+.transfer-compose-description,
+.transfer-compose-entry-head {
+  display: none;
+}
+
+.transfer-route,
+.transfer-wallet-field,
+.transfer-note-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.transfer-direction {
+  align-self: center;
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+  transform: rotate(90deg);
+}
+
+.transfer-conversion {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--card-bg-2);
+}
+
+.transfer-conversion span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.transfer-conversion strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+@media (min-width: 900px) {
+  .transfer-compose-modal {
+    width: min(1000px, 100%);
+    max-width: 1000px;
+    min-height: 594px;
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(500px, 1.1fr) minmax(390px, 0.9fr);
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid rgba(128, 128, 128, 0.12);
+    border-radius: 30px;
+    box-shadow: 0 26px 70px rgba(0, 0, 0, 0.24);
+  }
+
+  .transfer-compose-details {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 29px 30px 28px;
+    background:
+      radial-gradient(circle at 0 0, rgba(10, 132, 255, 0.12), transparent 48%),
+      var(--card-bg);
+  }
+
+  .transfer-compose-entry {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 30px 32px;
+    border-left: 1px solid rgba(128, 128, 128, 0.1);
+    background: var(--bg-elevated);
+  }
+
+  .transfer-compose-header {
+    align-items: flex-start;
+  }
+
+  .transfer-compose-header .modal-title {
+    font-size: 31px;
+    line-height: 1.08;
+    letter-spacing: -0.7px;
+  }
+
+  .transfer-compose-header .modal-close {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 50%;
+    font-family: var(--font-text);
+  }
+
+  .transfer-compose-kicker {
+    display: block;
+    margin-bottom: 9px;
+    color: var(--accent);
+    font: 700 11px var(--font-text);
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+  }
+
+  .transfer-compose-description {
+    display: block;
+    margin-top: 8px;
+    color: var(--text-secondary);
+    font: 400 14px/1.45 var(--font-text);
+  }
+
+  .transfer-beta-notice {
+    margin-top: 3px;
+    padding: 13px 14px;
+  }
+
+  .transfer-route {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+    align-items: end;
+    gap: 9px;
+  }
+
+  .transfer-direction {
+    align-self: center;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-top: 19px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    font-size: 18px;
+    transform: none;
+  }
+
+  .transfer-wallet-field .wallet-trigger {
+    min-height: 70px;
+    padding: 11px;
+    gap: 9px;
+  }
+
+  .transfer-wallet-field .wallet-trigger-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .transfer-wallet-field .wallet-trigger-copy strong {
+    font-size: 14px;
+  }
+
+  .transfer-wallet-field .wallet-trigger-copy small {
+    font-size: 11px;
+  }
+
+  .transfer-note-field {
+    margin-top: auto;
+  }
+
+  .transfer-note-field .modal-input {
+    min-height: 51px;
+    padding: 14px 15px;
+    font-size: 14px;
+  }
+
+  .transfer-compose-entry-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 4px 12px;
+  }
+
+  .transfer-compose-entry-head span {
+    color: var(--text-secondary);
+    font: 600 13px var(--font-text);
+  }
+
+  .transfer-compose-entry-head small {
+    max-width: 175px;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font: 500 12px var(--font-text);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .transfer-compose-entry .keypad-container {
+    gap: 12px;
+  }
+
+  .transfer-compose-entry .keypad-display {
+    min-height: 82px;
+    padding: 5px 12px 15px;
+  }
+
+  .transfer-compose-entry .keypad-display-value {
+    font-size: 48px;
+  }
+
+  .transfer-compose-entry .keypad-grid {
+    gap: 10px;
+    padding: 0;
+  }
+
+  .transfer-compose-entry .keypad-btn {
+    height: 57px;
+    border-radius: 17px;
+  }
+
+  .transfer-compose-entry .keypad-submit {
+    margin-top: 4px;
+    padding: 18px;
+    border-radius: 17px;
+  }
+
+  .transfer-compose-entry .keypad-submit:not(:disabled) {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 12px 24px rgba(10, 132, 255, 0.22);
+  }
+}
+
 /* Categories Grid */
 .categories-grid {
   display: grid;

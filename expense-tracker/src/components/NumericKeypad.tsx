@@ -1,5 +1,6 @@
 ﻿import { useState, useCallback } from 'react';
 import './NumericKeypad.css';
+import { DigitPopInText } from './AnimatedNumber';
 
 interface NumericKeypadProps {
   value: string;
@@ -9,7 +10,14 @@ interface NumericKeypadProps {
   submitLabel?: string;
   isLoading?: boolean;
   disabled?: boolean;
+  allowZero?: boolean;
 }
+
+type WebAppWithHaptics = NonNullable<Window['Telegram']>['WebApp'] & {
+  HapticFeedback?: {
+    impactOccurred: (style: 'light') => void;
+  };
+};
 
 const BackspaceIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -27,13 +35,14 @@ export const NumericKeypad = ({
   submitLabel = 'Підтвердити',
   isLoading = false,
   disabled = false,
+  allowZero = false,
 }: NumericKeypadProps) => {
   const [hasExpression, setHasExpression] = useState(false);
 
   const handleKey = useCallback((key: string) => {
     // Haptic feedback
     try {
-      const tg = (window as any).Telegram?.WebApp;
+      const tg = window.Telegram?.WebApp as WebAppWithHaptics | undefined;
       if (tg?.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('light');
       }
@@ -47,10 +56,10 @@ export const NumericKeypad = ({
 
     if (key === ',') {
       // Only add dot if there isn't one in the current number segment
-      const parts = value.split(/[\+\-\×\÷]/);
+      const parts = value.split(/[+×÷-]/);
       const lastPart = parts[parts.length - 1];
       if (lastPart.includes('.')) return;
-      if (value === '' || /[\+\-\×\÷]$/.test(value)) {
+      if (value === '' || /[+×÷-]$/.test(value)) {
         onChange(value + '0.');
       } else {
         onChange(value + '.');
@@ -62,7 +71,7 @@ export const NumericKeypad = ({
       // Don't allow operator at start (except minus for negative)
       if (value === '' && key !== '-') return;
       // Don't allow consecutive operators
-      if (/[\+\-\×\÷]$/.test(value)) {
+      if (/[+×÷-]$/.test(value)) {
         onChange(value.slice(0, -1) + key);
         return;
       }
@@ -73,7 +82,7 @@ export const NumericKeypad = ({
 
     // Digit
     // Prevent leading zeros (except for "0.")
-    const parts = value.split(/[\+\-\×\÷]/);
+    const parts = value.split(/[+×÷-]/);
     const lastPart = parts[parts.length - 1];
     if (lastPart === '0' && key !== '0') {
       onChange(value.slice(0, -1) + key);
@@ -109,7 +118,7 @@ export const NumericKeypad = ({
 
   const formatThousands = (raw: string): string => {
     if (!raw) return '0';
-    const parts = raw.split(/([\+\-\×\÷])/);
+    const parts = raw.split(/([+×÷-])/);
     return parts.map(part => {
       if (['+', '-', '×', '÷'].includes(part)) return part;
       const [integer, decimal] = part.split('.');
@@ -120,7 +129,9 @@ export const NumericKeypad = ({
 
   const displayValue = formatThousands(value);
   const numericResult = hasExpression ? evaluateExpression(value) : parseFloat(value || '0');
-  const isValid = !isNaN(numericResult) && numericResult > 0 && !/[\+\-\×\÷]$/.test(value);
+  const isValid = !isNaN(numericResult)
+    && (allowZero ? numericResult >= 0 : numericResult > 0)
+    && !/[+×÷-]$/.test(value);
   const needsSmallFont = (value || '0').length > 8;
 
   const keys = [
@@ -134,14 +145,15 @@ export const NumericKeypad = ({
     <div className="keypad-container">
       {/* Display */}
       <div className="keypad-display">
-        <span className={`keypad-display-value ${needsSmallFont ? 'small' : ''} ${!value ? 'empty' : ''}`}>
-          {displayValue}
-        </span>
+        <DigitPopInText
+          text={displayValue}
+          className={`keypad-display-value ${needsSmallFont ? 'small' : ''} ${!value ? 'empty' : ''}`}
+        />
         <span className="keypad-display-currency">{currencySymbol}</span>
       </div>
 
       {/* Show evaluated result if expression */}
-      {hasExpression && value && /[\+\-\×\÷]/.test(value) && !(/[\+\-\×\÷]$/.test(value)) && (
+      {hasExpression && value && /[+×÷-]/.test(value) && !(/[+×÷-]$/.test(value)) && (
         <div style={{
           textAlign: 'center',
           fontSize: '14px',
@@ -149,7 +161,7 @@ export const NumericKeypad = ({
           marginTop: '-8px',
           marginBottom: '4px',
         }}>
-          = {formatThousands(String(numericResult % 1 === 0 ? numericResult : numericResult.toFixed(2)))} {currencySymbol}
+          = <DigitPopInText text={formatThousands(String(numericResult % 1 === 0 ? numericResult : numericResult.toFixed(2)))} /> {currencySymbol}
         </div>
       )}
 
@@ -199,6 +211,8 @@ export const NumericKeypad = ({
 };
 
 // Hook helper: get numeric result from keypad value
+// Existing helper is co-located so all keypad consumers use the same expression parsing.
+// eslint-disable-next-line react-refresh/only-export-components
 export const getKeypadNumericValue = (value: string): number => {
   try {
     const jsExpr = value.replace(/×/g, '*').replace(/÷/g, '/');

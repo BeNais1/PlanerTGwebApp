@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { NumericKeypad, getKeypadNumericValue } from './NumericKeypad';
 import { CURRENCY_SYMBOLS } from '../hooks/useCurrency';
+import './WalletSetupScreen.css';
 
 const CURRENCIES = ['UAH', 'EUR', 'USD'] as const;
+const FEATURES = ['Аналітика', 'Нагадування', 'Гаманці'];
 type Cur = typeof CURRENCIES[number];
 
 interface WalletSetupScreenProps {
@@ -29,123 +31,92 @@ export const WalletSetupScreen = ({ onComplete }: WalletSetupScreenProps) => {
   const sym = CURRENCY_SYMBOLS[currency];
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      background: 'var(--bg-primary)',
-      padding: 'calc(var(--safe-area-top, 44px) + 24px) 24px calc(var(--safe-area-bottom, 24px) + 24px)',
-    }}>
+    <div className={`wallet-setup-screen ${step === 'balance' ? 'is-balance-step' : ''}`}>
       {step === 'info' ? (
-        <>
-          {/* Hero */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12 }}>
-            <div style={{ fontSize: 72, lineHeight: 1, marginBottom: 8 }}>💰</div>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-              Planer
-            </h1>
-            <span style={{
-              padding: '5px 12px', borderRadius: 999,
-              background: 'var(--accent-dim)', color: 'var(--accent)',
-              fontSize: 12, fontWeight: 700, letterSpacing: '0.6px',
-            }}>
-              BETA-ВЕРСІЯ
-            </span>
-            <p style={{ fontSize: 16, color: 'var(--apple-text-on-dark-secondary)', margin: 0, lineHeight: 1.5, maxWidth: 280 }}>
-              Відстежуйте витрати, доходи та баланс по кожному гаманцю. Деякі функції ще тестуються.
+        <div className="wallet-setup-layout">
+          <section className="wallet-setup-hero">
+            <div className="wallet-setup-emoji" aria-hidden="true">💰</div>
+            <h1 className="wallet-setup-brand">Planer</h1>
+            <span className="wallet-setup-beta">BETA-ВЕРСІЯ</span>
+            <p className="wallet-setup-description">
+              Відстежуйте витрати, доходи та баланс по кожному гаманцю.
+              Деякі функції ще тестуються.
             </p>
 
-            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-              {['📊 Аналітика', '🔔 Нагадування', '💳 Гаманці'].map(f => (
-                <div key={f} style={{
-                  padding: '8px 12px', borderRadius: 20,
-                  background: 'var(--apple-surface-1)',
-                  fontSize: 13, color: 'var(--apple-text-on-dark-secondary)', fontWeight: 500,
-                }}>
-                  {f}
-                </div>
+            <div className="wallet-setup-features">
+              {FEATURES.map(feature => (
+                <span key={feature}>{feature}</span>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Form */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--apple-text-on-dark-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-              Перший гаманець
+          <section className="wallet-setup-form">
+            <span className="wallet-setup-mobile-kicker">Перший гаманець</span>
+            <div className="wallet-setup-form-copy">
+              <span className="wallet-setup-kicker">Перший гаманець</span>
+              <h2>Створіть простір для грошей</h2>
+              <p>Вкажіть назву та валюту. Баланс можна додати наступним кроком.</p>
             </div>
 
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Наприклад: Монобанк, Готівка..."
-              maxLength={30}
-              style={{
-                padding: '14px 16px', background: 'var(--apple-surface-1)',
-                border: 'none', borderRadius: 14, color: 'var(--text-primary)',
-                fontSize: 17, fontFamily: 'var(--font-text)', outline: 'none',
-              }}
-            />
+            <label className="wallet-setup-field">
+              <span>Назва гаманця</span>
+              <input
+                type="text"
+                value={name}
+                onChange={event => setName(event.target.value)}
+                placeholder="Наприклад: Монобанк, Готівка..."
+                maxLength={30}
+              />
+            </label>
 
-            {/* Currency */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              {CURRENCIES.map(c => (
+            <div className="wallet-setup-currencies" aria-label="Валюта">
+              {CURRENCIES.map(item => (
                 <button
-                  key={c}
-                  onClick={() => setCurrency(c)}
-                  style={{
-                    flex: 1, padding: '12px 8px', border: 'none', borderRadius: 12,
-                    background: currency === c ? 'var(--apple-blue)' : 'var(--apple-surface-1)',
-                    color: currency === c ? '#fff' : 'var(--text-primary)',
-                    fontWeight: 700, fontSize: 16, cursor: 'pointer',
-                  }}
+                  key={item}
+                  type="button"
+                  className={currency === item ? 'active' : ''}
+                  onClick={() => setCurrency(item)}
+                  aria-pressed={currency === item}
                 >
-                  {CURRENCY_SYMBOLS[c]} {c}
+                  {CURRENCY_SYMBOLS[item]} {item}
                 </button>
               ))}
             </div>
 
             <button
+              type="button"
+              className="wallet-setup-next"
               disabled={!canProceed}
               onClick={() => setStep('balance')}
-              style={{
-                padding: '16px', border: 'none', borderRadius: 14,
-                background: canProceed ? 'var(--apple-blue)' : 'var(--apple-surface-2)',
-                color: canProceed ? '#fff' : 'var(--apple-text-on-dark-tertiary)',
-                fontWeight: 700, fontSize: 17, cursor: canProceed ? 'pointer' : 'default',
-                transition: 'all 0.15s',
-              }}
             >
               Далі →
             </button>
-          </div>
-        </>
+          </section>
+        </div>
       ) : (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-            <button onClick={() => setStep('info')}
-              style={{ background: 'none', border: 'none', color: 'var(--apple-blue)', fontSize: 17, cursor: 'pointer', padding: '4px 0' }}>
+        <div className="wallet-balance-layout">
+          <section className="wallet-balance-intro">
+            <button type="button" className="wallet-setup-back" onClick={() => setStep('info')}>
               ← Назад
             </button>
-          </div>
+            <div className="wallet-balance-emoji" aria-hidden="true">💳</div>
+            <span className="wallet-setup-kicker">Поточний баланс</span>
+            <h1>{name}</h1>
+            <p>Введіть поточний баланс гаманця. Цей крок необов'язковий.</p>
+          </section>
 
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>💳</div>
-            <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-              {name}
-            </h2>
-            <p style={{ fontSize: 15, color: 'var(--apple-text-on-dark-secondary)', marginTop: 4 }}>
-              Введіть поточний баланс гаманця (необов'язково)
-            </p>
-          </div>
-
-          <NumericKeypad
-            value={balanceInput}
-            onChange={setBalanceInput}
-            currencySymbol={sym}
-            onSubmit={handleCreate}
-            submitLabel={isSaving ? 'Збереження...' : 'Створити гаманець 🚀'}
-            isLoading={isSaving}
-          />
-        </>
+          <section className="wallet-setup-keypad">
+            <NumericKeypad
+              value={balanceInput}
+              onChange={setBalanceInput}
+              currencySymbol={sym}
+              onSubmit={handleCreate}
+              submitLabel={isSaving ? 'Збереження...' : 'Створити гаманець'}
+              isLoading={isSaving}
+              allowZero
+            />
+          </section>
+        </div>
       )}
     </div>
   );

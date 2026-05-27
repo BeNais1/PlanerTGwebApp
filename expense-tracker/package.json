@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node -e \"const fs=require('fs'); if(!fs.existsSync('public')) fs.mkdirSync('public'); fs.writeFileSync('public/version.json', JSON.stringify({ version: Date.now() }))\" && tsc -b && vite build",
+    "deploy:hosting": "firebase deploy --only hosting --project planer-app-3a0f2",
     "lint": "eslint .",
     "preview": "vite preview"
   },

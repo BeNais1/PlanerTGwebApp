@@ -69,7 +69,7 @@ export const SavedReceiptsView = ({ isActive, onOpenReceipt }: SavedReceiptsView
   if (!isActive) return null;
 
   return (
-    <div style={{
+    <div className="saved-receipts-view" style={{
       position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
       display: 'flex', flexDirection: 'column',
       background: 'var(--bg-primary)',

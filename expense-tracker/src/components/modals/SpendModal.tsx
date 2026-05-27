@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { CURRENCY_SYMBOLS } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
@@ -29,12 +29,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
   const currencySymbol = selectedWallet
     ? ((CURRENCY_SYMBOLS as Record<string, string>)[selectedWallet.currency] ?? selectedWallet.currency)
     : '₴';
-
-  useEffect(() => {
-    if (categories.length > 0 && !category) {
-      setCategory(categories[0].id);
-    }
-  }, [categories]);
+  const selectedCategory = category || categories[0]?.id || '';
 
   const handleClose = () => {
     setIsClosing(true);
@@ -43,61 +38,79 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
 
   const handleSubmit = () => {
     const numAmount = getKeypadNumericValue(amount);
-    if (numAmount > 0 && selectedWallet) {
-      onSpend(numAmount, category, description, selectedWallet.id!, transactionDate);
+    if (numAmount > 0 && selectedWallet && selectedCategory) {
+      onSpend(numAmount, selectedCategory, description, selectedWallet.id!, transactionDate);
     }
   };
 
   return (
     <>
       <div className={`modal-overlay ${isClosing ? 'closing' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}>
-        <div className={`modal-content ${isClosing ? 'closing' : ''}`} style={{ gap: '12px' }}>
-          <div className="modal-header">
-            <h2 className="modal-title">Витрата</h2>
-            <div className="modal-close" onClick={handleClose}>✕</div>
-          </div>
-
-          <WalletButton wallet={selectedWallet} onClick={() => setWalletPickerOpen(true)} placeholder="Оберіть гаманець" />
-
-          <input
-            type="text"
-            className="modal-input"
-            placeholder="Коментар..."
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            style={{ fontSize: '14px', padding: '10px 14px' }}
-          />
-
-          <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
-
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategory(cat.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '4px',
-                  padding: '6px 10px', borderRadius: '12px', border: 'none',
-                  background: category === cat.id ? 'var(--accent)' : 'var(--card-bg-2)',
-                  color: category === cat.id ? 'white' : 'var(--text-primary)', fontSize: '12px', fontWeight: 500,
-                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
+        <div className={`modal-content transaction-compose-modal transaction-expense-modal ${isClosing ? 'closing' : ''}`}>
+          <section className="transaction-compose-details">
+            <div className="modal-header transaction-compose-header">
+              <div>
+                <span className="transaction-compose-kicker">Нова операція</span>
+                <h2 className="modal-title">Витрата</h2>
+                <p className="transaction-compose-description">Зафіксуйте покупку та оберіть її категорію.</p>
+              </div>
+              <button type="button" className="modal-close" onClick={handleClose} aria-label="Закрити">
+                ✕
               </button>
-            ))}
-          </div>
+            </div>
 
-          <NumericKeypad
-            value={amount}
-            onChange={setAmount}
-            currencySymbol={currencySymbol}
-            onSubmit={handleSubmit}
-            submitLabel="Витратити"
-            isLoading={isLoading}
-          />
+            <div className="transaction-compose-field">
+              <span className="transaction-compose-field-label">Гаманець</span>
+              <WalletButton wallet={selectedWallet} onClick={() => setWalletPickerOpen(true)} placeholder="Оберіть гаманець" />
+            </div>
+
+            <label className="transaction-compose-field">
+              <span className="transaction-compose-field-label">Коментар</span>
+              <input
+                type="text"
+                className="modal-input"
+                placeholder="Коментар..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </label>
+
+            <div className="transaction-compose-field">
+              <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
+            </div>
+
+            <div className="transaction-compose-field transaction-compose-category-field">
+              <span className="transaction-compose-field-label">Категорія</span>
+              <div className="transaction-compose-categories">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    className={`transaction-compose-category ${selectedCategory === cat.id ? 'active' : ''}`}
+                    onClick={() => setCategory(cat.id)}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="transaction-compose-entry" aria-label="Сума витрати">
+            <div className="transaction-compose-entry-head">
+              <span>Введіть суму</span>
+              <small>{selectedWallet?.name ?? 'Гаманець не обрано'}</small>
+            </div>
+            <NumericKeypad
+              value={amount}
+              onChange={setAmount}
+              currencySymbol={currencySymbol}
+              onSubmit={handleSubmit}
+              submitLabel="Витратити"
+              isLoading={isLoading}
+            />
+          </section>
         </div>
       </div>
 

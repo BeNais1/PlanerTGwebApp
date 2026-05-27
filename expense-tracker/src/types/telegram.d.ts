@@ -16,13 +16,17 @@ export interface TelegramWebApp {
   expand: () => void;
   initDataUnsafe: {
     user?: TelegramUser;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   initData: string;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   viewportStableHeight?: number;
   onEvent?: (event: string, callback: () => void) => void;
+  openInvoice?: (
+    url: string,
+    callback?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void
+  ) => void;
 }
 
 declare global {
