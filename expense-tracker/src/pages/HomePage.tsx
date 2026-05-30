@@ -32,7 +32,6 @@ import { SpendModal } from "../components/modals/SpendModal";
 import { AddModal } from "../components/modals/AddModal";
 import { SettingsModal } from "../components/modals/SettingsModal";
 import { HistoryModal } from "../components/modals/HistoryModal";
-import { QuickSpendModal } from "../components/modals/QuickSpendModal";
 import { TransferModal } from "../components/modals/TransferModal";
 import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
 import { VaultModal } from "../components/modals/VaultModal";
@@ -72,9 +71,9 @@ export const HomePage = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isQuickSpendOpen, setIsQuickSpendOpen] = useState(false);
   const [isVaultOpen, setIsVaultOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isTxActionLoading, setIsTxActionLoading] = useState(false);
@@ -308,29 +307,14 @@ export const HomePage = () => {
     }
   };
 
-  const handleQuickSpend = async (amount: number, category: string, description: string, walletId: string, date: number) => {
-    if (!user) return;
-    setIsSaving(true);
-    try {
-      const wallet = wallets.find(w => w.id === walletId);
-      await addTransaction(user.id, {
-        type: 'expense', amount, category, description,
-        date, month: getCurrentMonth(date),
-        currency: wallet?.currency || mainCurrency,
-        walletId,
-      });
-      setIsQuickSpendOpen(false);
-    } catch (error) {
-      console.error('Failed to add quick spend:', error);
-      alert('Помилка при додаванні видатків. Спробуйте ще раз.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleTransfer = async (fromWalletId: string, toWalletId: string, amount: number, convertedAmount: number, description: string) => {
     if (!user) return;
     await addTransfer(user.id, { fromWalletId, toWalletId, amount, convertedAmount, description, date: Date.now() });
+  };
+
+  const handleActionSelect = (openAction: () => void) => {
+    setIsActionMenuOpen(false);
+    openAction();
   };
 
   const handleDeleteTransaction = async (id: string) => {
@@ -431,7 +415,7 @@ export const HomePage = () => {
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     if (activeNav !== 0) return;
-    if (isSpendOpen || isAddOpen || isSettingsOpen || isHistoryOpen || isQuickSpendOpen || isTransferOpen || isJointCheckOpen || selectedTx || jointCheckId || viewingShare) return;
+    if (isSpendOpen || isAddOpen || isSettingsOpen || isHistoryOpen || isTransferOpen || isJointCheckOpen || isActionMenuOpen || selectedTx || jointCheckId || viewingShare) return;
     const target = event.target as HTMLElement;
     if (target.closest('button, input, select, textarea, a, [role="button"], .modal-overlay, .payment-list, .payment-history')) return;
     const touch = event.touches[0];
@@ -455,7 +439,6 @@ export const HomePage = () => {
   };
 
   const monthName = new Date().toLocaleString('uk-UA', { month: 'long', year: 'numeric' });
-  const getIndicatorLeft = () => `calc(4px + ${activeNav} * (100% - 8px) / 4)`;
   const todayDateStr = new Date().toLocaleDateString();
   const todaysTransactions = transactions.filter(t => new Date(t.date).toLocaleDateString() === todayDateStr);
   const menuWallet = wallets.find(w => w.id === menuWalletId) ?? null;
@@ -483,7 +466,6 @@ export const HomePage = () => {
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
       {isAdmin && isVaultOpen && <VaultModal onClose={handleCloseVault} />}
       {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} walletBalances={walletBalances} />}
-      {isQuickSpendOpen && <QuickSpendModal onClose={() => setIsQuickSpendOpen(false)} onSpend={handleQuickSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
       {isTransferOpen && wallets.length >= 2 && (
         <TransferModal
           onClose={() => setIsTransferOpen(false)}
@@ -804,27 +786,6 @@ export const HomePage = () => {
 
           {/* Bottom Card */}
           <div className="bottom-card">
-            <div className="action-buttons">
-              <div className="action-btn" onClick={() => setIsSpendOpen(true)}>
-                <ArrowTop className="!relative !w-5 !h-5" />
-                <span>Витрата</span>
-              </div>
-              <div className="action-btn" onClick={() => setIsAddOpen(true)}>
-                <ArrowDown className="!relative !w-5 !h-5" />
-                <span>Дохід</span>
-              </div>
-              {wallets.length >= 2 && (
-                <div className="action-btn" onClick={() => setIsTransferOpen(true)}>
-                  <SvgRepoIcon name="transfer" />
-                  <span>Переказ</span>
-                </div>
-              )}
-              <div className="action-btn" onClick={() => setIsJointCheckOpen(true)}>
-                <JointCheckIcon />
-                <span>Спільний</span>
-              </div>
-            </div>
-
             {/* Payment History (Today) */}
             <div className="payment-history">
               <div className="payment-header">
@@ -873,16 +834,47 @@ export const HomePage = () => {
           </div>
         </main>
 
+        {isActionMenuOpen && (
+          <button
+            type="button"
+            className="action-menu-backdrop"
+            aria-label="Закрити меню дій"
+            onClick={() => setIsActionMenuOpen(false)}
+          />
+        )}
+        {isActionMenuOpen && (
+          <div className="action-menu" role="menu" aria-label="Нова операція">
+            <button type="button" className="action-menu-item" role="menuitem" onClick={() => handleActionSelect(() => setIsSpendOpen(true))}>
+              <ArrowTop className="!relative !w-5 !h-5" />
+              <span>Витрата</span>
+            </button>
+            <button type="button" className="action-menu-item" role="menuitem" onClick={() => handleActionSelect(() => setIsAddOpen(true))}>
+              <ArrowDown className="!relative !w-5 !h-5" />
+              <span>Дохід</span>
+            </button>
+            <button type="button" className="action-menu-item" role="menuitem" disabled={wallets.length < 2} onClick={() => handleActionSelect(() => setIsTransferOpen(true))}>
+              <SvgRepoIcon name="transfer" />
+              <span>Переказ</span>
+            </button>
+            <button type="button" className="action-menu-item" role="menuitem" onClick={() => handleActionSelect(() => setIsJointCheckOpen(true))}>
+              <JointCheckIcon />
+              <span>Спільні</span>
+            </button>
+          </div>
+        )}
+
         {/* Bottom Navigation */}
         <nav className="bottom-nav" aria-label="Основна навігація">
           <div className="nav-pills">
-            <div className="nav-active-indicator" style={{ left: getIndicatorLeft() }} />
             {navItems.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 className={`nav-item ${activeNav === item.id ? "active" : ""}`}
-                onClick={() => setActiveNav(item.id)}
+                onClick={() => {
+                  setActiveNav(item.id);
+                  setIsActionMenuOpen(false);
+                }}
                 aria-label={item.label}
                 aria-current={activeNav === item.id ? 'page' : undefined}
                 data-label={item.label}
@@ -893,15 +885,13 @@ export const HomePage = () => {
           </div>
           <button
             type="button"
-            className="search-btn"
-            onClick={() => setIsQuickSpendOpen(true)}
-            aria-label="Швидка витрата"
-            data-label="Швидка витрата"
+            className={`plus-btn ${isActionMenuOpen ? "open" : ""}`}
+            onClick={() => setIsActionMenuOpen(open => !open)}
+            aria-label={isActionMenuOpen ? "Закрити меню дій" : "Додати операцію"}
+            aria-expanded={isActionMenuOpen}
+            data-label="Додати"
           >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <line x1="15.5" y1="15.5" x2="21" y2="21" />
-            </svg>
+            <SvgRepoIcon name="plus" />
           </button>
         </nav>
       </div>

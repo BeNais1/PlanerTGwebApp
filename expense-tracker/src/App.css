@@ -437,14 +437,77 @@
   color: var(--text-primary);
 }
 
+.action-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.action-menu {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-area-bottom, 50px) + 112px);
+  z-index: 30;
+  width: min(212px, calc(100% - 32px));
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--card-bg-3);
+  border-radius: 22px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-elevated);
+  animation: actionMenuIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.action-menu-item {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 16px;
+  padding: 0 14px;
+  appearance: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: 600 14px var(--font-text);
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.14s ease, opacity 0.18s ease;
+}
+
+.action-menu-item:hover {
+  background: var(--card-bg-2);
+}
+
+.action-menu-item:active {
+  transform: scale(0.98);
+}
+
+.action-menu-item:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.action-menu-item svg,
+.action-menu-item .svg-repo-icon {
+  width: 20px;
+  height: 20px;
+}
+
 /* === Bottom Navigation — Clean iOS Tab Bar === */
 .bottom-nav {
   position: relative;
   z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px calc(var(--safe-area-bottom, 50px) + 4px);
+  display: block;
+  padding: 36px 16px calc(var(--safe-area-bottom, 50px) + 8px);
   flex-shrink: 0;
   margin-top: auto;
   background: var(--bg);
@@ -462,22 +525,46 @@
 }
 
 .nav-pills {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  background: var(--card-bg);
-  border-radius: var(--radius-pill);
-  height: 52px;
-  padding: 4px;
+  --nav-center-gap: clamp(104px, 29vw, 120px);
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) var(--nav-center-gap) repeat(2, minmax(0, 1fr));
+  align-items: end;
+  background: transparent;
+  height: 58px;
+  padding: 4px 0;
   position: relative;
+  overflow: visible;
+}
+
+.nav-pills::before,
+.nav-pills::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc((100% - var(--nav-center-gap)) / 2);
+  background: var(--card-bg);
+  content: "";
+  pointer-events: none;
+  z-index: 1;
+}
+
+.nav-pills::before {
+  left: 0;
+  border-radius: var(--radius-pill);
+}
+
+.nav-pills::after {
+  right: 0;
+  border-radius: var(--radius-pill);
 }
 
 .nav-item {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 44px;
+  min-width: 0;
+  height: 50px;
   border: 0;
   padding: 0;
   appearance: none;
@@ -489,6 +576,11 @@
   z-index: 2;
   transition: all 0.2s ease;
   border-radius: 22px;
+  margin: 0 4px;
+}
+
+.nav-item:nth-of-type(3) {
+  grid-column: 4;
 }
 
 .nav-item svg,
@@ -509,22 +601,18 @@
   opacity: 1;
 }
 
-/* Active indicator — subtle */
-.nav-active-indicator {
-  position: absolute;
-  top: 4px;
-  height: 44px;
-  border-radius: 22px;
-  transition: left 0.35s cubic-bezier(0.25, 1, 0.5, 1);
-  z-index: 1;
-  width: calc((100% - 8px) / 4);
+.nav-item.active {
   background: var(--card-bg-2);
 }
 
-/* FAB — Quick spend button */
-.search-btn {
-  width: 52px;
-  height: 52px;
+/* FAB — action menu button */
+.plus-btn {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  z-index: 4;
+  width: 76px;
+  height: 76px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -535,22 +623,29 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border-radius: var(--radius-circle);
-  background: var(--accent);
+  background: #d9d9d9;
+  color: #000;
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  transform: translateX(-50%);
 }
 
-.search-btn:hover {
-  filter: brightness(1.1);
+.plus-btn:hover {
+  filter: brightness(1.04);
 }
 
-.search-btn:active {
-  transform: scale(0.92);
+.plus-btn:active {
+  transform: translateX(-50%) scale(0.93);
 }
 
-.search-btn svg {
-  width: 22px;
-  height: 22px;
-  opacity: 1;
-  color: var(--apple-white);
+.plus-btn .svg-repo-icon {
+  width: 46px;
+  height: 46px;
+  color: currentColor;
+  transition: transform 0.18s ease;
+}
+
+.plus-btn.open .svg-repo-icon {
+  transform: rotate(45deg);
 }
 
 /* Custom Toggle Switch */
@@ -649,6 +744,17 @@ input:checked + .toggle-slider:before {
   }
 }
 
+@keyframes actionMenuIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
 @keyframes viewEnter {
   from {
     opacity: 0;
@@ -690,6 +796,8 @@ input:checked + .toggle-slider:before {
   .bottom-card,
   .action-btn,
   .payment-item,
+  .action-menu,
+  .plus-btn,
   .bottom-nav,
   .analytics-view,
   .analytics-header,
@@ -886,6 +994,7 @@ input:checked + .toggle-slider:before {
     inset: 0 auto 0 0;
     width: 88px;
     height: auto;
+    display: flex;
     flex-direction: column;
     justify-content: space-between;
     gap: 18px;
@@ -901,17 +1010,29 @@ input:checked + .toggle-slider:before {
     width: 60px;
     height: auto;
     flex: 0 0 auto;
+    display: flex;
     flex-direction: column;
+    grid-template-columns: none;
     gap: 8px;
     padding: 4px;
     background: var(--card-bg);
     box-shadow: var(--shadow-card);
+    overflow: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .nav-pills::before,
+  .nav-pills::after {
+    content: none;
   }
 
   .nav-item {
     width: 52px;
     height: 52px;
     flex: 0 0 auto;
+    grid-column: auto;
+    margin: 0;
     transform-origin: left center;
     transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, box-shadow 0.2s ease;
   }
@@ -920,26 +1041,36 @@ input:checked + .toggle-slider:before {
     background: var(--card-bg-2);
   }
 
-  .nav-active-indicator {
-    display: none;
+  .action-menu {
+    right: auto;
+    bottom: 28px;
+    left: 104px;
+    animation: panelPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 
-  .search-btn {
+  .plus-btn {
     position: relative;
+    left: auto;
+    top: auto;
     width: 60px;
     height: 60px;
     margin-left: 0;
     transform-origin: left center;
-    box-shadow: 0 8px 22px rgba(10, 132, 255, 0.2);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+    transform: none;
     transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .search-btn::before {
+  .plus-btn::before {
     content: none;
   }
 
+  .plus-btn:active {
+    transform: scale(0.94);
+  }
+
   .nav-item::after,
-  .search-btn::after {
+  .plus-btn::after {
     position: absolute;
     top: 50%;
     left: calc(100% + 14px);
@@ -960,8 +1091,8 @@ input:checked + .toggle-slider:before {
 
   .nav-item:hover::after,
   .nav-item:focus-visible::after,
-  .search-btn:hover::after,
-  .search-btn:focus-visible::after {
+  .plus-btn:hover::after,
+  .plus-btn:focus-visible::after {
     opacity: 1;
     transform: translate(0, -50%) scale(1);
   }
@@ -980,8 +1111,8 @@ input:checked + .toggle-slider:before {
       transform: translateX(3px) scale(1.06);
     }
 
-    .search-btn:hover,
-    .search-btn:focus-visible {
+    .plus-btn:hover,
+    .plus-btn:focus-visible {
       transform: translateX(5px) scale(1.1);
       box-shadow: 0 12px 29px rgba(10, 132, 255, 0.28);
     }
