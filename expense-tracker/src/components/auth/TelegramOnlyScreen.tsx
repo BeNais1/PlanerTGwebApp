@@ -22,15 +22,15 @@ export const TelegramOnlyScreen = () => {
           </svg>
         </div>
         
-        <h1 className="telegram-only-title">Відкрийте в Telegram</h1>
+        <h1 className="telegram-only-title">Відкрийте на телефоні</h1>
         <p className="telegram-only-description">
-          Цей додаток доступний лише у Telegram Mini App
+          Цей додаток працює лише у мобільному Telegram Mini App
         </p>
 
         {qrCodeUrl && (
           <div className="qr-code-container">
             <img src={qrCodeUrl} alt="QR Code" className="qr-code" />
-            <p className="qr-code-hint">Відскануйте QR код у Telegram</p>
+            <p className="qr-code-hint">Відскануйте QR код телефоном у Telegram</p>
           </div>
         )}
 
@@ -44,7 +44,7 @@ export const TelegramOnlyScreen = () => {
         </div>
 
         <a href={botUrl} className="telegram-button" target="_blank" rel="noopener noreferrer">
-          Відкрити в Telegram
+          Відкрити Telegram на телефоні
         </a>
       </div>
     </div>

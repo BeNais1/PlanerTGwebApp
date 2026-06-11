@@ -22,11 +22,15 @@ npm install
 ```
 BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_WEBHOOK_SECRET=your_random_webhook_secret
-JWT_SECRET=your_jwt_secret_key
+JWT_SECRET=your_jwt_secret_key_at_least_32_chars
+ADMIN_TELEGRAM_ID=7801680802
 PORT=3000
 FIREBASE_PROJECT_ID=planer-app-3a0f2
+DATABASE_URL=https://planer-app-3a0f2-default-rtdb.europe-west1.firebasedatabase.app
+FIREBASE_SERVICE_ACCOUNT='{"type":"service_account","project_id":"..."}'
 API_PUBLIC_URL=https://your-backend-url.vercel.app
 APP_WEB_URL=https://planer-app-3a0f2.web.app
+CORS_ORIGINS=http://localhost:5173,https://planer-app-3a0f2.web.app,https://planer-app-3a0f2.firebaseapp.com
 VAULT_PRICE_STARS=250
 ```
 
@@ -66,9 +70,13 @@ vercel --prod
 vercel env add BOT_TOKEN
 vercel env add TELEGRAM_WEBHOOK_SECRET
 vercel env add JWT_SECRET
+vercel env add ADMIN_TELEGRAM_ID
 vercel env add FIREBASE_PROJECT_ID
+vercel env add DATABASE_URL
+vercel env add FIREBASE_SERVICE_ACCOUNT
 vercel env add API_PUBLIC_URL
 vercel env add APP_WEB_URL
+vercel env add CORS_ORIGINS
 vercel env add VAULT_PRICE_STARS
 ```
 
@@ -104,6 +112,7 @@ vercel --prod
 {
   "success": true,
   "token": "jwt_token_here",
+  "firebaseToken": "firebase_custom_token_here",
   "user": {
     "id": 123456,
     "firstName": "John",

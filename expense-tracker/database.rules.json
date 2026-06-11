@@ -1,0 +1,78 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      ".read": "auth != null && auth.token.admin === true",
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        "transactions": {
+          "$txId": {
+            ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true || (data.child('jointCheckId').exists() && root.child('joint_checks').child(data.child('jointCheckId').val()).child('participants').child(auth.uid).exists()))"
+          }
+        }
+      }
+    },
+    "user_shares": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+      }
+    },
+    "shared_receipts": {
+      "$shareCode": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('ownerId').val() === auth.uid && newData.child('shareCode').val() === $shareCode) || (data.exists() && data.child('ownerId').val() === auth.uid))"
+      }
+    },
+    "saved_receipts": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+      }
+    },
+    "receipt_savers": {
+      "$shareCode": {
+        ".read": "auth != null && (auth.token.admin === true || root.child('shared_receipts').child($shareCode).child('ownerId').val() === auth.uid)",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && (!newData.exists() || root.child('shared_receipts').child($shareCode).child('isActive').val() === true)"
+        }
+      }
+    },
+    "temp_codes": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (((!data.exists() || data.child('userId').val() === auth.uid) && newData.child('userId').val() === auth.uid) || (!newData.exists() && data.child('expiresAt').val() <= now))"
+      }
+    },
+    "user_temp_codes": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+      }
+    },
+    "joint_checks": {
+      "$jointCheckId": {
+        ".read": "auth != null && (auth.token.admin === true || data.child('participants').child(auth.uid).exists())",
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('creatorId').val() === auth.uid && newData.child('participants').child(auth.uid).exists()) || (data.exists() && data.child('participants').child(auth.uid).exists()))"
+      }
+    },
+    "vault_payments": {
+      ".read": false,
+      ".write": false
+    },
+    "vault_payment_events": {
+      ".read": false,
+      ".write": false
+    },
+    "vault_subscriptions": {
+      ".read": false,
+      ".write": false
+    },
+    "vault_demo_events": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

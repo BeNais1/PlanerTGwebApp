@@ -3,15 +3,18 @@ import { HomePage } from './pages/HomePage'
 import { TelegramOnlyScreen } from './components/auth/TelegramOnlyScreen'
 import { OnboardingWizard } from './components/OnboardingWizard'
 import { WalletSetupScreen } from './components/WalletSetupScreen'
+import { DeviceSessionScreen } from './components/DeviceSessionScreen'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
-import { getUserSettings, getReceiptShare, getSharedReceipt, getWallets, addWallet, updateUserSettings, type ReceiptShare } from './services/database'
+import { useSingleDeviceSession } from './hooks/useSingleDeviceSession'
+import { getUserSettings, getReceiptShare, getSharedReceipt, getWallets, addWallet, updateUserSettings, isValidShareCode, type ReceiptShare } from './services/database'
 import { SharedReceiptView } from './components/SharedReceiptView'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
 
 function AppContent() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, error: authError } = useAuth();
+  const deviceSession = useSingleDeviceSession(user?.id ?? null);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const [walletReady, setWalletReady] = useState<boolean | null>(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
@@ -21,8 +24,11 @@ function AppContent() {
 
   // Check for receipt deep link (either via Telegram start_param or direct URL query)
   useEffect(() => {
-    const tg = (window as any).Telegram?.WebApp;
-    const startParam = tg?.initDataUnsafe?.start_param;
+    if (authLoading || !user) return;
+
+    const tg = window.Telegram?.WebApp;
+    const rawStartParam = tg?.initDataUnsafe?.start_param;
+    const startParam = typeof rawStartParam === 'string' ? rawStartParam : '';
     const urlParams = new URLSearchParams(window.location.search);
     const receiptQuery = urlParams.get('receipt');
     
@@ -34,6 +40,11 @@ function AppContent() {
     }
 
     if (shareCode) {
+      if (!isValidShareCode(shareCode)) {
+        setReceiptError('Некоректне посилання на чек.');
+        return;
+      }
+
       setCheckingReceipt(true);
       // Try new system first, then fall back to legacy
       getReceiptShare(shareCode).then(async (share) => {
@@ -68,7 +79,7 @@ function AppContent() {
         setCheckingReceipt(false);
       });
     }
-  }, []);
+  }, [authLoading, user]);
 
   // Check onboarding status once user is authenticated
   useEffect(() => {
@@ -78,6 +89,15 @@ function AppContent() {
     }
 
     let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+
+      console.warn('Onboarding check timed out; opening app shell.');
+      setOnboardingDone((current) => current ?? true);
+      setWalletReady((current) => current ?? true);
+      setCheckingOnboarding(false);
+    }, 10000);
+
     (async () => {
       try {
         const [settings, wallets] = await Promise.all([
@@ -96,14 +116,14 @@ function AppContent() {
 
           // Update Telegram header colors to match theme
           try {
-            const tg = (window as any).Telegram?.WebApp;
+            const tg = window.Telegram?.WebApp;
             if (tg) {
               const headerColor = savedTheme === 'light' ? '#F2F2F7' : '#000000';
               const bgColor = savedTheme === 'light' ? '#F2F2F7' : '#000000';
               if (tg.setHeaderColor) tg.setHeaderColor(headerColor);
               if (tg.setBackgroundColor) tg.setBackgroundColor(bgColor);
             }
-          } catch (e) { /* ignore */ }
+          } catch { /* ignore */ }
         }
       } catch (err) {
         console.error('Error checking onboarding:', err);
@@ -112,11 +132,15 @@ function AppContent() {
           setWalletReady(false);
         }
       } finally {
+        window.clearTimeout(timeoutId);
         if (!cancelled) setCheckingOnboarding(false);
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, [user]);
 
   const handleOnboardingComplete = () => {
@@ -130,8 +154,64 @@ function AppContent() {
     setWalletReady(true);
   };
 
-  // Show loading while checking auth or onboarding or receipt
-  if (authLoading || checkingOnboarding || checkingReceipt) {
+  if (authLoading || checkingReceipt) {
+    return (
+      <div className="phone-frame">
+        <div style={{ margin: 'auto', color: 'var(--text-secondary)', fontSize: '15px', fontWeight: 500 }}>
+          Завантаження...
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="phone-frame">
+        <div style={{
+          margin: 'auto',
+          maxWidth: '320px',
+          padding: '24px',
+          textAlign: 'center',
+          color: 'var(--text-secondary)',
+        }}>
+          <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            Не вдалося відкрити застосунок
+          </div>
+          <div style={{ fontSize: '14px', lineHeight: 1.45, marginBottom: '18px' }}>
+            {authError || 'Авторизація Telegram не завершилась.'}
+          </div>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              border: 0,
+              borderRadius: '14px',
+              padding: '12px 18px',
+              background: 'var(--accent)',
+              color: 'white',
+              fontWeight: 700,
+            }}
+          >
+            Спробувати ще раз
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (user && deviceSession.status === 'blocked') {
+    return (
+      <DeviceSessionScreen
+        activeSession={deviceSession.activeSession}
+        isClaiming={deviceSession.isClaiming}
+        error={deviceSession.error}
+        onTransfer={deviceSession.claimCurrentDevice}
+      />
+    );
+  }
+
+  // Show loading while checking onboarding after this device owns the session
+  if (checkingOnboarding) {
     return (
       <div className="phone-frame">
         <div style={{ margin: 'auto', color: 'var(--text-secondary)', fontSize: '15px', fontWeight: 500 }}>
@@ -188,40 +268,26 @@ function AppContent() {
 }
 
 function App() {
-  // TEST_MODE: allows desktop browser access for testing
-  // Enable via: localStorage.setItem('ALLOW_DESKTOP', 'true') in browser console
-  // Or via: VITE_TEST_MODE=true in .env.local
-  // To disable: localStorage.removeItem('ALLOW_DESKTOP')
-  const isTestMode = useMemo(() => {
-    try {
-      return import.meta.env.VITE_TEST_MODE === 'true' ||
-        localStorage.getItem('ALLOW_DESKTOP') === 'true';
-    } catch { return false; }
-  }, []);
+  // Reload any open Mini App shortly after a new hosting build is deployed.
+  useAutoUpdate();
 
   const isTelegramWebApp = useMemo(() => {
-    // In test mode, allow desktop access
-    if (isTestMode) return true;
-
     const tg = window.Telegram?.WebApp;
     
     if (!tg) {
       return false;
     }
+
+    const platform = (tg.platform || '').toLowerCase();
+    const isMobileTelegram = platform === 'ios' || platform === 'android' || platform === 'android_x';
     
-    const platform = tg.platform;
-    
-    // Блокуємо невідомі та веб-версії
-    if (platform === 'unknown' || platform === 'web' || platform === 'weba') {
+    // Дозволяємо тільки мобільний Telegram. Desktop/Web показують екран з підказкою.
+    if (!isMobileTelegram) {
       return false;
     }
     
-    // Дозволяємо мобільні платформи та десктоп-клієнти Telegram
-    return platform === 'ios' || platform === 'android' || platform === 'tdesktop' || platform === 'macos';
-  }, [isTestMode]);
-
-  // Reload any open Mini App shortly after a new hosting build is deployed.
-  useAutoUpdate();
+    return true;
+  }, []);
 
   if (!isTelegramWebApp) {
     return <TelegramOnlyScreen />;
@@ -229,7 +295,7 @@ function App() {
 
   // Expand the Telegram WebApp to maximum height
   try {
-    const tg: any = window.Telegram?.WebApp;
+    const tg = window.Telegram?.WebApp;
     if (tg && !tg.isExpanded) {
       tg.expand();
     }

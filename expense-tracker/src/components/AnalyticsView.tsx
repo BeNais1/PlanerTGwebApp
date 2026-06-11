@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { type Transaction, subscribeToAllTransactions } from "../services/database";
+import { getAllTransactions, onTransactionsChanged, type Transaction, subscribeToAllTransactions } from "../services/database";
 import { type Currency, useCurrency } from "../hooks/useCurrency";
 import { useCategories } from "../hooks/useCategories";
 import "./AnalyticsView.css";
@@ -98,13 +98,40 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setAllTransactions([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let isSubscribed = true;
+    const refreshTransactions = async () => {
+      try {
+        const transactions = await getAllTransactions(user.id);
+        if (isSubscribed) setAllTransactions(transactions);
+      } catch (error) {
+        console.error("Failed to refresh analytics transactions:", error);
+      } finally {
+        if (isSubscribed) setIsLoading(false);
+      }
+    };
 
     setIsLoading(true);
-    return subscribeToAllTransactions(user.id, (transactions) => {
+    const unsubscribeRealtime = subscribeToAllTransactions(user.id, (transactions) => {
+      if (!isSubscribed) return;
       setAllTransactions(transactions);
       setIsLoading(false);
     });
+
+    const unsubscribeChanged = onTransactionsChanged(user.id, () => {
+      void refreshTransactions();
+    });
+
+    return () => {
+      isSubscribed = false;
+      unsubscribeRealtime();
+      unsubscribeChanged();
+    };
   }, [user]);
 
   const range = useMemo(() => getRangeBounds(dateRange), [dateRange]);

@@ -1,7 +1,7 @@
 import express from 'express';
+import crypto from 'crypto';
 import { parseTelegramInitData, validateTelegramWebAppData } from '../utils/telegram.js';
 
-const ADMIN_TELEGRAM_ID = '7801680802';
 const VAULT_PLAN = 'vault_monthly';
 const VAULT_SUBSCRIPTION_PERIOD = 30 * 24 * 60 * 60;
 const DEFAULT_VAULT_PRICE_STARS = 250;
@@ -16,6 +16,10 @@ function getVaultPriceStars() {
   return configuredPrice;
 }
 
+function getAdminTelegramId() {
+  return (process.env.ADMIN_TELEGRAM_ID || '7801680802').trim();
+}
+
 function requireAdmin(req, res, next) {
   const { initData } = req.body || {};
 
@@ -25,7 +29,7 @@ function requireAdmin(req, res, next) {
 
   const user = parseTelegramInitData(initData);
 
-  if (!user || String(user.id) !== ADMIN_TELEGRAM_ID) {
+  if (!user || String(user.id) !== getAdminTelegramId()) {
     return res.status(403).json({ error: 'Підписка Vault поки доступна лише адміністратору.' });
   }
 
@@ -34,7 +38,7 @@ function requireAdmin(req, res, next) {
 }
 
 function createOrderNumber() {
-  const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  const suffix = crypto.randomInt(0, 100).toString().padStart(2, '0');
   return `${Date.now()}${suffix}`;
 }
 
@@ -96,7 +100,7 @@ export function registerVaultPaymentHandlers({ bot, db }) {
       const hasDemoSubscription = activeSubscription?.status === 'demo_active';
       const isValid = parsedPayload
         && parsedPayload.userId === String(query.from.id)
-        && parsedPayload.userId === ADMIN_TELEGRAM_ID
+        && parsedPayload.userId === getAdminTelegramId()
         && query.currency === 'XTR'
         && query.total_amount === getVaultPriceStars()
         && order
@@ -125,7 +129,7 @@ export function registerVaultPaymentHandlers({ bot, db }) {
       !db
       || !parsedPayload
       || parsedPayload.userId !== String(ctx.from.id)
-      || parsedPayload.userId !== ADMIN_TELEGRAM_ID
+      || parsedPayload.userId !== getAdminTelegramId()
       || payment.currency !== 'XTR'
       || payment.total_amount !== getVaultPriceStars()
     ) {

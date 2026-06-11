@@ -40,6 +40,7 @@ class ApiClient {
       const response = await fetch(url, {
         ...fetchOptions,
         headers,
+        credentials: 'omit',
       });
 
       if (!response.ok) {

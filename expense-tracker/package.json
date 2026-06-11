@@ -6,12 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "node -e \"const fs=require('fs'); if(!fs.existsSync('public')) fs.mkdirSync('public'); fs.writeFileSync('public/version.json', JSON.stringify({ version: Date.now() }))\" && tsc -b && vite build",
-    "deploy:hosting": "firebase deploy --only hosting --project planer-app-3a0f2",
+    "deploy:hosting": "npx --yes firebase-tools@15.19.0 deploy --only hosting --project planer-app-3a0f2",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@telegram-apps/sdk-react": "^3.3.9",
     "@types/qrcode": "^1.5.6",
     "firebase": "^12.11.0",
     "html-to-image": "^1.11.13",
@@ -31,7 +30,6 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "firebase-tools": "^15.13.0",
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",

@@ -27,6 +27,74 @@ const BackspaceIcon = () => (
   </svg>
 );
 
+const parseSafeMathExpression = (expr: string): number | null => {
+  const input = expr.replace(/×/g, '*').replace(/÷/g, '/').replace(/\s/g, '');
+  if (!input || input.length > 32 || /[^0-9+\-*/.]/.test(input)) return null;
+
+  let index = 0;
+
+  const parseNumber = (): number | null => {
+    let sign = 1;
+    if (input[index] === '+') {
+      index += 1;
+    } else if (input[index] === '-') {
+      sign = -1;
+      index += 1;
+    }
+
+    const start = index;
+    let dots = 0;
+    let digits = 0;
+
+    while (index < input.length && /[0-9.]/.test(input[index])) {
+      if (input[index] === '.') {
+        dots += 1;
+        if (dots > 1) return null;
+      } else {
+        digits += 1;
+      }
+      index += 1;
+    }
+
+    if (digits === 0) return null;
+    const parsed = Number(input.slice(start, index));
+    return Number.isFinite(parsed) ? sign * parsed : null;
+  };
+
+  const parseTerm = (): number | null => {
+    let value = parseNumber();
+    if (value === null) return null;
+
+    while (input[index] === '*' || input[index] === '/') {
+      const operator = input[index];
+      index += 1;
+      const right = parseNumber();
+      if (right === null) return null;
+      if (operator === '*') value *= right;
+      if (operator === '/') {
+        if (right === 0) return null;
+        value /= right;
+      }
+    }
+
+    return value;
+  };
+
+  let value = parseTerm();
+  if (value === null) return null;
+
+  while (input[index] === '+' || input[index] === '-') {
+    const operator = input[index];
+    index += 1;
+    const right = parseTerm();
+    if (right === null) return null;
+    value = operator === '+' ? value + right : value - right;
+  }
+
+  if (index !== input.length || !Number.isFinite(value)) return null;
+  return Math.round(value * 100) / 100;
+};
+
 export const NumericKeypad = ({
   value,
   onChange,
@@ -102,18 +170,7 @@ export const NumericKeypad = ({
 
   // Evaluate expression
   const evaluateExpression = (expr: string): number => {
-    try {
-      // Replace visual operators with JS operators
-      const jsExpr = expr
-        .replace(/×/g, '*')
-        .replace(/÷/g, '/');
-      // Simple safe eval using Function
-      const result = new Function('return ' + jsExpr)();
-      if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
-        return Math.round(result * 100) / 100;
-      }
-    } catch { /* ignore */ }
-    return 0;
+    return parseSafeMathExpression(expr) ?? 0;
   };
 
   const formatThousands = (raw: string): string => {
@@ -214,12 +271,5 @@ export const NumericKeypad = ({
 // Existing helper is co-located so all keypad consumers use the same expression parsing.
 // eslint-disable-next-line react-refresh/only-export-components
 export const getKeypadNumericValue = (value: string): number => {
-  try {
-    const jsExpr = value.replace(/×/g, '*').replace(/÷/g, '/');
-    const result = new Function('return ' + jsExpr)();
-    if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
-      return Math.round(result * 100) / 100;
-    }
-  } catch { /* ignore */ }
-  return parseFloat(value) || 0;
+  return (parseSafeMathExpression(value) ?? parseFloat(value)) || 0;
 };

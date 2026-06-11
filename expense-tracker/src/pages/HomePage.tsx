@@ -121,10 +121,24 @@ export const HomePage = () => {
   useEffect(() => {
     if (!user) return;
     let isSubscribed = true;
+    setIsDataLoaded(false);
+    const timeoutId = window.setTimeout(() => {
+      if (!isSubscribed) return;
+      console.warn('Transaction subscription timed out; opening app with empty data.');
+      setIsDataLoaded(true);
+    }, 8000);
 
     const unsubTx = subscribeToTransactions(user.id, currentMonth, (txs) => {
       if (isSubscribed) {
+        window.clearTimeout(timeoutId);
         setTransactions(txs);
+        setIsDataLoaded(true);
+      }
+    }, (error) => {
+      if (isSubscribed) {
+        window.clearTimeout(timeoutId);
+        console.error('Transaction subscription failed:', error);
+        setTransactions([]);
         setIsDataLoaded(true);
       }
     });
@@ -140,6 +154,7 @@ export const HomePage = () => {
 
     return () => {
       isSubscribed = false;
+      window.clearTimeout(timeoutId);
       unsubTx();
       unsubSettings();
     };

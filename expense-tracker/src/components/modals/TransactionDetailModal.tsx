@@ -148,7 +148,7 @@ export const TransactionDetailModal = ({
     if (tg && tg.openTelegramLink) {
       tg.openTelegramLink(shareUrl);
     } else {
-      window.open(shareUrl, '_blank');
+      window.open(shareUrl, '_blank', 'noopener,noreferrer');
     }
   };
 

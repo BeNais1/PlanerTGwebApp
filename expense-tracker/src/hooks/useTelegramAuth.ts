@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { signInWithCustomToken, signOut as signOutFirebase } from 'firebase/auth';
+import { auth as firebaseAuth } from '../config/firebase';
+import { authenticateWithTelegram } from '../services/auth';
 import type { TelegramUser } from '../types/telegram.d';
 
 interface AuthState {
@@ -7,6 +10,18 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   error: string | null;
+}
+
+const AUTH_STEP_TIMEOUT_MS = 12000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+
+    promise
+      .then(resolve, reject)
+      .finally(() => window.clearTimeout(timeoutId));
+  });
 }
 
 export const useTelegramAuth = () => {
@@ -20,6 +35,25 @@ export const useTelegramAuth = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let isFinished = false;
+
+    const finishAuth = (nextState: AuthState) => {
+      isFinished = true;
+      if (isMounted) {
+        setAuthState(nextState);
+      }
+    };
+
+    const watchdogId = window.setTimeout(() => {
+      if (!isMounted || isFinished) return;
+      finishAuth({
+        isAuthenticated: false,
+        user: null,
+        token: null,
+        isLoading: false,
+        error: 'Авторизація триває занадто довго. Закрийте застосунок і відкрийте його знову через /start.',
+      });
+    }, 16000);
 
     const authenticate = async () => {
       try {
@@ -27,8 +61,7 @@ export const useTelegramAuth = () => {
         
         if (!tg) {
           // Check if TEST_MODE is enabled for desktop testing
-          const isTestMode = import.meta.env.VITE_TEST_MODE === 'true' ||
-            localStorage.getItem('ALLOW_DESKTOP') === 'true';
+          const isTestMode = import.meta.env.VITE_TEST_MODE === 'true';
           
           if (isTestMode) {
             // Create a test user for desktop development/testing
@@ -43,65 +76,74 @@ export const useTelegramAuth = () => {
             const { registerUser } = await import('../services/database');
             await registerUser(testUser.id, testUser.first_name, testUser.last_name || '', testUser.username || '');
 
-            if (isMounted) {
-              setAuthState({
-                isAuthenticated: true,
-                user: testUser,
-                token: 'test-desktop-session',
-                isLoading: false,
-                error: null,
-              });
-            }
+            finishAuth({
+              isAuthenticated: true,
+              user: testUser,
+              token: 'test-desktop-session',
+              isLoading: false,
+              error: null,
+            });
             return;
           }
 
           throw new Error('Telegram WebApp not available');
         }
 
-        // Получаем данные пользователя из Telegram
-        const initDataUnsafe = tg.initDataUnsafe;
-
-        if (!initDataUnsafe.user) {
-          throw new Error('User data not available');
+        if (!tg.initData) {
+          throw new Error('Telegram initData not available');
         }
 
-        let validUser = initDataUnsafe.user as TelegramUser;
+        const authResponse = await withTimeout(
+          authenticateWithTelegram(tg.initData),
+          AUTH_STEP_TIMEOUT_MS,
+          'Не вдалося підключитися до авторизації. Відкрийте застосунок ще раз.'
+        );
+        await withTimeout(
+          signInWithCustomToken(firebaseAuth, authResponse.firebaseToken),
+          AUTH_STEP_TIMEOUT_MS,
+          'Firebase авторизація не відповіла. Відкрийте застосунок ще раз.'
+        );
 
-        // Bypass Vercel backend validation since Vercel is protected by SSO
-        // This makes the app rely solely on Telegram data and Firebase directly.
-        const token = 'telegram-valid-session';
+        const validUser: TelegramUser = {
+          id: authResponse.user.id,
+          first_name: authResponse.user.firstName,
+          last_name: authResponse.user.lastName,
+          username: authResponse.user.username,
+          photo_url: authResponse.user.photoUrl,
+          language_code: authResponse.user.languageCode,
+        };
+        const token = authResponse.token;
         localStorage.setItem('authToken', token);
 
         // Регистрируем пользователя в Firebase
-        const { registerUser } = await import('../services/database');
-        await registerUser(
-          validUser.id,
-          validUser.first_name,
-          validUser.last_name || '',
-          validUser.username || ''
-        );
-
-        if (isMounted) {
-          setAuthState({
-            isAuthenticated: true,
-            user: validUser,
-            token,
-            isLoading: false,
-            error: null,
+        void import('../services/database')
+          .then(({ registerUser }) => registerUser(
+            validUser.id,
+            validUser.first_name,
+            validUser.last_name || '',
+            validUser.username || ''
+          ))
+          .catch((registerError) => {
+            console.error('User registration sync failed:', registerError);
           });
-        }
+
+        finishAuth({
+          isAuthenticated: true,
+          user: validUser,
+          token,
+          isLoading: false,
+          error: null,
+        });
 
       } catch (error) {
         console.error('Authentication error:', error);
-        if (isMounted) {
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            token: null,
-            isLoading: false,
-            error: error instanceof Error ? error.message : 'Authentication failed',
-          });
-        }
+        finishAuth({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          isLoading: false,
+          error: error instanceof Error ? error.message : 'Authentication failed',
+        });
       }
     };
 
@@ -109,11 +151,13 @@ export const useTelegramAuth = () => {
 
     return () => {
       isMounted = false;
+      window.clearTimeout(watchdogId);
     };
   }, []);
 
   const logout = () => {
     localStorage.removeItem('authToken');
+    void signOutFirebase(firebaseAuth);
     setAuthState({
       isAuthenticated: false,
       user: null,

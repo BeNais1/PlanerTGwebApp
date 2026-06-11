@@ -1,5 +1,13 @@
 import jwt from 'jsonwebtoken';
 
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET must be configured and at least 32 characters long.');
+  }
+  return secret;
+}
+
 /**
  * Middleware для проверки JWT токена
  */
@@ -13,7 +21,10 @@ export function verifyToken(req, res, next) {
     
     const token = authHeader.substring(7);
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret(), {
+      issuer: 'expense-tracker-api',
+      audience: 'expense-tracker-web',
+    });
     
     // Добавляем данные пользователя в request
     req.user = decoded;

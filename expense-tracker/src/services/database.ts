@@ -10,6 +10,7 @@ import {
   query,
   orderByChild,
   equalTo,
+  runTransaction,
   type Unsubscribe,
 } from 'firebase/database';
 import type { Category } from '../config/categories';
@@ -24,6 +25,37 @@ export interface UserData {
 }
 
 export const ADMIN_TELEGRAM_ID = 7801680802;
+
+export const ACTIVE_SESSION_STALE_MS = 45000;
+
+const TRANSACTIONS_CHANGED_EVENT = 'expense-tracker:transactions-changed';
+
+function notifyTransactionsChanged(userId: number | string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(TRANSACTIONS_CHANGED_EVENT, {
+    detail: { userId: String(userId) },
+  }));
+}
+
+export function onTransactionsChanged(userId: number | string, callback: () => void): Unsubscribe {
+  if (typeof window === 'undefined') return () => {};
+  const targetUserId = String(userId);
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<{ userId?: string }>).detail;
+    if (detail?.userId === targetUserId) callback();
+  };
+
+  window.addEventListener(TRANSACTIONS_CHANGED_EVENT, handler);
+  return () => window.removeEventListener(TRANSACTIONS_CHANGED_EVENT, handler);
+}
+
+export interface ActiveSession {
+  deviceId: string;
+  sessionId: string;
+  deviceName: string;
+  claimedAt: number;
+  lastSeenAt: number;
+}
 
 export interface AdminStats {
   userCount: number;
@@ -244,6 +276,37 @@ export function getCurrentMonth(date: number | Date = new Date()): string {
   return `${year}-${month}`;
 }
 
+export const SHARE_CODE_PATTERN = /^[A-Za-z0-9_-]{8,32}$/;
+const TELEGRAM_USER_ID_PATTERN = /^\d{1,20}$/;
+const SHARE_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+
+export function isValidShareCode(value: unknown): value is string {
+  return typeof value === 'string' && SHARE_CODE_PATTERN.test(value);
+}
+
+export function isValidTelegramUserId(value: unknown): boolean {
+  return (typeof value === 'string' || typeof value === 'number')
+    ? TELEGRAM_USER_ID_PATTERN.test(String(value))
+    : false;
+}
+
+function getSecureRandomIndex(maxExclusive: number): number {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.getRandomValues) {
+    throw new Error('Secure random generator is unavailable.');
+  }
+
+  const maxUint32 = 0xffffffff;
+  const limit = maxUint32 - (maxUint32 % maxExclusive);
+  const buffer = new Uint32Array(1);
+
+  do {
+    cryptoApi.getRandomValues(buffer);
+  } while (buffer[0] >= limit);
+
+  return buffer[0] % maxExclusive;
+}
+
 // ====== User Operations ======
 
 export async function registerUser(
@@ -269,6 +332,74 @@ export async function getUserData(userId: number): Promise<UserData | null> {
   const userRef = ref(database, `users/${userId}`);
   const snapshot = await get(userRef);
   return snapshot.exists() ? (snapshot.val() as UserData) : null;
+}
+
+// ====== Active Device Session ======
+
+export function subscribeToActiveSession(
+  userId: number,
+  callback: (session: ActiveSession | null) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const sessionRef = ref(database, `users/${userId}/activeSession`);
+  return onValue(sessionRef, (snapshot) => {
+    callback(snapshot.exists() ? (snapshot.val() as ActiveSession) : null);
+  }, onError);
+}
+
+export async function claimActiveSession(
+  userId: number,
+  nextSession: ActiveSession,
+  force = false
+): Promise<ActiveSession | null> {
+  const sessionRef = ref(database, `users/${userId}/activeSession`);
+  const result = await runTransaction(sessionRef, (current: ActiveSession | null) => {
+    const isMine = current?.deviceId === nextSession.deviceId;
+    const isStale = !current || Date.now() - (current.lastSeenAt || 0) > ACTIVE_SESSION_STALE_MS;
+
+    if (!current || isMine || isStale || force) {
+      return nextSession;
+    }
+
+    return;
+  });
+
+  return result.committed && result.snapshot.exists()
+    ? (result.snapshot.val() as ActiveSession)
+    : null;
+}
+
+export async function updateActiveSessionHeartbeat(
+  userId: number,
+  deviceId: string,
+  sessionId: string
+): Promise<void> {
+  const sessionRef = ref(database, `users/${userId}/activeSession`);
+  await runTransaction(sessionRef, (current: ActiveSession | null) => {
+    if (!current || current.deviceId !== deviceId || current.sessionId !== sessionId) {
+      return;
+    }
+
+    return {
+      ...current,
+      lastSeenAt: Date.now(),
+    };
+  });
+}
+
+export async function releaseActiveSession(
+  userId: number,
+  deviceId: string,
+  sessionId: string
+): Promise<void> {
+  const sessionRef = ref(database, `users/${userId}/activeSession`);
+  await runTransaction(sessionRef, (current: ActiveSession | null) => {
+    if (!current || current.deviceId !== deviceId || current.sessionId !== sessionId) {
+      return;
+    }
+
+    return null;
+  });
 }
 
 // ====== Admin Dashboard ======
@@ -483,7 +614,8 @@ export async function deleteWallet(
 
 export function subscribeToWallets(
   userId: number,
-  callback: (wallets: Wallet[]) => void
+  callback: (wallets: Wallet[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const walletsRef = ref(database, `users/${userId}/wallets`);
   return onValue(walletsRef, (snapshot) => {
@@ -495,7 +627,7 @@ export function subscribeToWallets(
     }));
     wallets.sort((a, b) => a.createdAt - b.createdAt);
     callback(wallets);
-  });
+  }, onError);
 }
 
 export async function getWallets(userId: number): Promise<Wallet[]> {
@@ -540,6 +672,7 @@ export async function addTransaction(
   }
 
   await update(ref(database), updates);
+  notifyTransactionsChanged(userId);
   return newRef.key!;
 }
 
@@ -588,6 +721,7 @@ export async function addTransfer(
   updates[`users/${userId}/wallets/${toWalletId}/balance`] = (toWallet.balance || 0) + convertedAmount;
 
   await update(ref(database), updates);
+  notifyTransactionsChanged(userId);
   return newRef.key!;
 }
 
@@ -615,7 +749,11 @@ export async function updateTransaction(
 ): Promise<void> {
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
   const beforeSnap = await get(txRef);
-  if (!beforeSnap.exists()) { await update(txRef, data); return; }
+  if (!beforeSnap.exists()) {
+    await update(txRef, data);
+    notifyTransactionsChanged(userId);
+    return;
+  }
 
   const before = { id: txId, ...(beforeSnap.val() as Omit<Transaction, 'id'>) } as Transaction;
   const after: Transaction = { ...before, ...data, id: txId };
@@ -651,12 +789,14 @@ export async function updateTransaction(
   }
 
   await update(ref(database), updates);
+  notifyTransactionsChanged(userId);
 
   // Sync shared receipt if exists
   try {
     const mappingSnap = await get(ref(database, `user_shares/${String(userId)}/${txId}`));
     if (!mappingSnap.exists()) return;
     const shareCode = mappingSnap.val() as string;
+    if (!isValidShareCode(shareCode)) return;
     await update(ref(database, `shared_receipts/${shareCode}`), { transaction: after, updatedAt: Date.now() });
     const oldCur = before.currency || 'EUR';
     const newCur = after.currency || 'EUR';
@@ -711,12 +851,14 @@ export async function deleteTransaction(
   }
 
   await update(ref(database), updates);
+  notifyTransactionsChanged(userId);
 
   try {
     const mappingRef = ref(database, `user_shares/${userId}/${txId}`);
     const mappingSnap = await get(mappingRef);
     if (mappingSnap.exists()) {
       const shareCode = mappingSnap.val() as string;
+      if (!isValidShareCode(shareCode)) return;
       await update(ref(database, `shared_receipts/${shareCode}`), {
         isActive: false, disabledReason: 'receipt_deleted', updatedAt: Date.now(),
       });
@@ -730,6 +872,7 @@ export async function deleteTransaction(
 // ====== Legacy Shared Receipts (backward compat) ======
 
 export async function getSharedReceipt(receiptId: string): Promise<SharedReceipt | null> {
+  if (!isValidShareCode(receiptId)) return null;
   const receiptRef = ref(database, `shared_receipts/${receiptId}`);
   const snapshot = await get(receiptRef);
   return snapshot.exists() ? (snapshot.val() as SharedReceipt) : null;
@@ -738,16 +881,15 @@ export async function getSharedReceipt(receiptId: string): Promise<SharedReceipt
 // ====== New Receipt Sharing System ======
 
 function generateShareCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   let code = '';
   for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += SHARE_CODE_CHARS.charAt(getSecureRandomIndex(SHARE_CODE_CHARS.length));
   }
   return code;
 }
 
 function generateTemporaryCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(100000 + getSecureRandomIndex(900000));
 }
 
 export function getUserQrPayload(userId: string | number, displayName: string, username?: string): string {
@@ -762,7 +904,13 @@ export function getUserQrPayload(userId: string | number, displayName: string, u
 export function parseUserQrPayload(rawValue: string): JointCheckParticipant | null {
   try {
     const parsed = JSON.parse(rawValue);
-    if (parsed?.type !== 'planer_user' || !parsed.userId || !parsed.displayName) return null;
+    if (
+      parsed?.type !== 'planer_user'
+      || !isValidTelegramUserId(parsed.userId)
+      || typeof parsed.displayName !== 'string'
+      || parsed.displayName.length > 128
+    ) return null;
+
     return {
       userId: String(parsed.userId),
       displayName: String(parsed.displayName),
@@ -851,6 +999,7 @@ export async function getExistingShare(
     if (!mappingSnap.exists()) return null;
     
     const shareCode = mappingSnap.val() as string;
+    if (!isValidShareCode(shareCode)) return null;
     // Fetch the actual share data
     const shareRef = ref(database, `shared_receipts/${shareCode}`);
     const shareSnap = await get(shareRef);
@@ -876,6 +1025,9 @@ export async function createReceiptShare(
     try {
       const existing = await getExistingShare(userId, transaction.id);
       if (existing) {
+        if (!isValidShareCode(existing.shareCode)) {
+          throw new Error('Invalid existing share code');
+        }
         const shareRef = ref(database, `shared_receipts/${existing.shareCode}`);
         // Update privacy mode if changed
         if (existing.privacyMode !== privacyMode) {
@@ -932,6 +1084,7 @@ export async function createReceiptShare(
 
 /** Get a receipt share by shareCode (validates original transaction still exists) */
 export async function getReceiptShare(shareCode: string): Promise<ReceiptShare | null> {
+  if (!isValidShareCode(shareCode)) return null;
   const shareRef = ref(database, `shared_receipts/${shareCode}`);
   const snapshot = await get(shareRef);
   if (!snapshot.exists()) return null;
@@ -1006,6 +1159,7 @@ export async function getShareStatus(
     if (!mappingSnap.exists()) return null;
     
     const shareCode = mappingSnap.val() as string;
+    if (!isValidShareCode(shareCode)) return null;
     const shareRef = ref(database, `shared_receipts/${shareCode}`);
     const shareSnap = await get(shareRef);
     if (!shareSnap.exists()) return null;
@@ -1026,6 +1180,9 @@ export async function getShareStatus(
 
 /** Toggle the active state of a share link */
 export async function toggleReceiptShare(shareCode: string, isActive: boolean): Promise<void> {
+  if (!isValidShareCode(shareCode)) {
+    throw new Error('Invalid share code');
+  }
   const shareRef = ref(database, `shared_receipts/${shareCode}`);
   await update(shareRef, { isActive, updatedAt: Date.now() });
 }
@@ -1036,6 +1193,7 @@ export async function saveSharedReceipt(
   displayName: string,
   shareCode: string
 ): Promise<void> {
+  if (!isValidShareCode(shareCode)) return;
   const userIdStr = String(userId);
   
   // Check if already saved
@@ -1074,6 +1232,7 @@ export async function unsaveSharedReceipt(
   userId: string | number,
   shareCode: string
 ): Promise<void> {
+  if (!isValidShareCode(shareCode)) return;
   const userIdStr = String(userId);
   await remove(ref(database, `saved_receipts/${userIdStr}/${shareCode}`));
   await remove(ref(database, `receipt_savers/${shareCode}/${userIdStr}`));
@@ -1099,11 +1258,17 @@ export function subscribeToSavedReceipts(
 
 /** Get list of users who saved a receipt (owner only — enforced in UI) */
 export async function getReceiptSavers(shareCode: string): Promise<ReceiptSaver[]> {
-  const saversRef = ref(database, `receipt_savers/${shareCode}`);
-  const snapshot = await get(saversRef);
-  if (!snapshot.exists()) return [];
-  const data = snapshot.val();
-  return Object.values(data) as ReceiptSaver[];
+  if (!isValidShareCode(shareCode)) return [];
+  try {
+    const saversRef = ref(database, `receipt_savers/${shareCode}`);
+    const snapshot = await get(saversRef);
+    if (!snapshot.exists()) return [];
+    const data = snapshot.val();
+    return Object.values(data) as ReceiptSaver[];
+  } catch (error) {
+    console.warn('getReceiptSavers failed:', error);
+    return [];
+  }
 }
 
 /** Check if the current user has already saved a share */
@@ -1111,6 +1276,7 @@ export async function checkIfSavedByMe(
   userId: string | number,
   shareCode: string
 ): Promise<boolean> {
+  if (!isValidShareCode(shareCode)) return false;
   const savedRef = ref(database, `saved_receipts/${String(userId)}/${shareCode}`);
   const snapshot = await get(savedRef);
   return snapshot.exists();
@@ -1186,6 +1352,7 @@ export async function createJointCheck(
   }));
 
   await update(jointCheckRef, { transactionIds });
+  Object.keys(participantMap).forEach((participantId) => notifyTransactionsChanged(participantId));
   jointCheck.transactionIds = transactionIds;
   return jointCheck;
 }
@@ -1247,6 +1414,7 @@ export async function addJointCheckPayment(
       description: remainingAmount === 0 ? `${jointCheck.title} · закрито` : jointCheck.title,
     })
   )));
+  Object.keys(transactionIds).forEach((participantId) => notifyTransactionsChanged(participantId));
 }
 
 // ====== Realtime Subscriptions ======
@@ -1254,7 +1422,8 @@ export async function addJointCheckPayment(
 export function subscribeToTransactions(
   userId: number,
   month: string,
-  callback: (transactions: Transaction[]) => void
+  callback: (transactions: Transaction[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const txRef = ref(database, `users/${userId}/transactions`);
   const txQuery = query(txRef, orderByChild('month'), equalTo(month));
@@ -1271,7 +1440,7 @@ export function subscribeToTransactions(
     }));
     transactions.sort((a, b) => b.date - a.date);
     callback(transactions);
-  });
+  }, onError);
 }
 
 export function subscribeToAllTransactions(
@@ -1315,7 +1484,8 @@ export function subscribeToMonthlyBalance(
 
 export function subscribeToSettings(
   userId: number,
-  callback: (settings: UserSettings | null) => void
+  callback: (settings: UserSettings | null) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const settingsRef = ref(database, `users/${userId}/settings`);
   return onValue(settingsRef, (snapshot) => {
@@ -1324,7 +1494,7 @@ export function subscribeToSettings(
     } else {
       callback(null);
     }
-  });
+  }, onError);
 }
 
 export async function getUserSettings(userId: number): Promise<UserSettings> {
@@ -1346,7 +1516,8 @@ export async function updateUserSettings(
 
 export function subscribeToUserSettings(
   userId: number,
-  callback: (settings: UserSettings) => void
+  callback: (settings: UserSettings) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const settingsRef = ref(database, `users/${userId}/settings`);
   return onValue(settingsRef, (snapshot) => {
@@ -1355,7 +1526,7 @@ export function subscribeToUserSettings(
     } else {
       callback({ currency: 'EUR' });
     }
-  });
+  }, onError);
 }
 
 // ====== All Transactions ======

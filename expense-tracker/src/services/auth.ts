@@ -4,6 +4,7 @@ import { API_ENDPOINTS } from '../config/api';
 interface TelegramAuthResponse {
   success: boolean;
   token: string;
+  firebaseToken: string;
   user: {
     id: number;
     firstName: string;

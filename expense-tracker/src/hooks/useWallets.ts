@@ -21,11 +21,26 @@ export function useWallets() {
 
   useEffect(() => {
     if (!user) return;
+    setIsLoaded(false);
+    const timeoutId = window.setTimeout(() => {
+      console.warn('Wallet subscription timed out; continuing with empty wallets.');
+      setIsLoaded(true);
+    }, 8000);
+
     const unsub = subscribeToWallets(user.id, (ws) => {
+      window.clearTimeout(timeoutId);
       setWallets(ws);
       setIsLoaded(true);
+    }, (error) => {
+      window.clearTimeout(timeoutId);
+      console.error('Wallet subscription failed:', error);
+      setWallets([]);
+      setIsLoaded(true);
     });
-    return () => unsub();
+    return () => {
+      window.clearTimeout(timeoutId);
+      unsub();
+    };
   }, [user]);
 
   // Total balance in EUR (base currency)

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import authRoutes from './routes/auth.js';
 import { createVaultRoutes, registerVaultPaymentHandlers } from './routes/vault.js';
 import { Telegraf } from 'telegraf';
@@ -28,11 +29,23 @@ if (rawServiceAccount) {
 const db = admin.apps.length ? admin.database() : null;
 
 const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 const token = (process.env.BOT_TOKEN || "").trim();
 const webhookSecret = (process.env.TELEGRAM_WEBHOOK_SECRET || "").trim();
 const bot = new Telegraf(token);
+const allowedOrigins = (process.env.CORS_ORIGINS || [
+  'http://localhost:5173',
+  'https://planer-app-3a0f2.web.app',
+  'https://planer-app-3a0f2.firebaseapp.com',
+].join(','))
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const APP_WEB_URL = (process.env.APP_WEB_URL || 'https://planer-app-3a0f2.web.app').replace(/\/+$/, '');
+const SHARE_CODE_RE = /^[A-Za-z0-9_-]{8,32}$/;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -66,11 +79,82 @@ function formatDate(timestamp) {
   });
 }
 
+function isValidShareCode(value) {
+  return typeof value === 'string' && SHARE_CODE_RE.test(value);
+}
+
+function normalizeSecret(value) {
+  return typeof value === 'string' ? value : '';
+}
+
+function safeCompareSecret(provided, expected) {
+  if (!provided || !expected) return false;
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length
+    && crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+function createRateLimiter({ windowMs, max }) {
+  const hits = new Map();
+
+  return (req, res, next) => {
+    const key = `${req.ip}:${req.path}`;
+    const now = Date.now();
+    const current = hits.get(key);
+
+    if (!current || current.resetAt <= now) {
+      hits.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    current.count += 1;
+    if (current.count > max) {
+      res.setHeader('Retry-After', String(Math.ceil((current.resetAt - now) / 1000)));
+      return res.status(429).json({ error: 'Too many requests' });
+    }
+
+    return next();
+  };
+}
+
+function setSecurityHeaders(_req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+}
+
 // ─── Bot handlers ─────────────────────────────────────────────────────────────
 
-bot.start(async (ctx) => {
+bot.use((ctx, next) => {
+  const fromId = ctx.from?.id ? String(ctx.from.id) : 'unknown';
+  const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
+  console.log(`Telegram update received: type=${ctx.updateType || 'unknown'} from=${fromId} text=${messageText ? '[text]' : 'none'}`);
+  return next();
+});
+
+function getStartPayload(ctx) {
+  if (typeof ctx.startPayload === 'string') {
+    return ctx.startPayload;
+  }
+
+  const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text.trim() : '';
+  const match = messageText.match(/^\/start(?:@\w+)?(?:\s+(.+))?$/i);
+  return match?.[1] || '';
+}
+
+function isStartText(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return /^\/start(?:@\w+)?(?:\s+.*)?$/i.test(normalized)
+    || normalized === 'start'
+    || normalized === '\u0441\u0442\u0430\u0440\u0442';
+}
+
+async function handleStart(ctx) {
   const { id, first_name, last_name, username } = ctx.from;
-  const payload = ctx.startPayload;
+  const payload = getStartPayload(ctx);
   console.log(`Користувач ${id} запустив бота. Payload: ${payload || 'немає'}`);
 
   if (db) {
@@ -93,7 +177,11 @@ bot.start(async (ctx) => {
 
   // Deep link — чек
   if (payload && payload.startsWith('receipt_')) {
-    const shareCode = payload.replace('receipt_', '');
+    const shareCode = payload.slice('receipt_'.length);
+    if (!isValidShareCode(shareCode)) {
+      return ctx.reply('❌ Посилання на чек некоректне або застаріле.');
+    }
+
     let shareActive = true;
 
     if (db) {
@@ -116,7 +204,7 @@ bot.start(async (ctx) => {
     return ctx.reply('🧾 Вам надіслали чек!\nНатисніть кнопку нижче, щоб переглянути деталі.', {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '📄 Переглянути чек', web_app: { url: `https://planer-app-3a0f2.web.app/?receipt=${shareCode}` } }]
+          [{ text: '📄 Переглянути чек', web_app: { url: `${APP_WEB_URL}/?receipt=${encodeURIComponent(shareCode)}` } }]
         ]
       }
     });
@@ -127,12 +215,25 @@ bot.start(async (ctx) => {
     {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '🚀 Відкрити застосунок', web_app: { url: 'https://planer-app-3a0f2.web.app' } }]
+          [{ text: '🚀 Відкрити застосунок', web_app: { url: `${APP_WEB_URL}/?v=${Date.now()}` } }]
         ]
       }
     }
   );
+}
+
+bot.use((ctx, next) => {
+  const messageText = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
+  if (isStartText(messageText)) {
+    return handleStart(ctx);
+  }
+
+  return next();
 });
+
+bot.start(handleStart);
+bot.hears(/^\/start(?:@\w+)?(?:\s+.*)?$/i, handleStart);
+bot.hears(/^(?:start|\u0441\u0442\u0430\u0440\u0442)$/i, handleStart);
 
 // Callback — підтвердити платіж
 bot.on('callback_query', async (ctx) => {
@@ -226,21 +327,31 @@ bot.on('callback_query', async (ctx) => {
 
 registerVaultPaymentHandlers({ bot, db });
 
+bot.catch((err, ctx) => {
+  const updateId = ctx?.update?.update_id ?? 'unknown';
+  console.error(`Telegram bot error on update ${updateId}:`, err);
+});
+
 // ─── Express Middleware ────────────────────────────────────────────────────────
 
+app.use(setSecurityHeaders);
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://planer-app-3a0f2.web.app',
-    'https://planer-app-3a0f2.firebaseapp.com',
-  ],
-  credentials: true,
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin is not allowed by CORS'));
+  },
+  credentials: false,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Secret', 'X-Cron-Secret'],
+  maxAge: 600,
 }));
 
 // Webhook — перед express.json (Telegraf сам парсить body)
 app.use(bot.webhookCallback('/api/webhook', webhookSecret ? { secretToken: webhookSecret } : {}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '32kb' }));
+app.use(express.urlencoded({ extended: false, limit: '16kb' }));
 
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
@@ -249,14 +360,22 @@ app.use((req, res, next) => {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+const authLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30 });
+const vaultLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 20 });
+const adminLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
+
+app.use('/api/auth', authLimiter);
+app.use('/api/vault', vaultLimiter);
+app.use('/api/cron', adminLimiter);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/vault', createVaultRoutes({ db, bot }));
 
 // Webhook setup
 function requireAdminSecret(req, res, next) {
-  const secret = req.query.secret || req.headers['x-admin-secret'];
-  const isValidSecret = secret
-    && (secret === process.env.CRON_SECRET || secret === webhookSecret);
+  const secret = normalizeSecret(req.headers['x-admin-secret']);
+  const isValidSecret = safeCompareSecret(secret, process.env.CRON_SECRET)
+    || safeCompareSecret(secret, webhookSecret);
 
   if (!isValidSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -265,13 +384,18 @@ function requireAdminSecret(req, res, next) {
   return next();
 }
 
-app.get('/api/set-webhook', requireAdminSecret, async (req, res) => {
+app.post('/api/set-webhook', requireAdminSecret, async (_req, res) => {
   try {
     if (!webhookSecret) {
       return res.status(503).json({ error: 'TELEGRAM_WEBHOOK_SECRET is not configured' });
     }
 
-    const url = `https://${req.headers.host}/api/webhook`;
+    const publicApiUrl = (process.env.API_PUBLIC_URL || '').replace(/\/+$/, '');
+    if (!publicApiUrl) {
+      return res.status(503).json({ error: 'API_PUBLIC_URL is not configured' });
+    }
+
+    const url = `${publicApiUrl}/api/webhook`;
     await bot.telegram.setWebhook(url, { secret_token: webhookSecret });
     res.json({ success: true, url });
   } catch (error) {
@@ -279,7 +403,7 @@ app.get('/api/set-webhook', requireAdminSecret, async (req, res) => {
   }
 });
 
-app.get('/api/del-webhook', requireAdminSecret, async (req, res) => {
+app.post('/api/del-webhook', requireAdminSecret, async (_req, res) => {
   try {
     await bot.telegram.deleteWebhook();
     res.json({ success: true });
@@ -290,10 +414,47 @@ app.get('/api/del-webhook', requireAdminSecret, async (req, res) => {
 
 // ─── Cron endpoint ─────────────────────────────────────────────────────────────
 // Викликати кожну годину через cron-job.org:
-//   GET https://<your-vercel-url>/api/cron?secret=<CRON_SECRET>
+//   GET https://<your-vercel-url>/api/cron with x-cron-secret header
+app.get('/api/bot-info', requireAdminSecret, async (_req, res) => {
+  try {
+    const me = await bot.telegram.getMe();
+    res.json({
+      ok: true,
+      id: me.id,
+      username: me.username,
+      first_name: me.first_name,
+      webhookSecretConfigured: Boolean(webhookSecret),
+      databaseConfigured: Boolean(db),
+    });
+  } catch (error) {
+    console.error('Bot info error:', error);
+    res.status(500).json({ error: 'Unable to read bot info' });
+  }
+});
+
+app.get('/api/webhook-info', requireAdminSecret, async (_req, res) => {
+  try {
+    const info = await bot.telegram.getWebhookInfo();
+    res.json({
+      url: info.url,
+      has_custom_certificate: info.has_custom_certificate,
+      pending_update_count: info.pending_update_count,
+      last_error_date: info.last_error_date
+        ? new Date(info.last_error_date * 1000).toISOString()
+        : null,
+      last_error_message: info.last_error_message || null,
+      max_connections: info.max_connections,
+      allowed_updates: info.allowed_updates || [],
+    });
+  } catch (error) {
+    console.error('Webhook info error:', error);
+    res.status(500).json({ error: 'Unable to read webhook info' });
+  }
+});
+
 app.get('/api/cron', async (req, res) => {
-  const secret = req.query.secret || req.headers['x-cron-secret'];
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  const secret = normalizeSecret(req.headers['x-cron-secret']);
+  if (!safeCompareSecret(secret, process.env.CRON_SECRET)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -403,7 +564,7 @@ app.get('/', (req, res) => {
     endpoints: {
       auth: '/api/auth/telegram',
       verify: '/api/auth/verify',
-      cron: '/api/cron?secret=<CRON_SECRET>',
+      cron: '/api/cron',
       health: '/health',
     },
   });

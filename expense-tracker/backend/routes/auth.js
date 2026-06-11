@@ -1,8 +1,38 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import admin from 'firebase-admin';
 import { validateTelegramWebAppData, parseTelegramInitData } from '../utils/telegram.js';
 
 const router = express.Router();
+
+function getAdminTelegramId() {
+  return (process.env.ADMIN_TELEGRAM_ID || '7801680802').trim();
+}
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error('JWT_SECRET must be configured and at least 32 characters long.');
+  }
+  return secret;
+}
+
+function signApiToken(user) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      uid: user.uid,
+      username: user.username,
+      firstName: user.firstName,
+    },
+    getJwtSecret(),
+    {
+      expiresIn: '2h',
+      issuer: 'expense-tracker-api',
+      audience: 'expense-tracker-web',
+    }
+  );
+}
 
 /**
  * POST /api/auth/telegram
@@ -10,10 +40,14 @@ const router = express.Router();
  */
 router.post('/telegram', async (req, res) => {
   try {
-    const { initData } = req.body;
+    const { initData } = req.body || {};
     
     if (!initData) {
       return res.status(400).json({ error: 'initData is required' });
+    }
+
+    if (!admin.apps.length) {
+      return res.status(503).json({ error: 'Authentication service is not configured' });
     }
     
     // Валидируем данные от Telegram
@@ -30,21 +64,20 @@ router.post('/telegram', async (req, res) => {
       return res.status(400).json({ error: 'Failed to parse user data' });
     }
     
-    // Создаем JWT токен
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        username: user.username,
-        firstName: user.firstName,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const isAdmin = user.uid === getAdminTelegramId();
+    const [token, firebaseToken] = await Promise.all([
+      Promise.resolve(signApiToken(user)),
+      admin.auth().createCustomToken(user.uid, {
+        telegramId: user.uid,
+        admin: isAdmin,
+      }),
+    ]);
     
     // Возвращаем токен и данные пользователя
     res.json({
       success: true,
       token,
+      firebaseToken,
       user: {
         id: user.id,
         firstName: user.firstName,
@@ -74,7 +107,10 @@ router.get('/verify', async (req, res) => {
     }
     
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, getJwtSecret(), {
+      issuer: 'expense-tracker-api',
+      audience: 'expense-tracker-web',
+    });
     
     res.json({
       success: true,
