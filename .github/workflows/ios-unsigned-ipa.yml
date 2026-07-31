@@ -31,7 +31,7 @@ jobs:
         working-directory: expense-tracker/ios/Planer
 
     env:
-      SPM_PACKAGES: ${{ runner.temp }}/PlanerSourcePackages
+      SPM_PACKAGES: ${{ github.workspace }}/.spm/PlanerSourcePackages
 
     steps:
       - name: Checkout repository
