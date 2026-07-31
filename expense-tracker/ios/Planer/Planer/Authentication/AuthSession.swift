@@ -85,7 +85,7 @@ final class AuthSession {
                 accessToken: result.user.accessToken.tokenString
             )
             try await firebaseSignIn(with: credential)
-        } catch let error as NSError where error.domain == kGIDSignInErrorDomain && error.code == GIDSignInErrorCode.canceled.rawValue {
+        } catch let error as NSError where error.domain == kGIDSignInErrorDomain && error.code == -5 {
             return
         } catch {
             errorMessage = error.localizedDescription
@@ -103,7 +103,7 @@ final class AuthSession {
     }
 
     private func googleSignIn(presenting viewController: UIViewController) async throws -> GIDSignInResult {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<GIDSignInResult, Error>) in
             GIDSignIn.sharedInstance.signIn(withPresenting: viewController) { result, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -117,7 +117,7 @@ final class AuthSession {
     }
 
     private func firebaseSignIn(with credential: AuthCredential) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             Auth.auth().signIn(with: credential) { _, error in
                 if let error {
                     continuation.resume(throwing: error)
