@@ -1,0 +1,114 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "codex/**"
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-unsigned-ipa.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-unsigned-ipa.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and package unsigned IPA
+    runs-on: macos-26
+    timeout-minutes: 35
+
+    defaults:
+      run:
+        working-directory: ios/Planer
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Select Xcode 26
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Inspect project
+        run: |
+          xcodebuild -list -project Planer.xcodeproj
+
+      - name: Run unit tests
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/PlanerTestsDerivedData
+        run: |
+          set -euo pipefail
+
+          SIMULATOR_ID="$(xcrun simctl list devices available --json | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')"
+          if [[ -z "$SIMULATOR_ID" || "$SIMULATOR_ID" == "null" ]]; then
+            echo "No available iPhone Simulator was found."
+            exit 1
+          fi
+
+          xcodebuild test \
+            -project Planer.xcodeproj \
+            -scheme Planer \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -parallel-testing-enabled NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build unsigned device app
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/PlanerDeviceDerivedData
+        run: |
+          set -euo pipefail
+
+          xcodebuild clean build \
+            -project Planer.xcodeproj \
+            -scheme Planer \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package unsigned IPA
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/PlanerDeviceDerivedData
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$DERIVED_DATA/Build/Products/Release-iphoneos/Planer.app"
+          OUTPUT_DIR="$GITHUB_WORKSPACE/ios/Planer/build"
+
+          test -d "$APP_PATH"
+          rm -rf "$OUTPUT_DIR"
+          mkdir -p "$OUTPUT_DIR/Payload"
+          ditto "$APP_PATH" "$OUTPUT_DIR/Payload/Planer.app"
+
+          cd "$OUTPUT_DIR"
+          /usr/bin/zip -qry Planer-unsigned.ipa Payload
+          shasum -a 256 Planer-unsigned.ipa > Planer-unsigned.ipa.sha256
+          rm -rf Payload
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Planer-unsigned-ipa-${{ github.run_number }}
+          path: |
+            ios/Planer/build/Planer-unsigned.ipa
+            ios/Planer/build/Planer-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
