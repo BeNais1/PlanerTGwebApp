@@ -61,7 +61,7 @@ struct RootTabView: View {
 
 #Preview("Root — dark") {
     RootTabView()
-        .environment(FinanceStore(loadPersisted: false, persistsChanges: false))
+        .environment(FinanceStore.previewStore())
         .environment(AppRouter())
         .preferredColorScheme(.dark)
 }

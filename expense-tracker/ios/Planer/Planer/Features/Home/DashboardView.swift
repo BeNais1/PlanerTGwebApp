@@ -303,7 +303,7 @@ struct TransactionRowView: View {
 
 #Preview("Dashboard") {
     NavigationStack { DashboardView() }
-        .environment(FinanceStore(loadPersisted: false, persistsChanges: false))
+        .environment(FinanceStore.previewStore())
         .environment(AppRouter())
         .preferredColorScheme(.dark)
 }

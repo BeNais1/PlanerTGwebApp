@@ -3,6 +3,21 @@ import XCTest
 
 @MainActor
 final class FinanceStoreTests: XCTestCase {
+    func testFreshStoreStartsEmpty() {
+        let store = FinanceStore(
+            storageNamespace: UUID().uuidString,
+            loadPersisted: false,
+            persistsChanges: false
+        )
+
+        XCTAssertTrue(store.wallets.isEmpty)
+        XCTAssertTrue(store.transactions.isEmpty)
+        XCTAssertTrue(store.goals.isEmpty)
+        XCTAssertTrue(store.debts.isEmpty)
+        XCTAssertTrue(store.receipts.isEmpty)
+        XCTAssertEqual(store.budgetLimit, 0)
+    }
+
     func testExpenseUpdatesBalanceAndCanBeReversed() throws {
         let wallet = Wallet(name: "Test", currency: .UAH, balance: 1_000, palette: .blue)
         let store = FinanceStore(
@@ -63,5 +78,18 @@ final class FinanceStoreTests: XCTestCase {
         store.addTransaction(kind: .expense, amount: 150, walletID: wallet.id, category: .shopping, note: "Test")
 
         XCTAssertEqual(store.budgetProgress, 1, accuracy: 0.001)
+    }
+
+    func testClearAllDataProducesEmptySnapshot() {
+        let wallet = Wallet(name: "Main", currency: .UAH, balance: 500, palette: .blue)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        store.clearAllData()
+
+        XCTAssertTrue(store.wallets.isEmpty)
+        XCTAssertTrue(store.transactions.isEmpty)
+        XCTAssertEqual(store.budgetLimit, 0)
     }
 }

@@ -2,14 +2,16 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(FinanceStore.self) private var store
+    @Environment(AuthSession.self) private var authSession
+    @Environment(FirebaseSyncStore.self) private var syncStore
     @Environment(\.dismiss) private var dismiss
-    @State private var showResetConfirmation = false
+    @State private var showClearConfirmation = false
 
     var body: some View {
         Form {
-            Section("Вигляд") {
+            Section("Внешний вид") {
                 Toggle(
-                    "Темна тема",
+                    "Тёмная тема",
                     isOn: Binding(
                         get: { store.prefersDarkAppearance },
                         set: { store.setDarkAppearance($0) }
@@ -17,7 +19,7 @@ struct SettingsView: View {
                 )
 
                 Picker(
-                    "Основна валюта",
+                    "Основная валюта",
                     selection: Binding(
                         get: { store.mainCurrency },
                         set: { store.setMainCurrency($0) }
@@ -29,34 +31,49 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Простір") {
-                LabeledContent("Активний бюджет", value: store.activeSpaceName)
-                LabeledContent("Режим даних", value: "Локальне демо")
-                Label("На пристрої", systemImage: "iphone")
-                    .foregroundStyle(.secondary)
+            Section("Данные") {
+                LabeledContent("Пространство", value: store.activeSpaceName)
+                LabeledContent("Хранилище", value: "Firebase + локальный кеш")
+                Label(syncStore.status.title, systemImage: syncStatusIcon)
+                    .foregroundStyle(syncStatusColor)
+
+                if case .error(let message) = syncStore.status {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(PlanerTheme.negative)
+                }
             }
 
-            Section("Синхронізація") {
-                Label("Telegram / Firebase не підключено", systemImage: "exclamationmark.icloud.fill")
-                    .foregroundStyle(PlanerTheme.warning)
-                Text("Нативний застосунок потребує окремого входу та backend-ендпоінтів для особистих гаманців і операцій. Код підготовлено як local-first клієнт без передачі тестових даних назовні.")
+            Section("Аккаунт Google") {
+                if case .signedIn(let user) = authSession.state {
+                    LabeledContent("Пользователь", value: user.displayName)
+                    if !user.email.isEmpty {
+                        LabeledContent("Email", value: user.email)
+                    }
+                }
+
+                Button("Выйти", role: .destructive) {
+                    dismiss()
+                    authSession.signOut()
+                }
+            }
+
+            Section {
+                Button("Удалить все данные", role: .destructive) {
+                    showClearConfirmation = true
+                }
+                Text("Кошельки, операции, цели и долги будут удалены с устройства и из Firebase.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section {
-                Button("Відновити демо-дані", role: .destructive) {
-                    showResetConfirmation = true
-                }
-            }
-
-            Section("Про застосунок") {
-                LabeledContent("Версія", value: "1.0 (1)")
-                LabeledContent("Мінімальна iOS", value: "17.0")
+            Section("О приложении") {
+                LabeledContent("Версия", value: "1.0 (2)")
+                LabeledContent("Минимальная iOS", value: "17.0")
                 LabeledContent("Liquid Glass", value: "iOS 26+")
             }
         }
-        .navigationTitle("Налаштування")
+        .navigationTitle("Настройки")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -64,17 +81,37 @@ struct SettingsView: View {
             }
         }
         .confirmationDialog(
-            "Відновити початкові демо-дані?",
-            isPresented: $showResetConfirmation,
+            "Удалить все финансовые данные?",
+            isPresented: $showClearConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Відновити", role: .destructive) { store.resetDemoData() }
-            Button("Скасувати", role: .cancel) { }
+            Button("Удалить", role: .destructive) { store.clearAllData() }
+            Button("Отмена", role: .cancel) { }
+        } message: {
+            Text("Это действие нельзя отменить.")
+        }
+    }
+
+    private var syncStatusIcon: String {
+        switch syncStore.status {
+        case .connecting: "arrow.triangle.2.circlepath.icloud"
+        case .synced: "checkmark.icloud.fill"
+        case .error: "exclamationmark.icloud.fill"
+        }
+    }
+
+    private var syncStatusColor: Color {
+        switch syncStore.status {
+        case .connecting: .secondary
+        case .synced: PlanerTheme.positive
+        case .error: PlanerTheme.negative
         }
     }
 }
 
 #Preview("Settings") {
     NavigationStack { SettingsView() }
-        .environment(FinanceStore(loadPersisted: false, persistsChanges: false))
+        .environment(FinanceStore.previewStore())
+        .environment(AuthSession.preview())
+        .environment(FirebaseSyncStore.preview())
 }

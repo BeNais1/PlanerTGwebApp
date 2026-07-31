@@ -41,6 +41,15 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        run: xcodebuild -resolvePackageDependencies -project Planer.xcodeproj -scheme Planer
+
       - name: Inspect project
         run: |
           xcodebuild -list -project Planer.xcodeproj

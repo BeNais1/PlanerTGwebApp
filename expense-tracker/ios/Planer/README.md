@@ -1,48 +1,64 @@
 # Planer for iOS
 
-Нативний SwiftUI-прототип фінансового застосунку, перенесений із Telegram Mini App.
+Нативное SwiftUI-приложение для личных финансов с Google Sign-In, Firebase Realtime Database и Liquid Glass на iOS 26+.
 
-## Що реалізовано
+## Что реализовано
 
-- чотири вкладки веб-версії: Головна, Фінанси, Чеки, Аналітика;
-- гаманці в UAH, USD та EUR;
-- витрати, доходи, перекази й коректне оновлення балансів;
-- місячний ліміт, фінансові цілі та борги;
-- локальне збереження стану через `UserDefaults`;
-- Liquid Glass для навігаційних та інтерактивних елементів на iOS 26+;
-- fallback на системні матеріали для iOS 17–25;
-- SwiftUI previews і unit-тести фінансової логіки.
+- вход только через Google с помощью Firebase Authentication;
+- отдельное облачное пространство для каждого Firebase UID;
+- чистый первый запуск без демо-кошельков и операций;
+- локальный кеш в `UserDefaults`, разделённый по Google-аккаунтам;
+- синхронизация полного финансового snapshot в `users/{uid}/iosSnapshot`;
+- удаление всех локальных и облачных финансовых данных из настроек;
+- кошельки, расходы, доходы, переводы, лимит, цели, долги, чеки и аналитика;
+- Liquid Glass на iOS 26+ и системный material fallback на iOS 17–25.
 
-## Запуск
+Telegram-авторизация и связывание с Telegram-профилем намеренно не используются.
 
-1. Відкрийте `Planer.xcodeproj` у Xcode 26 або новішому.
-2. Оберіть схему `Planer` та iPhone Simulator.
-3. Запустіть `Product > Run`.
+## Firebase
 
-Якщо потрібно перевідтворити проєкт, встановіть XcodeGen і виконайте з цієї папки:
+- Project ID: `planer-app-3a0f2`
+- Bundle ID: `planer`
+- Конфигурация: `Planer/GoogleService-Info.plist`
+- Провайдер: Google
+- База: Firebase Realtime Database
+
+В Firebase Console должен быть включён провайдер **Authentication → Sign-in method → Google**. Правила Realtime Database должны разрешать пользователю читать и записывать только `users/{auth.uid}`.
+
+## Генерация и запуск проекта
+
+Проект описан в `project.yml`. Перед открытием в Xcode выполните:
 
 ```bash
+brew install xcodegen
 xcodegen generate
+open Planer.xcodeproj
 ```
+
+Выберите схему `Planer` и запустите приложение на iPhone Simulator или устройстве. Для интерактивного Google Sign-In нужен доступ к интернету.
 
 ## Unsigned IPA через GitHub Actions
 
-Workflow `Build unsigned iOS IPA` запускається автоматично для змін у `ios/` і вручну через вкладку **Actions → Build unsigned iOS IPA → Run workflow**.
+Workflow `Build unsigned iOS IPA` автоматически:
 
-Після успішного run відкрийте його сторінку та завантажте artifact `Planer-unsigned-ipa-<номер>`. Усередині будуть:
+1. устанавливает XcodeGen;
+2. генерирует Xcode-проект;
+3. разрешает Firebase и GoogleSignIn Swift packages;
+4. компилирует приложение и тесты;
+5. собирает неподписанный device build;
+6. загружает `Planer-unsigned.ipa` и SHA-256 checksum.
 
-- `Planer-unsigned.ipa` — device build без code signing;
-- `Planer-unsigned.ipa.sha256` — контрольна сума.
+Перед установкой IPA необходимо подписать сертификатом и provisioning profile для Bundle ID `planer`.
 
-Unsigned IPA не встановлюється на iPhone напряму. Перед установленням його потрібно підписати вашим Apple Developer certificate та provisioning profile, зберігши bundle ID `com.boris.planer` або замінивши його на власний до збірки.
+## Формат данных
 
-## Синхронізація з веб-версією
+Нативный snapshot хранится отдельно от данных Telegram Mini App:
 
-Поточний build працює local-first і не надсилає демо-дані назовні. Веб-клієнт отримує Firebase custom token через Telegram Mini App `initData`; нативний iOS-застосунок не має цього контексту. Для спільних production-даних потрібні:
+```text
+users/{firebaseUID}/profile
+users/{firebaseUID}/iosSnapshot/schemaVersion
+users/{firebaseUID}/iosSnapshot/snapshot
+users/{firebaseUID}/iosSnapshot/updatedAt
+```
 
-1. нативний спосіб входу (рекомендовано Sign in with Apple);
-2. endpoint зв’язування Apple-акаунта з існуючим Telegram user ID;
-3. backend API для особистих гаманців, операцій, налаштувань і чеків або Firebase custom token після нативної авторизації;
-4. Universal Links для shared receipts та family invites.
-
-Детальний аудит є у `MIGRATION_AUDIT.md`.
+Это исключает случайное смешивание старых Telegram-данных с новым Google-аккаунтом.

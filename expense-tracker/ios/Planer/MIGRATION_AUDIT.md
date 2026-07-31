@@ -1,5 +1,7 @@
 # Web → iOS migration audit
 
+> Актуальное решение для iOS: только Google Sign-In через Firebase Authentication, без связывания с Telegram. Нативные данные хранятся отдельно в `users/{firebaseUID}/iosSnapshot`, поэтому новый Google-пользователь начинает с чистого листа. Разделы ниже сохраняют исходный архитектурный аудит веб-версии как справочную информацию.
+
 ## Поточна веб-архітектура
 
 Веб-застосунок — Telegram Mini App на React 19, TypeScript і Vite. Після перевірки Telegram `initData` Express backend повертає JWT та Firebase custom token. Особисті гаманці, операції, налаштування, підписки й більшість чеків читаються React-клієнтом безпосередньо з Firebase Realtime Database. Backend окремо обслуговує сімейні атомарні операції, Joint Checks, Vault, webhook і cron.

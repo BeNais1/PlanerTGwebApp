@@ -221,6 +221,6 @@ private struct DailyValue: Identifiable {
 
 #Preview("Analytics") {
     NavigationStack { PlanerAnalyticsView() }
-        .environment(FinanceStore(loadPersisted: false, persistsChanges: false))
+        .environment(FinanceStore.previewStore())
         .preferredColorScheme(.dark)
 }

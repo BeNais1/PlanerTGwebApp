@@ -281,7 +281,7 @@ struct DebtEditorView: View {
 
 #Preview("Finance hub") {
     NavigationStack { FinanceHubView() }
-        .environment(FinanceStore(loadPersisted: false, persistsChanges: false))
+        .environment(FinanceStore.previewStore())
         .environment(AppRouter())
         .preferredColorScheme(.dark)
 }

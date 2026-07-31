@@ -4,8 +4,10 @@ import Observation
 @MainActor
 @Observable
 final class FinanceStore {
-    private static let storageKey = "planer.ios.snapshot.v1"
+    private static let storageKeyPrefix = "planer.ios.snapshot.v2"
+    @ObservationIgnored private let storageKey: String
     private let persistsChanges: Bool
+    @ObservationIgnored private var changeHandler: ((PlanerSnapshot) -> Void)?
 
     var wallets: [Wallet]
     var transactions: [FinanceTransaction]
@@ -19,23 +21,25 @@ final class FinanceStore {
 
     init(
         snapshot: PlanerSnapshot? = nil,
+        storageNamespace: String = "local",
         loadPersisted: Bool = true,
         persistsChanges: Bool = true
     ) {
+        storageKey = "\(Self.storageKeyPrefix).\(storageNamespace)"
         self.persistsChanges = persistsChanges
 
         let restored: PlanerSnapshot?
         if let snapshot {
             restored = snapshot
         } else if loadPersisted,
-                  let data = UserDefaults.standard.data(forKey: Self.storageKey),
+                  let data = UserDefaults.standard.data(forKey: storageKey),
                   let decoded = try? JSONDecoder().decode(PlanerSnapshot.self, from: data) {
             restored = decoded
         } else {
             restored = nil
         }
 
-        let initial = restored ?? Self.sampleSnapshot()
+        let initial = restored ?? .empty
         wallets = initial.wallets
         transactions = initial.transactions
         goals = initial.goals
@@ -199,8 +203,25 @@ final class FinanceStore {
         persist()
     }
 
-    func resetDemoData() {
-        let snapshot = Self.sampleSnapshot()
+    var snapshot: PlanerSnapshot {
+        PlanerSnapshot(
+            wallets: wallets,
+            transactions: transactions,
+            goals: goals,
+            debts: debts,
+            receipts: receipts,
+            budgetLimit: budgetLimit,
+            mainCurrency: mainCurrency,
+            prefersDarkAppearance: prefersDarkAppearance,
+            activeSpaceName: activeSpaceName
+        )
+    }
+
+    func setChangeHandler(_ handler: ((PlanerSnapshot) -> Void)?) {
+        changeHandler = handler
+    }
+
+    func replace(with snapshot: PlanerSnapshot, notifyChange: Bool = false) {
         wallets = snapshot.wallets
         transactions = snapshot.transactions
         goals = snapshot.goals
@@ -210,7 +231,11 @@ final class FinanceStore {
         mainCurrency = snapshot.mainCurrency
         prefersDarkAppearance = snapshot.prefersDarkAppearance
         activeSpaceName = snapshot.activeSpaceName
-        persist()
+        persist(notifyChange: notifyChange)
+    }
+
+    func clearAllData() {
+        replace(with: .empty, notifyChange: true)
     }
 
     func converted(_ amount: Double, from: Currency, to: Currency) -> Double {
@@ -239,21 +264,18 @@ final class FinanceStore {
             .sorted { $0.amount > $1.amount }
     }
 
-    private func persist() {
+    private func persist(notifyChange: Bool = true) {
         guard persistsChanges else { return }
-        let snapshot = PlanerSnapshot(
-            wallets: wallets,
-            transactions: transactions,
-            goals: goals,
-            debts: debts,
-            receipts: receipts,
-            budgetLimit: budgetLimit,
-            mainCurrency: mainCurrency,
-            prefersDarkAppearance: prefersDarkAppearance,
-            activeSpaceName: activeSpaceName
-        )
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        UserDefaults.standard.set(data, forKey: Self.storageKey)
+        let currentSnapshot = snapshot
+        guard let data = try? JSONEncoder().encode(currentSnapshot) else { return }
+        UserDefaults.standard.set(data, forKey: storageKey)
+        if notifyChange {
+            changeHandler?(currentSnapshot)
+        }
+    }
+
+    static func previewStore() -> FinanceStore {
+        FinanceStore(snapshot: sampleSnapshot(), loadPersisted: false, persistsChanges: false)
     }
 
     private static func sampleSnapshot() -> PlanerSnapshot {

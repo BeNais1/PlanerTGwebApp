@@ -3,15 +3,29 @@ import SwiftUI
 @main
 @MainActor
 struct PlanerApp: App {
-    @State private var store = FinanceStore()
-    @State private var router = AppRouter()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var authSession = AuthSession()
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
-                .environment(store)
-                .environment(router)
-                .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
+            Group {
+                switch authSession.state {
+                case .loading:
+                    ZStack {
+                        AtmosphericBackground()
+                        ProgressView("Проверяем вход…")
+                    }
+                case .signedOut:
+                    LoginView()
+                case .signedIn(let user):
+                    AuthenticatedAppView(user: user)
+                        .id(user.id)
+                }
+            }
+            .environment(authSession)
+            .task {
+                authSession.start()
+            }
         }
     }
 }

@@ -81,6 +81,6 @@ struct ReceiptsView: View {
 
 #Preview("Receipts") {
     NavigationStack { ReceiptsView() }
-        .environment(FinanceStore(loadPersisted: false, persistsChanges: false))
+        .environment(FinanceStore.previewStore())
         .preferredColorScheme(.dark)
 }
