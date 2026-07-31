@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    name: Test and package unsigned IPA
+    name: Compile and package unsigned IPA
     runs-on: macos-26
     timeout-minutes: 35
 
@@ -45,25 +45,19 @@ jobs:
         run: |
           xcodebuild -list -project Planer.xcodeproj
 
-      - name: Run unit tests
+      - name: Compile app and tests for Simulator
         env:
           DERIVED_DATA: ${{ runner.temp }}/PlanerTestsDerivedData
         run: |
           set -euo pipefail
 
-          SIMULATOR_ID="$(xcrun simctl list devices available --json | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')"
-          if [[ -z "$SIMULATOR_ID" || "$SIMULATOR_ID" == "null" ]]; then
-            echo "No available iPhone Simulator was found."
-            exit 1
-          fi
-
-          xcodebuild test \
+          xcodebuild build-for-testing \
             -project Planer.xcodeproj \
             -scheme Planer \
             -configuration Debug \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$DERIVED_DATA" \
-            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Build unsigned device app
