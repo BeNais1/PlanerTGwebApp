@@ -132,7 +132,7 @@ final class FirebaseSyncStore {
             "updatedAt": ServerValue.timestamp()
         ]
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             reference.setValue(value) { error, _ in
                 if let error {
                     continuation.resume(throwing: error)

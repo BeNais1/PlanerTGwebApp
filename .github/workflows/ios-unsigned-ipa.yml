@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - "codex/**"
     paths:
       - "expense-tracker/ios/**"
       - ".github/workflows/ios-unsigned-ipa.yml"
@@ -31,6 +30,9 @@ jobs:
       run:
         working-directory: expense-tracker/ios/Planer
 
+    env:
+      SPM_PACKAGES: ${{ runner.temp }}/PlanerSourcePackages
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -47,8 +49,18 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SPM_PACKAGES }}
+          key: planer-spm-${{ runner.os }}-${{ hashFiles('expense-tracker/ios/Planer/project.yml') }}
+
       - name: Resolve Swift packages
-        run: xcodebuild -resolvePackageDependencies -project Planer.xcodeproj -scheme Planer
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Planer.xcodeproj \
+            -scheme Planer \
+            -clonedSourcePackagesDirPath "$SPM_PACKAGES"
 
       - name: Inspect project
         run: |
@@ -67,6 +79,9 @@ jobs:
             -sdk iphonesimulator \
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Build unsigned device app
@@ -82,6 +97,7 @@ jobs:
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
