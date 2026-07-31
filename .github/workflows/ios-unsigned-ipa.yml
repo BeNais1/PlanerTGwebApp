@@ -7,11 +7,11 @@ on:
       - main
       - "codex/**"
     paths:
-      - "ios/**"
+      - "expense-tracker/ios/**"
       - ".github/workflows/ios-unsigned-ipa.yml"
   pull_request:
     paths:
-      - "ios/**"
+      - "expense-tracker/ios/**"
       - ".github/workflows/ios-unsigned-ipa.yml"
 
 permissions:
@@ -29,7 +29,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ios/Planer
+        working-directory: expense-tracker/ios/Planer
 
     steps:
       - name: Checkout repository
@@ -91,7 +91,7 @@ jobs:
           set -euo pipefail
 
           APP_PATH="$DERIVED_DATA/Build/Products/Release-iphoneos/Planer.app"
-          OUTPUT_DIR="$GITHUB_WORKSPACE/ios/Planer/build"
+          OUTPUT_DIR="$GITHUB_WORKSPACE/expense-tracker/ios/Planer/build"
 
           test -d "$APP_PATH"
           rm -rf "$OUTPUT_DIR"
@@ -108,7 +108,7 @@ jobs:
         with:
           name: Planer-unsigned-ipa-${{ github.run_number }}
           path: |
-            ios/Planer/build/Planer-unsigned.ipa
-            ios/Planer/build/Planer-unsigned.ipa.sha256
+            expense-tracker/ios/Planer/build/Planer-unsigned.ipa
+            expense-tracker/ios/Planer/build/Planer-unsigned.ipa.sha256
           if-no-files-found: error
           retention-days: 14
