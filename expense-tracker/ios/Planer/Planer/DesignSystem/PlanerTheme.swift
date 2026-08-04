@@ -1,5 +1,16 @@
 import SwiftUI
 
+extension Color {
+    init(planerHex: String) {
+        let cleaned = planerHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        let value = UInt64(cleaned, radix: 16) ?? 0x737D91
+        let red = Double((value >> 16) & 0xFF) / 255
+        let green = Double((value >> 8) & 0xFF) / 255
+        let blue = Double(value & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue)
+    }
+}
+
 enum PlanerTheme {
     static let accent = Color(red: 0.14, green: 0.48, blue: 1.0)
     static let positive = Color(red: 0.20, green: 0.78, blue: 0.50)
@@ -36,6 +47,10 @@ extension TransactionCategory {
         case .other: Color(red: 0.45, green: 0.49, blue: 0.57)
         }
     }
+}
+
+extension TransactionCategoryPresentation {
+    var tint: Color { Color(planerHex: colorHex) }
 }
 
 struct AtmosphericBackground: View {

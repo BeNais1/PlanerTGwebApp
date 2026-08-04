@@ -53,7 +53,7 @@ private struct AnalyticsFilters: Identifiable {
     var period: AnalyticsPeriod = .month
     var operation: AnalyticsOperationFilter = .all
     var walletID: UUID?
-    var category: TransactionCategory?
+    var categoryID: String?
     var customStart = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
     var customEnd = Date.now
 
@@ -61,7 +61,7 @@ private struct AnalyticsFilters: Identifiable {
         var count = period == .month ? 0 : 1
         if operation != .all { count += 1 }
         if walletID != nil { count += 1 }
-        if category != nil { count += 1 }
+        if categoryID != nil { count += 1 }
         return count
     }
 }
@@ -104,20 +104,6 @@ struct PlanerAnalyticsView: View {
             .scrollIndicators(.hidden)
         }
         .navigationTitle("Аналітика")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    filterDraft = filters
-                } label: {
-                    Image(
-                        systemName: filters.activeCount > 0
-                            ? "line.3.horizontal.decrease.circle.fill"
-                            : "line.3.horizontal.decrease.circle"
-                    )
-                }
-                .accessibilityLabel("Налаштувати аналітику")
-            }
-        }
         .sheet(item: $filterDraft) { draft in
             NavigationStack {
                 AnalyticsFilterView(initialFilters: draft) { updatedFilters in
@@ -133,7 +119,7 @@ struct PlanerAnalyticsView: View {
                 matchesPeriod(transaction.date)
                     && filters.operation.includes(transaction)
                     && matchesWallet(transaction)
-                    && (filters.category == nil || transaction.category == filters.category)
+                    && (filters.categoryID == nil || store.categoryPresentation(for: transaction).id == filters.categoryID)
             }
             .sorted { $0.date > $1.date }
     }
@@ -178,7 +164,7 @@ struct PlanerAnalyticsView: View {
                     if let walletID = filters.walletID, let wallet = store.wallet(id: walletID) {
                         AnalyticsFilterPill(title: wallet.name, icon: "wallet.bifold")
                     }
-                    if let category = filters.category {
+                    if let category = allCategoryPresentations.first(where: { $0.id == filters.categoryID }) {
                         AnalyticsFilterPill(title: category.title, icon: category.systemImage, tint: category.tint)
                     }
                     AnalyticsFilterPill(
@@ -274,7 +260,9 @@ struct PlanerAnalyticsView: View {
             DetailMetricRow(
                 title: "Найбільша витрата",
                 value: largestExpense.map { store.mainCurrency.formatted(convertedAmount($0)) } ?? "—",
-                detail: largestExpense.map { $0.note.isEmpty ? $0.category.title : $0.note },
+                detail: largestExpense.map {
+                    $0.note.isEmpty ? store.categoryPresentation(for: $0).title : $0.note
+                },
                 icon: "arrow.up.right.circle.fill",
                 tint: PlanerTheme.negative
             )
@@ -311,16 +299,16 @@ struct PlanerAnalyticsView: View {
             } else {
                 ForEach(rows) { row in
                     Button {
-                        filters.category = filters.category == row.category ? nil : row.category
+                        filters.categoryID = filters.categoryID == row.id ? nil : row.id
                     } label: {
                         VStack(spacing: 8) {
                             HStack(spacing: 10) {
-                                Image(systemName: row.category.systemImage)
-                                    .foregroundStyle(row.category.tint)
+                                Image(systemName: row.systemImage)
+                                    .foregroundStyle(Color(planerHex: row.colorHex))
                                     .frame(width: 30, height: 30)
-                                    .background(row.category.tint.opacity(0.14), in: Circle())
+                                    .background(Color(planerHex: row.colorHex).opacity(0.14), in: Circle())
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(row.category.title)
+                                    Text(row.title)
                                         .font(.subheadline.weight(.medium))
                                     Text(categoryPercentage(row.amount))
                                         .font(.caption2)
@@ -336,7 +324,7 @@ struct PlanerAnalyticsView: View {
                                     .fill(Color.secondary.opacity(0.14))
                                     .overlay(alignment: .leading) {
                                         Capsule()
-                                            .fill(row.category.tint.gradient)
+                                            .fill(Color(planerHex: row.colorHex).gradient)
                                             .frame(width: proxy.size.width * max(0.04, row.amount / maxValue))
                                     }
                             }
@@ -455,6 +443,10 @@ struct PlanerAnalyticsView: View {
             return "\(filters.customStart.formatted(date: .abbreviated, time: .omitted)) — \(filters.customEnd.formatted(date: .abbreviated, time: .omitted))"
         }
         return filters.period.title
+    }
+
+    private var allCategoryPresentations: [TransactionCategoryPresentation] {
+        store.categoryPresentations(for: .expense) + store.categoryPresentations(for: .income)
     }
 
     private func matchesPeriod(_ date: Date) -> Bool {
@@ -638,11 +630,11 @@ private struct AnalyticsFilterView: View {
                     }
                 }
 
-                Picker("Категорія", selection: $draft.category) {
-                    Text("Усі категорії").tag(TransactionCategory?.none)
+                Picker("Категорія", selection: $draft.categoryID) {
+                    Text("Усі категорії").tag(String?.none)
                     ForEach(availableCategories) { category in
                         Label(category.title, systemImage: category.systemImage)
-                            .tag(Optional(category))
+                            .tag(Optional(category.id))
                     }
                 }
                 .disabled(draft.operation == .transfers)
@@ -663,7 +655,7 @@ private struct AnalyticsFilterView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Застосувати") {
                     if draft.operation == .transfers {
-                        draft.category = nil
+                        draft.categoryID = nil
                     }
                     onApply(draft)
                     dismiss()
@@ -672,19 +664,19 @@ private struct AnalyticsFilterView: View {
         }
         .onChange(of: draft.operation) { _, operation in
             if operation == .transfers {
-                draft.category = nil
+                draft.categoryID = nil
             }
         }
     }
 
-    private var availableCategories: [TransactionCategory] {
+    private var availableCategories: [TransactionCategoryPresentation] {
         switch draft.operation {
         case .income:
-            [.salary, .other]
+            store.categoryPresentations(for: .income)
         case .expenses:
-            [.food, .transport, .home, .health, .shopping, .entertainment, .other]
+            store.categoryPresentations(for: .expense)
         case .all:
-            TransactionCategory.allCases.filter { $0 != .transfer }
+            store.categoryPresentations(for: .expense) + store.categoryPresentations(for: .income)
         case .transfers:
             []
         }

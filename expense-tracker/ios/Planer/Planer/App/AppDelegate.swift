@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         open url: URL,
         options: [UIApplication.OpenURLOptionsKey: Any] = [:]
     ) -> Bool {
+        if url.scheme == "planer" {
+            return true
+        }
         GIDSignIn.sharedInstance.handle(url)
     }
 }

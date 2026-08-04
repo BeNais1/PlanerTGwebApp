@@ -5,6 +5,11 @@ import Observation
 @MainActor
 @Observable
 final class FirebaseSyncStore {
+    struct ReceiptShareLink: Equatable {
+        let code: String
+        let url: URL
+    }
+
     enum Status: Equatable {
         case connecting
         case synced(Date)
@@ -86,6 +91,134 @@ final class FirebaseSyncStore {
         reference = nil
         store = nil
         receivedInitialSnapshot = false
+    }
+
+    func publish(receipt: ReceiptSummary) async throws -> ReceiptShareLink {
+        let receiptID = receipt.transactionID?.uuidString ?? receipt.id.uuidString
+        let mappingReference = Database.database().reference()
+            .child("user_shares")
+            .child(user.id)
+            .child(receiptID)
+
+        let existingValue = try await readValue(from: mappingReference)
+        let shareCode = (existingValue as? String).flatMap(Self.validShareCode) ?? Self.makeShareCode()
+        let now = Date.now.timeIntervalSince1970 * 1_000
+        let transactionDate = receipt.date.timeIntervalSince1970 * 1_000
+        let monthFormatter = DateFormatter()
+        monthFormatter.locale = Locale(identifier: "en_US_POSIX")
+        monthFormatter.dateFormat = "yyyy-MM"
+
+        var transaction: [String: Any] = [
+            "id": receiptID,
+            "type": (receipt.transactionKind ?? .expense).rawValue,
+            "amount": receipt.amount,
+            "currency": receipt.currency.rawValue,
+            "category": receipt.categoryTitle ?? "Інше",
+            "categoryName": receipt.categoryTitle ?? "Інше",
+            "categoryIcon": receipt.categorySystemImage ?? "receipt.fill",
+            "description": receipt.note ?? receipt.merchant,
+            "merchant": receipt.merchant,
+            "date": transactionDate,
+            "month": monthFormatter.string(from: receipt.date)
+        ]
+        if let walletName = receipt.walletName { transaction["walletName"] = walletName }
+
+        let shareData: [String: Any] = [
+            "id": shareCode,
+            "receiptId": receiptID,
+            "ownerId": user.id,
+            "shareCode": shareCode,
+            "isActive": true,
+            "privacyMode": "public",
+            "transaction": transaction,
+            "ownerName": receipt.authorName ?? user.displayName,
+            "createdAt": receipt.createdAt.map { $0.timeIntervalSince1970 * 1_000 } ?? now,
+            "updatedAt": now
+        ]
+
+        try await updateValues([
+            "shared_receipts/\(shareCode)": shareData,
+            "user_shares/\(user.id)/\(receiptID)": shareCode
+        ])
+
+        guard let url = URL(string: "https://planer-app-3a0f2.web.app/?receipt=\(shareCode)") else {
+            throw FirebaseSyncError.encodingFailed
+        }
+        return ReceiptShareLink(code: shareCode, url: url)
+    }
+
+    func fetchSharedReceipt(code: String) async throws -> ReceiptSummary {
+        guard let validCode = Self.validShareCode(code) else { throw FirebaseSyncError.invalidReceiptLink }
+        let value = try await readValue(
+            from: Database.database().reference().child("shared_receipts").child(validCode)
+        )
+        guard let share = value as? [String: Any],
+              (share["isActive"] as? Bool) != false,
+              let transaction = share["transaction"] as? [String: Any],
+              let amount = (transaction["amount"] as? NSNumber)?.doubleValue,
+              let currencyRaw = transaction["currency"] as? String,
+              let currency = Currency(rawValue: currencyRaw) else {
+            throw FirebaseSyncError.receiptNotFound
+        }
+
+        let receiptID = (share["receiptId"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
+        let dateMilliseconds = (transaction["date"] as? NSNumber)?.doubleValue ?? 0
+        let kindRaw = transaction["type"] as? String
+        let kind = kindRaw.flatMap(FinanceTransactionKind.init(rawValue:)) ?? .expense
+        let merchant = transaction["merchant"] as? String
+            ?? transaction["description"] as? String
+            ?? "Цифровий чек"
+
+        return ReceiptSummary(
+            id: receiptID,
+            merchant: merchant,
+            amount: amount,
+            currency: currency,
+            date: Date(timeIntervalSince1970: dateMilliseconds / 1_000),
+            isShared: true,
+            transactionID: receiptID,
+            categoryTitle: transaction["categoryName"] as? String ?? transaction["category"] as? String,
+            categorySystemImage: transaction["categoryIcon"] as? String,
+            transactionKind: kind,
+            note: transaction["description"] as? String,
+            walletName: transaction["walletName"] as? String,
+            authorName: share["ownerName"] as? String,
+            shareCode: validCode,
+            createdAt: (share["createdAt"] as? NSNumber).map {
+                Date(timeIntervalSince1970: $0.doubleValue / 1_000)
+            }
+        )
+    }
+
+    private static func validShareCode(_ value: String) -> String? {
+        value.range(of: #"^[A-Za-z0-9_-]{8,32}$"#, options: .regularExpression) == nil ? nil : value
+    }
+
+    private static func makeShareCode() -> String {
+        let characters = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789")
+        return String((0..<8).compactMap { _ in characters.randomElement() })
+    }
+
+    private func readValue(from reference: DatabaseReference) async throws -> Any? {
+        try await withCheckedThrowingContinuation { continuation in
+            reference.observeSingleEvent(
+                of: .value,
+                with: { snapshot in continuation.resume(returning: snapshot.value) },
+                withCancel: { error in continuation.resume(throwing: error) }
+            )
+        }
+    }
+
+    private func updateValues(_ values: [AnyHashable: Any]) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Database.database().reference().updateChildValues(values) { error, _ in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
+                }
+            }
+        }
     }
 
     private func receive(_ dataSnapshot: DataSnapshot, store: FinanceStore) async {
@@ -173,6 +306,8 @@ final class FirebaseSyncStore {
 private enum FirebaseSyncError: LocalizedError {
     case missingReference
     case encodingFailed
+    case invalidReceiptLink
+    case receiptNotFound
 
     var errorDescription: String? {
         switch self {
@@ -180,6 +315,10 @@ private enum FirebaseSyncError: LocalizedError {
             "З’єднання з Firebase ще не готове."
         case .encodingFailed:
             "Не вдалося підготувати дані для синхронізації."
+        case .invalidReceiptLink:
+            "Посилання на чек має неправильний формат."
+        case .receiptNotFound:
+            "Чек не знайдено або автор вимкнув посилання."
         }
     }
 

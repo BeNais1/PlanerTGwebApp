@@ -253,21 +253,22 @@ struct WalletCardView: View {
 }
 
 struct TransactionRowView: View {
+    @Environment(FinanceStore.self) private var store
     let transaction: FinanceTransaction
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: transaction.category.systemImage)
+            Image(systemName: category.systemImage)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 38, height: 38)
                 .background(iconColor.opacity(0.14), in: Circle())
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(transaction.note.isEmpty ? transaction.category.title : transaction.note)
+                Text(transaction.note.isEmpty ? category.title : transaction.note)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Text("\(transaction.category.title) · \(transaction.date.formatted(.dateTime.day().month(.abbreviated).hour().minute()))")
+                Text("\(category.title) · \(transaction.date.formatted(.dateTime.day().month(.abbreviated).hour().minute()))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -287,10 +288,14 @@ struct TransactionRowView: View {
 
     private var iconColor: Color {
         switch transaction.kind {
-        case .expense: transaction.category.tint
+        case .expense: category.tint
         case .income: PlanerTheme.positive
         case .transfer: PlanerTheme.accent
         }
+    }
+
+    private var category: TransactionCategoryPresentation {
+        store.categoryPresentation(for: transaction)
     }
 
     private var amountColor: Color {

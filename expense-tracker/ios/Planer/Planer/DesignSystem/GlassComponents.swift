@@ -75,29 +75,57 @@ struct GlassActionCluster: View {
     }
 
     private var actions: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             actionButton(title: "Витрата", icon: "arrow.up.right", tint: PlanerTheme.negative, action: onExpense)
             actionButton(title: "Дохід", icon: "arrow.down.left", tint: PlanerTheme.positive, action: onIncome)
             actionButton(title: "Переказ", icon: "arrow.left.arrow.right", tint: PlanerTheme.accent, action: onTransfer)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
     }
 
     private func actionButton(title: String, icon: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .semibold))
                 Text(title)
-                    .font(.caption2.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(.primary)
-            .frame(width: 68, height: 68)
-            .contentShape(Circle())
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(.horizontal, 10)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
-        .planerGlassCircle(tint: tint.opacity(0.28))
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .planerGlassCapsule()
         .accessibilityLabel(title)
+    }
+}
+
+struct AnimatedCurrencyAmountField: View {
+    @Binding var text: String
+    let currency: Currency
+    var font: Font = .system(size: 38, weight: .bold, design: .rounded)
+    var alignment: TextAlignment = .center
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("0,00", text: $text)
+                .font(font)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(alignment)
+                .contentTransition(.numericText())
+
+            Text(currency.symbol)
+                .font(font)
+                .foregroundStyle(.secondary)
+                .contentTransition(.numericText())
+                .accessibilityHidden(true)
+        }
+        .animation(.snappy(duration: 0.24), value: text)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Сума у валюті \(currency.rawValue)")
     }
 }

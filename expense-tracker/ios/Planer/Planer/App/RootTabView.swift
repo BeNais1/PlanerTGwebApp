@@ -3,6 +3,7 @@ import SwiftUI
 struct RootTabView: View {
     @Environment(FinanceStore.self) private var store
     @Environment(AppRouter.self) private var router
+    @Environment(FirebaseSyncStore.self) private var syncStore
 
     var body: some View {
         @Bindable var router = router
@@ -36,6 +37,9 @@ struct RootTabView: View {
         .sheet(item: $router.presentedSheet) { destination in
             sheetContent(for: destination)
         }
+        .onOpenURL { url in
+            Task { await openReceiptLink(url) }
+        }
     }
 
     @ViewBuilder
@@ -59,6 +63,32 @@ struct RootTabView: View {
             NavigationStack { GoalFundingView(goal: goal) }
         case .settleDebt(let debt):
             NavigationStack { DebtSettlementView(debt: debt) }
+        case .receipt(let receipt):
+            NavigationStack { ReceiptDetailView(receipt: receipt) }
+        }
+    }
+
+    private func openReceiptLink(_ url: URL) async {
+        let code: String?
+        if url.scheme == "planer", url.host == "receipt" {
+            code = url.pathComponents.last.flatMap { $0 == "/" ? nil : $0 }
+        } else if url.host == "planer-app-3a0f2.web.app" {
+            code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "receipt" })?
+                .value
+        } else {
+            code = nil
+        }
+        guard let code else { return }
+
+        router.selectedTab = .receipts
+        if let localReceipt = store.receipts.first(where: { $0.shareCode == code }) {
+            router.presentedSheet = .receipt(localReceipt)
+            return
+        }
+        if let sharedReceipt = try? await syncStore.fetchSharedReceipt(code: code) {
+            router.presentedSheet = .receipt(sharedReceipt)
         }
     }
 }
@@ -67,5 +97,6 @@ struct RootTabView: View {
     RootTabView()
         .environment(FinanceStore.previewStore())
         .environment(AppRouter())
+        .environment(FirebaseSyncStore.preview())
         .preferredColorScheme(.dark)
 }

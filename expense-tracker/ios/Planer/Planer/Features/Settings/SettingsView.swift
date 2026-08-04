@@ -68,13 +68,15 @@ struct SettingsView: View {
             }
 
             Section("Про застосунок") {
-                LabeledContent("Версія", value: "1.0 (4)")
+                LabeledContent("Версія", value: "1.0 (5)")
                 LabeledContent("Мінімальна iOS", value: "17.0")
                 LabeledContent("Liquid Glass", value: "iOS 26+")
             }
         }
         .navigationTitle("Налаштування")
         .navigationBarTitleDisplayMode(.inline)
+        .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
+        .animation(.easeInOut(duration: 0.22), value: store.prefersDarkAppearance)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Готово") { dismiss() }

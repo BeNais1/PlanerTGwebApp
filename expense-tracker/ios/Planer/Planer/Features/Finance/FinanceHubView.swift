@@ -123,7 +123,7 @@ struct FinanceHubView: View {
         let rows = store.recentTransactions.filter { transaction in
             query.isEmpty
                 || transaction.note.lowercased().contains(query)
-                || transaction.category.title.lowercased().contains(query)
+                || store.categoryPresentation(for: transaction).title.lowercased().contains(query)
                 || transaction.currency.formatted(transaction.amount).lowercased().contains(query)
         }
 
@@ -230,8 +230,12 @@ struct GoalFundingView: View {
             }
 
             Section("Сума поповнення") {
-                TextField("0,00", text: $amountText)
-                    .keyboardType(.decimalPad)
+                AnimatedCurrencyAmountField(
+                    text: $amountText,
+                    currency: goal.currency,
+                    font: .title3.bold(),
+                    alignment: .leading
+                )
                 if parsedAmount > remainingAmount {
                     Text("Сума не може перевищувати залишок до цілі.")
                         .font(.caption)
@@ -375,7 +379,12 @@ struct GoalEditorView: View {
         Form {
             Section("Нова ціль") {
                 TextField("Назва", text: $title)
-                TextField("Сума", text: $targetText).keyboardType(.decimalPad)
+                AnimatedCurrencyAmountField(
+                    text: $targetText,
+                    currency: currency,
+                    font: .title3.bold(),
+                    alignment: .leading
+                )
                 Picker("Валюта", selection: $currency) {
                     ForEach(Currency.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -414,7 +423,12 @@ struct DebtEditorView: View {
         Form {
             Section("Новий борг") {
                 TextField("Ім’я", text: $person)
-                TextField("Сума", text: $amountText).keyboardType(.decimalPad)
+                AnimatedCurrencyAmountField(
+                    text: $amountText,
+                    currency: currency,
+                    font: .title3.bold(),
+                    alignment: .leading
+                )
                 Picker("Напрямок", selection: $direction) {
                     ForEach(DebtDirection.allCases) { Text($0.title).tag($0) }
                 }

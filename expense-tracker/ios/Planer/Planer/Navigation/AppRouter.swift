@@ -18,6 +18,7 @@ enum SheetDestination: Identifiable, Hashable {
     case newDebt
     case fundGoal(SavingsGoal)
     case settleDebt(DebtItem)
+    case receipt(ReceiptSummary)
 
     var id: String {
         switch self {
@@ -30,6 +31,7 @@ enum SheetDestination: Identifiable, Hashable {
         case .newDebt: "new-debt"
         case .fundGoal(let goal): "fund-goal-\(goal.id)"
         case .settleDebt(let debt): "settle-debt-\(debt.id)"
+        case .receipt(let receipt): "receipt-\(receipt.id)"
         }
     }
 }

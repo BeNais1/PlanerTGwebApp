@@ -89,6 +89,7 @@ enum FinanceTransactionKind: String, Codable, CaseIterable, Identifiable, Hashab
         case .transfer: "arrow.left.arrow.right"
         }
     }
+
 }
 
 enum TransactionCategory: String, Codable, CaseIterable, Identifiable, Hashable {
@@ -131,6 +132,20 @@ enum TransactionCategory: String, Codable, CaseIterable, Identifiable, Hashable 
         case .other: "ellipsis"
         }
     }
+
+    var colorHex: String {
+        switch self {
+        case .food: "FF7A38"
+        case .transport: "2E94FF"
+        case .home: "8C5CF5"
+        case .health: "FF4F73"
+        case .shopping: "ED4FB8"
+        case .entertainment: "FAAD1F"
+        case .salary: "33C77F"
+        case .transfer: "247AFF"
+        case .other: "737D91"
+        }
+    }
 }
 
 struct FinanceTransaction: Identifiable, Codable, Hashable {
@@ -145,6 +160,8 @@ struct FinanceTransaction: Identifiable, Codable, Hashable {
     var destinationWalletID: UUID?
     var convertedAmount: Double?
     var authorName: String?
+    var customCategoryID: UUID?
+    var sourceDebtID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -157,7 +174,9 @@ struct FinanceTransaction: Identifiable, Codable, Hashable {
         walletID: UUID,
         destinationWalletID: UUID? = nil,
         convertedAmount: Double? = nil,
-        authorName: String? = nil
+        authorName: String? = nil,
+        customCategoryID: UUID? = nil,
+        sourceDebtID: UUID? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -170,6 +189,8 @@ struct FinanceTransaction: Identifiable, Codable, Hashable {
         self.destinationWalletID = destinationWalletID
         self.convertedAmount = convertedAmount
         self.authorName = authorName
+        self.customCategoryID = customCategoryID
+        self.sourceDebtID = sourceDebtID
     }
 }
 
@@ -242,6 +263,14 @@ struct ReceiptSummary: Identifiable, Codable, Hashable {
     var date: Date
     var isShared: Bool
     var transactionID: UUID?
+    var categoryTitle: String?
+    var categorySystemImage: String?
+    var transactionKind: FinanceTransactionKind?
+    var note: String?
+    var walletName: String?
+    var authorName: String?
+    var shareCode: String?
+    var createdAt: Date?
 
     init(
         id: UUID = UUID(),
@@ -250,7 +279,15 @@ struct ReceiptSummary: Identifiable, Codable, Hashable {
         currency: Currency,
         date: Date,
         isShared: Bool = false,
-        transactionID: UUID? = nil
+        transactionID: UUID? = nil,
+        categoryTitle: String? = nil,
+        categorySystemImage: String? = nil,
+        transactionKind: FinanceTransactionKind? = nil,
+        note: String? = nil,
+        walletName: String? = nil,
+        authorName: String? = nil,
+        shareCode: String? = nil,
+        createdAt: Date? = nil
     ) {
         self.id = id
         self.merchant = merchant
@@ -259,12 +296,53 @@ struct ReceiptSummary: Identifiable, Codable, Hashable {
         self.date = date
         self.isShared = isShared
         self.transactionID = transactionID
+        self.categoryTitle = categoryTitle
+        self.categorySystemImage = categorySystemImage
+        self.transactionKind = transactionKind
+        self.note = note
+        self.walletName = walletName
+        self.authorName = authorName
+        self.shareCode = shareCode
+        self.createdAt = createdAt
     }
 }
 
+struct CustomTransactionCategory: Identifiable, Codable, Hashable {
+    let id: UUID
+    var title: String
+    var systemImage: String
+    var colorHex: String
+    var kind: FinanceTransactionKind
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        systemImage: String,
+        colorHex: String,
+        kind: FinanceTransactionKind
+    ) {
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.colorHex = colorHex
+        self.kind = kind
+    }
+}
+
+struct TransactionCategoryPresentation: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let colorHex: String
+    let builtIn: TransactionCategory?
+    let customID: UUID?
+}
+
 struct CategoryTotal: Identifiable, Hashable {
-    var id: TransactionCategory { category }
-    let category: TransactionCategory
+    let id: String
+    let title: String
+    let systemImage: String
+    let colorHex: String
     let amount: Double
 }
 
@@ -274,6 +352,7 @@ struct PlanerSnapshot: Codable {
     var goals: [SavingsGoal]
     var debts: [DebtItem]
     var receipts: [ReceiptSummary]
+    var customCategories: [CustomTransactionCategory]
     var budgetLimit: Double
     var mainCurrency: Currency
     var prefersDarkAppearance: Bool
@@ -285,6 +364,7 @@ struct PlanerSnapshot: Codable {
         case goals
         case debts
         case receipts
+        case customCategories
         case budgetLimit
         case mainCurrency
         case prefersDarkAppearance
@@ -297,6 +377,7 @@ struct PlanerSnapshot: Codable {
         goals: [SavingsGoal],
         debts: [DebtItem],
         receipts: [ReceiptSummary],
+        customCategories: [CustomTransactionCategory] = [],
         budgetLimit: Double,
         mainCurrency: Currency,
         prefersDarkAppearance: Bool,
@@ -307,6 +388,7 @@ struct PlanerSnapshot: Codable {
         self.goals = goals
         self.debts = debts
         self.receipts = receipts
+        self.customCategories = customCategories
         self.budgetLimit = budgetLimit
         self.mainCurrency = mainCurrency
         self.prefersDarkAppearance = prefersDarkAppearance
@@ -323,6 +405,7 @@ struct PlanerSnapshot: Codable {
         goals = try container.decodeIfPresent([SavingsGoal].self, forKey: .goals) ?? []
         debts = try container.decodeIfPresent([DebtItem].self, forKey: .debts) ?? []
         receipts = try container.decodeIfPresent([ReceiptSummary].self, forKey: .receipts) ?? []
+        customCategories = try container.decodeIfPresent([CustomTransactionCategory].self, forKey: .customCategories) ?? []
         budgetLimit = try container.decodeIfPresent(Double.self, forKey: .budgetLimit) ?? 0
         mainCurrency = try container.decodeIfPresent(Currency.self, forKey: .mainCurrency) ?? .UAH
         prefersDarkAppearance = try container.decodeIfPresent(Bool.self, forKey: .prefersDarkAppearance) ?? false
@@ -335,6 +418,7 @@ struct PlanerSnapshot: Codable {
         goals: [],
         debts: [],
         receipts: [],
+        customCategories: [],
         budgetLimit: 0,
         mainCurrency: .UAH,
         prefersDarkAppearance: true,

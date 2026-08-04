@@ -14,6 +14,7 @@ final class FinanceStore {
     var goals: [SavingsGoal]
     var debts: [DebtItem]
     var receipts: [ReceiptSummary]
+    var customCategories: [CustomTransactionCategory]
     var budgetLimit: Double
     var mainCurrency: Currency
     var prefersDarkAppearance: Bool
@@ -45,6 +46,7 @@ final class FinanceStore {
         goals = initial.goals
         debts = initial.debts
         receipts = initial.receipts
+        customCategories = initial.customCategories
         budgetLimit = initial.budgetLimit
         mainCurrency = initial.mainCurrency
         prefersDarkAppearance = initial.prefersDarkAppearance
@@ -91,12 +93,87 @@ final class FinanceStore {
         receipts.first { $0.transactionID == transactionID }
     }
 
+    func customCategory(id: UUID) -> CustomTransactionCategory? {
+        customCategories.first { $0.id == id }
+    }
+
+    func categoryPresentation(for transaction: FinanceTransaction) -> TransactionCategoryPresentation {
+        if let customCategoryID = transaction.customCategoryID,
+           let category = customCategory(id: customCategoryID) {
+            return TransactionCategoryPresentation(
+                id: "custom-\(category.id.uuidString)",
+                title: category.title,
+                systemImage: category.systemImage,
+                colorHex: category.colorHex,
+                builtIn: nil,
+                customID: category.id
+            )
+        }
+        return categoryPresentation(for: transaction.category)
+    }
+
+    func categoryPresentation(for category: TransactionCategory) -> TransactionCategoryPresentation {
+        TransactionCategoryPresentation(
+            id: "built-in-\(category.rawValue)",
+            title: category.title,
+            systemImage: category.systemImage,
+            colorHex: category.colorHex,
+            builtIn: category,
+            customID: nil
+        )
+    }
+
+    func categoryPresentations(for kind: FinanceTransactionKind) -> [TransactionCategoryPresentation] {
+        let builtIns: [TransactionCategory]
+        switch kind {
+        case .expense:
+            builtIns = [.food, .transport, .home, .health, .shopping, .entertainment, .other]
+        case .income:
+            builtIns = [.salary, .other]
+        case .transfer:
+            builtIns = [.transfer]
+        }
+        return builtIns.map { categoryPresentation(for: $0) } + customCategories
+            .filter { $0.kind == kind }
+            .map {
+                TransactionCategoryPresentation(
+                    id: "custom-\($0.id.uuidString)",
+                    title: $0.title,
+                    systemImage: $0.systemImage,
+                    colorHex: $0.colorHex,
+                    builtIn: nil,
+                    customID: $0.id
+                )
+            }
+    }
+
+    @discardableResult
+    func addCustomCategory(
+        title: String,
+        systemImage: String,
+        colorHex: String,
+        kind: FinanceTransactionKind
+    ) -> CustomTransactionCategory? {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty, kind != .transfer else { return nil }
+        let category = CustomTransactionCategory(
+            title: trimmedTitle,
+            systemImage: systemImage,
+            colorHex: colorHex,
+            kind: kind
+        )
+        customCategories.append(category)
+        persist()
+        return category
+    }
+
     func addTransaction(
         kind: FinanceTransactionKind,
         amount: Double,
         walletID: UUID,
         destinationWalletID: UUID? = nil,
         category: TransactionCategory,
+        customCategoryID: UUID? = nil,
         note: String,
         date: Date = .now
     ) {
@@ -129,7 +206,8 @@ final class FinanceStore {
                 date: date,
                 walletID: walletID,
                 destinationWalletID: destinationWalletID,
-                convertedAmount: destinationAmount
+                convertedAmount: destinationAmount,
+                customCategoryID: kind == .transfer ? nil : customCategoryID
             )
         )
         persist()
@@ -156,21 +234,40 @@ final class FinanceStore {
     }
 
     @discardableResult
-    func createReceipt(for transaction: FinanceTransaction, merchant: String) -> ReceiptSummary? {
+    func createReceipt(
+        for transaction: FinanceTransaction,
+        merchant: String,
+        authorName: String? = nil
+    ) -> ReceiptSummary? {
         guard receipt(for: transaction.id) == nil else { return nil }
         let trimmedMerchant = merchant.trimmingCharacters(in: .whitespacesAndNewlines)
+        let category = categoryPresentation(for: transaction)
         let receipt = ReceiptSummary(
             merchant: trimmedMerchant.isEmpty
-                ? (transaction.note.isEmpty ? transaction.category.title : transaction.note)
+                ? (transaction.note.isEmpty ? category.title : transaction.note)
                 : trimmedMerchant,
             amount: transaction.amount,
             currency: transaction.currency,
             date: transaction.date,
-            transactionID: transaction.id
+            transactionID: transaction.id,
+            categoryTitle: category.title,
+            categorySystemImage: category.systemImage,
+            transactionKind: transaction.kind,
+            note: transaction.note,
+            walletName: wallet(id: transaction.walletID)?.name,
+            authorName: authorName,
+            createdAt: .now
         )
         receipts.append(receipt)
         persist()
         return receipt
+    }
+
+    func markReceiptShared(id: UUID, shareCode: String) {
+        guard let index = receipts.firstIndex(where: { $0.id == id }) else { return }
+        receipts[index].isShared = true
+        receipts[index].shareCode = shareCode
+        persist()
     }
 
     func addWallet(name: String, currency: Currency, balance: Double) {
@@ -248,6 +345,21 @@ final class FinanceStore {
             case .iOwe:
                 wallets[walletIndex].balance -= walletAmount
             }
+
+            let debt = debts[debtIndex]
+            transactions.append(
+                FinanceTransaction(
+                    kind: debt.direction == .owedToMe ? .income : .expense,
+                    amount: walletAmount,
+                    currency: wallets[walletIndex].currency,
+                    category: .other,
+                    note: debt.direction == .owedToMe
+                        ? "Повернення боргу від \(debt.person)"
+                        : "Погашення боргу для \(debt.person)",
+                    walletID: walletID,
+                    sourceDebtID: debt.id
+                )
+            )
         }
 
         debts[debtIndex].isPaid = true
@@ -262,6 +374,7 @@ final class FinanceStore {
             goals: goals,
             debts: debts,
             receipts: receipts,
+            customCategories: customCategories,
             budgetLimit: budgetLimit,
             mainCurrency: mainCurrency,
             prefersDarkAppearance: prefersDarkAppearance,
@@ -279,6 +392,7 @@ final class FinanceStore {
         goals = snapshot.goals
         debts = snapshot.debts
         receipts = snapshot.receipts
+        customCategories = snapshot.customCategories
         budgetLimit = snapshot.budgetLimit
         mainCurrency = snapshot.mainCurrency
         prefersDarkAppearance = snapshot.prefersDarkAppearance
@@ -307,12 +421,23 @@ final class FinanceStore {
     }
 
     func categoryTotals(for transactions: [FinanceTransaction]) -> [CategoryTotal] {
-        let totals = Dictionary(grouping: transactions.filter { $0.kind == .expense }, by: \.category)
+        let totals = Dictionary(
+            grouping: transactions.filter { $0.kind == .expense },
+            by: { categoryPresentation(for: $0) }
+        )
             .mapValues { rows in
                 rows.reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
             }
         return totals
-            .map { CategoryTotal(category: $0.key, amount: $0.value) }
+            .map {
+                CategoryTotal(
+                    id: $0.key.id,
+                    title: $0.key.title,
+                    systemImage: $0.key.systemImage,
+                    colorHex: $0.key.colorHex,
+                    amount: $0.value
+                )
+            }
             .sorted { $0.amount > $1.amount }
     }
 

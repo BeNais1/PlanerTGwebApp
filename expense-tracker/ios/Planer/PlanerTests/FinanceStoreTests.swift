@@ -147,6 +147,11 @@ final class FinanceStoreTests: XCTestCase {
 
         XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 1_100, accuracy: 0.001)
         XCTAssertTrue(try XCTUnwrap(store.debts.first?.isPaid))
+        let transaction = try XCTUnwrap(store.transactions.first)
+        XCTAssertEqual(transaction.kind, .income)
+        XCTAssertEqual(transaction.amount, 100, accuracy: 0.001)
+        XCTAssertEqual(transaction.sourceDebtID, debt.id)
+        XCTAssertTrue(transaction.note.contains("Олексій"))
     }
 
     func testSettlingOutgoingDebtCanDebitWallet() throws {
@@ -161,6 +166,7 @@ final class FinanceStoreTests: XCTestCase {
 
         XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 900, accuracy: 0.001)
         XCTAssertTrue(try XCTUnwrap(store.debts.first?.isPaid))
+        XCTAssertEqual(try XCTUnwrap(store.transactions.first?.kind), .expense)
     }
 
     func testReceiptCanBeCreatedOnlyOnceForTransaction() throws {
@@ -185,6 +191,62 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertEqual(receipt.amount, transaction.amount, accuracy: 0.001)
         XCTAssertNil(store.createReceipt(for: transaction, merchant: "Дублікат"))
         XCTAssertEqual(store.receipts.count, 1)
+    }
+
+    func testCustomCategoryCanBeUsedAndPersistedInSnapshot() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        let category = try XCTUnwrap(
+            store.addCustomCategory(
+                title: "Кіт",
+                systemImage: "pawprint.fill",
+                colorHex: "FF7A38",
+                kind: .expense
+            )
+        )
+        store.addTransaction(
+            kind: .expense,
+            amount: 50,
+            walletID: wallet.id,
+            category: .other,
+            customCategoryID: category.id,
+            note: "Корм"
+        )
+
+        let transaction = try XCTUnwrap(store.transactions.first)
+        XCTAssertEqual(transaction.customCategoryID, category.id)
+        XCTAssertEqual(store.categoryPresentation(for: transaction).title, "Кіт")
+        XCTAssertEqual(store.snapshot.customCategories, [category])
+        XCTAssertEqual(try XCTUnwrap(store.categoryTotals(for: [transaction]).first?.title), "Кіт")
+    }
+
+    func testReceiptKeepsDigitalReceiptMetadata() throws {
+        let wallet = Wallet(name: "Mono", currency: .UAH, balance: 1_000, palette: .blue)
+        let transaction = FinanceTransaction(
+            kind: .expense,
+            amount: 125,
+            currency: .UAH,
+            category: .food,
+            note: "Обід",
+            walletID: wallet.id
+        )
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.transactions = [transaction]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        let receipt = try XCTUnwrap(
+            store.createReceipt(for: transaction, merchant: "Кафе", authorName: "Борис")
+        )
+
+        XCTAssertEqual(receipt.authorName, "Борис")
+        XCTAssertEqual(receipt.walletName, "Mono")
+        XCTAssertEqual(receipt.categoryTitle, "Їжа")
+        XCTAssertEqual(receipt.transactionKind, .expense)
+        XCTAssertNotNil(receipt.createdAt)
     }
 
     func testTransactionPreservesSelectedDateAndTime() throws {
