@@ -68,7 +68,7 @@ struct SettingsView: View {
             }
 
             Section("Про застосунок") {
-                LabeledContent("Версія", value: "1.0 (3)")
+                LabeledContent("Версія", value: "1.0 (4)")
                 LabeledContent("Мінімальна iOS", value: "17.0")
                 LabeledContent("Liquid Glass", value: "iOS 26+")
             }

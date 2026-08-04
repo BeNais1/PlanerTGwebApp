@@ -87,6 +87,10 @@ final class FinanceStore {
         wallets.first { $0.id == id }
     }
 
+    func receipt(for transactionID: UUID) -> ReceiptSummary? {
+        receipts.first { $0.transactionID == transactionID }
+    }
+
     func addTransaction(
         kind: FinanceTransactionKind,
         amount: Double,
@@ -149,6 +153,24 @@ final class FinanceStore {
 
         transactions.removeAll { $0.id == transaction.id }
         persist()
+    }
+
+    @discardableResult
+    func createReceipt(for transaction: FinanceTransaction, merchant: String) -> ReceiptSummary? {
+        guard receipt(for: transaction.id) == nil else { return nil }
+        let trimmedMerchant = merchant.trimmingCharacters(in: .whitespacesAndNewlines)
+        let receipt = ReceiptSummary(
+            merchant: trimmedMerchant.isEmpty
+                ? (transaction.note.isEmpty ? transaction.category.title : transaction.note)
+                : trimmedMerchant,
+            amount: transaction.amount,
+            currency: transaction.currency,
+            date: transaction.date,
+            transactionID: transaction.id
+        )
+        receipts.append(receipt)
+        persist()
+        return receipt
     }
 
     func addWallet(name: String, currency: Currency, balance: Double) {

@@ -241,6 +241,25 @@ struct ReceiptSummary: Identifiable, Codable, Hashable {
     var currency: Currency
     var date: Date
     var isShared: Bool
+    var transactionID: UUID?
+
+    init(
+        id: UUID = UUID(),
+        merchant: String,
+        amount: Double,
+        currency: Currency,
+        date: Date,
+        isShared: Bool = false,
+        transactionID: UUID? = nil
+    ) {
+        self.id = id
+        self.merchant = merchant
+        self.amount = amount
+        self.currency = currency
+        self.date = date
+        self.isShared = isShared
+        self.transactionID = transactionID
+    }
 }
 
 struct CategoryTotal: Identifiable, Hashable {

@@ -80,18 +80,20 @@ struct DashboardView: View {
 
     private var walletCarousel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Загальний баланс")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(store.mainCurrency.formatted(store.totalBalanceInMainCurrency))
-                        .font(.title2.weight(.bold))
-                        .contentTransition(.numericText())
+            if store.wallets.count > 1 {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Загальний баланс")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(store.mainCurrency.formatted(store.totalBalanceInMainCurrency))
+                            .font(.title2.weight(.bold))
+                            .contentTransition(.numericText())
+                    }
+                    Spacer()
                 }
-                Spacer()
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 20)
 
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 14) {
@@ -265,7 +267,7 @@ struct TransactionRowView: View {
                 Text(transaction.note.isEmpty ? transaction.category.title : transaction.note)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Text("\(transaction.category.title) · \(transaction.date.formatted(.dateTime.day().month(.abbreviated)))")
+                Text("\(transaction.category.title) · \(transaction.date.formatted(.dateTime.day().month(.abbreviated).hour().minute()))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

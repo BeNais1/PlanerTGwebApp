@@ -162,4 +162,51 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 900, accuracy: 0.001)
         XCTAssertTrue(try XCTUnwrap(store.debts.first?.isPaid))
     }
+
+    func testReceiptCanBeCreatedOnlyOnceForTransaction() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let transaction = FinanceTransaction(
+            kind: .expense,
+            amount: 250,
+            currency: .UAH,
+            category: .food,
+            note: "Кав’ярня",
+            walletID: wallet.id
+        )
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.transactions = [transaction]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        let receipt = try XCTUnwrap(store.createReceipt(for: transaction, merchant: "Кав’ярня на Подолі"))
+
+        XCTAssertEqual(receipt.transactionID, transaction.id)
+        XCTAssertEqual(receipt.merchant, "Кав’ярня на Подолі")
+        XCTAssertEqual(receipt.amount, transaction.amount, accuracy: 0.001)
+        XCTAssertNil(store.createReceipt(for: transaction, merchant: "Дублікат"))
+        XCTAssertEqual(store.receipts.count, 1)
+    }
+
+    func testTransactionPreservesSelectedDateAndTime() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+        let selectedDate = try XCTUnwrap(
+            Calendar(identifier: .gregorian).date(
+                from: DateComponents(year: 2026, month: 8, day: 4, hour: 18, minute: 37)
+            )
+        )
+
+        store.addTransaction(
+            kind: .expense,
+            amount: 100,
+            walletID: wallet.id,
+            category: .transport,
+            note: "Таксі",
+            date: selectedDate
+        )
+
+        XCTAssertEqual(try XCTUnwrap(store.transactions.first?.date), selectedDate)
+    }
 }

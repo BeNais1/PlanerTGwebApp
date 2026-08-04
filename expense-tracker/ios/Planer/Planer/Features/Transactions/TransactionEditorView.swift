@@ -77,6 +77,7 @@ struct TransactionEditorView: View {
                 Section("Деталі") {
                     TextField("Коментар", text: $note)
                     DatePicker("Дата", selection: $date, displayedComponents: [.date])
+                    DatePicker("Час", selection: $date, displayedComponents: [.hourAndMinute])
                 }
             }
             .scrollContentBackground(.hidden)

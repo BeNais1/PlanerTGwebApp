@@ -14,7 +14,7 @@ struct ReceiptsView: View {
                         ContentUnavailableView(
                             "Немає збережених чеків",
                             systemImage: "bookmark.slash",
-                            description: Text("Чеки, збережені з посилань, з’являться тут")
+                            description: Text("Відкрийте операцію та натисніть «Створити чек»")
                         )
                         .frame(minHeight: 360)
                         .contentCard()
@@ -43,7 +43,7 @@ struct ReceiptsView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(receipt.merchant).font(.headline)
-                Text(receipt.date.formatted(date: .abbreviated, time: .omitted))
+                Text(receipt.date.formatted(date: .abbreviated, time: .shortened))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
