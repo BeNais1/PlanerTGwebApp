@@ -23,7 +23,7 @@ concurrency:
 jobs:
   build:
     name: Compile and package unsigned IPA
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 35
 
     defaults:
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Select Xcode 26
+      - name: Select Xcode 27
         run: |
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
