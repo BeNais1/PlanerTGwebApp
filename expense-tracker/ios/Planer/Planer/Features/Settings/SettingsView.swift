@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(FinanceStore.self) private var store
     @Environment(AuthSession.self) private var authSession
     @Environment(FirebaseSyncStore.self) private var syncStore
+    @Environment(DailyFinanceLiveActivityManager.self) private var liveActivityManager
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
 
@@ -42,6 +43,37 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(PlanerTheme.negative)
                 }
+            }
+
+            Section("Dynamic Island і екран блокування") {
+                Label(liveActivityManager.status.title, systemImage: liveActivityManager.status.systemImage)
+                    .foregroundStyle(liveActivityStatusColor)
+
+                if case .failed(let details) = liveActivityManager.status {
+                    Text(details)
+                        .font(.caption)
+                        .foregroundStyle(PlanerTheme.negative)
+                        .textSelection(.enabled)
+                } else if liveActivityManager.status == .disabled {
+                    Text("Увімкніть Live Activities у Налаштуваннях iPhone → Planer → Live Activities.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if liveActivityManager.status == .active {
+                    Text("Live Activity створено. Якщо капсула порожня, підпишіть не лише Planer, а й вкладене розширення з Bundle ID planer.liveactivity.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Показує витрати та дохід за сьогодні. Після запуску заблокуйте екран або згорніть Planer.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Button("Запустити повторно") {
+                    Task {
+                        await liveActivityManager.refresh(with: liveActivitySnapshot, forceRestart: true)
+                    }
+                }
+                .disabled(liveActivityManager.status == .starting)
             }
 
             Section("Обліковий запис Google") {
@@ -100,6 +132,22 @@ struct SettingsView: View {
         return "\(version) (\(build))"
     }
 
+    private var liveActivitySnapshot: DailyFinanceSnapshot {
+        DailyFinanceSnapshot(
+            expenses: store.todayExpenses,
+            income: store.todayIncome,
+            currencySymbol: store.mainCurrency.symbol
+        )
+    }
+
+    private var liveActivityStatusColor: Color {
+        switch liveActivityManager.status {
+        case .active: PlanerTheme.positive
+        case .failed, .disabled: PlanerTheme.negative
+        case .checking, .waitingForForeground, .starting: PlanerTheme.warning
+        }
+    }
+
     private var syncStatusIcon: String {
         switch syncStore.status {
         case .connecting: "arrow.triangle.2.circlepath.icloud"
@@ -122,4 +170,5 @@ struct SettingsView: View {
         .environment(FinanceStore.previewStore())
         .environment(AuthSession.preview())
         .environment(FirebaseSyncStore.preview())
+        .environment(DailyFinanceLiveActivityManager.shared)
 }

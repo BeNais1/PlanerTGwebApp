@@ -133,6 +133,10 @@ jobs:
           OUTPUT_DIR="$GITHUB_WORKSPACE/expense-tracker/ios/Planer/build"
 
           test -d "$APP_PATH"
+          test -x "$APP_PATH/PlugIns/PlanerLiveActivity.appex/PlanerLiveActivity"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$APP_PATH/Info.plist")" = "true"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$APP_PATH/PlugIns/PlanerLiveActivity.appex/Info.plist")" = "true"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/PlugIns/PlanerLiveActivity.appex/Info.plist")" = "planer.liveactivity"
           rm -rf "$OUTPUT_DIR"
           mkdir -p "$OUTPUT_DIR/Payload"
           ditto "$APP_PATH" "$OUTPUT_DIR/Payload/Planer.app"

@@ -1,5 +1,7 @@
 import ActivityKit
 import Foundation
+import Observation
+import UIKit
 
 struct DailyFinanceSnapshot: Hashable {
     let expenses: Double
@@ -8,13 +10,55 @@ struct DailyFinanceSnapshot: Hashable {
 }
 
 @MainActor
+@Observable
 final class DailyFinanceLiveActivityManager {
+    enum Status: Equatable {
+        case checking
+        case disabled
+        case waitingForForeground
+        case starting
+        case active
+        case failed(String)
+
+        var title: String {
+            switch self {
+            case .checking: "Перевіряємо"
+            case .disabled: "Вимкнено в iOS"
+            case .waitingForForeground: "Очікує відкриття Planer"
+            case .starting: "Запускаємо"
+            case .active: "Працює"
+            case .failed: "Помилка запуску"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .checking, .starting: "arrow.triangle.2.circlepath"
+            case .disabled: "livephoto.slash"
+            case .waitingForForeground: "hourglass"
+            case .active: "checkmark.circle.fill"
+            case .failed: "exclamationmark.triangle.fill"
+            }
+        }
+    }
+
     static let shared = DailyFinanceLiveActivityManager()
+    private(set) var status: Status = .checking
 
     private init() {}
 
-    func refresh(with snapshot: DailyFinanceSnapshot) async {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+    func refresh(with snapshot: DailyFinanceSnapshot, forceRestart: Bool = false) async {
+        guard let plugInsURL = Bundle.main.builtInPlugInsURL,
+              FileManager.default.fileExists(
+                atPath: plugInsURL.appendingPathComponent("PlanerLiveActivity.appex").path
+              ) else {
+            status = .failed("Розширення PlanerLiveActivity.appex відсутнє. Підписувач IPA видалив його або не встановив.")
+            return
+        }
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            status = .disabled
+            return
+        }
 
         let now = Date.now
         let state = DailyFinanceActivityAttributes.ContentState(
@@ -30,8 +74,10 @@ final class DailyFinanceLiveActivityManager {
         )
 
         let activities = Activity<DailyFinanceActivityAttributes>.activities
-        if let current = activities.first(where: { Calendar.current.isDateInToday($0.attributes.day) }) {
+        if !forceRestart,
+           let current = activities.first(where: { Calendar.current.isDateInToday($0.attributes.day) }) {
             await current.update(content)
+            status = .active
             for obsolete in activities where obsolete.id != current.id {
                 await obsolete.end(nil, dismissalPolicy: .immediate)
             }
@@ -42,15 +88,24 @@ final class DailyFinanceLiveActivityManager {
             await obsolete.end(nil, dismissalPolicy: .immediate)
         }
 
+        guard UIApplication.shared.applicationState == .active else {
+            status = .waitingForForeground
+            return
+        }
+
         do {
-            _ = try Activity.request(
+            status = .starting
+            let activity = try Activity.request(
                 attributes: DailyFinanceActivityAttributes(day: Calendar.current.startOfDay(for: now)),
                 content: content,
                 pushType: nil
             )
+            status = activity.activityState == .active ? .active : .failed("ActivityKit: \(activity.activityState)")
         } catch {
-            print("Live Activity could not start: \(error)")
+            let nsError = error as NSError
+            let details = "\(nsError.localizedDescription) [\(nsError.domain):\(nsError.code)]"
+            status = .failed(details)
+            print("Live Activity could not start: \(details)")
         }
     }
 }
-

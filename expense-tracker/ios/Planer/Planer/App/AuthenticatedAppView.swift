@@ -2,10 +2,12 @@ import SwiftUI
 
 @MainActor
 struct AuthenticatedAppView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Binding private var pendingDeepLink: URL?
     @State private var store: FinanceStore
     @State private var router = AppRouter()
     @State private var syncStore: FirebaseSyncStore
+    @State private var liveActivityManager = DailyFinanceLiveActivityManager.shared
 
     init(user: AuthenticatedUser, pendingDeepLink: Binding<URL?>) {
         _pendingDeepLink = pendingDeepLink
@@ -18,12 +20,21 @@ struct AuthenticatedAppView: View {
             .environment(store)
             .environment(router)
             .environment(syncStore)
+            .environment(liveActivityManager)
             .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
             .task {
                 syncStore.start(store: store)
             }
             .task(id: liveActivitySnapshot) {
-                await DailyFinanceLiveActivityManager.shared.refresh(with: liveActivitySnapshot)
+                guard scenePhase == .active else { return }
+                await liveActivityManager.refresh(with: liveActivitySnapshot)
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    await liveActivityManager.refresh(with: liveActivitySnapshot)
+                }
             }
             .onDisappear {
                 syncStore.stop()
