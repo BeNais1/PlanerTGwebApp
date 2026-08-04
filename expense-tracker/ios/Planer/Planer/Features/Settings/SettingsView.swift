@@ -68,7 +68,7 @@ struct SettingsView: View {
             }
 
             Section("Про застосунок") {
-                LabeledContent("Версія", value: "1.0 (5)")
+                LabeledContent("Версія", value: appVersion)
                 LabeledContent("Мінімальна iOS", value: "17.0")
                 LabeledContent("Liquid Glass", value: "iOS 26+")
             }
@@ -92,6 +92,12 @@ struct SettingsView: View {
         } message: {
             Text("Цю дію неможливо скасувати.")
         }
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        return "\(version) (\(build))"
     }
 
     private var syncStatusIcon: String {

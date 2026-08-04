@@ -22,8 +22,19 @@ struct AuthenticatedAppView: View {
             .task {
                 syncStore.start(store: store)
             }
+            .task(id: liveActivitySnapshot) {
+                await DailyFinanceLiveActivityManager.shared.refresh(with: liveActivitySnapshot)
+            }
             .onDisappear {
                 syncStore.stop()
             }
+    }
+
+    private var liveActivitySnapshot: DailyFinanceSnapshot {
+        DailyFinanceSnapshot(
+            expenses: store.todayExpenses,
+            income: store.todayIncome,
+            currencySymbol: store.mainCurrency.symbol
+        )
     }
 }

@@ -25,9 +25,12 @@ targets:
         excludes:
           - Info.plist
           - GoogleService-Info.plist
+      - path: Shared
       - path: Planer/GoogleService-Info.plist
         buildPhase: resources
     dependencies:
+      - target: PlanerLiveActivity
+        embed: true
       - package: Firebase
         product: FirebaseCore
       - package: Firebase
@@ -46,6 +49,8 @@ targets:
           - -ObjC
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        MARKETING_VERSION: 1.1.0
+        CURRENT_PROJECT_VERSION: 6
     scheme:
       testTargets:
         - PlanerTests
@@ -60,3 +65,19 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: planer.tests
         GENERATE_INFOPLIST_FILE: YES
+  PlanerLiveActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PlanerLiveActivity
+        excludes:
+          - Info.plist
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: planer.liveactivity
+        INFOPLIST_FILE: PlanerLiveActivity/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        MARKETING_VERSION: 1.1.0
+        CURRENT_PROJECT_VERSION: 6

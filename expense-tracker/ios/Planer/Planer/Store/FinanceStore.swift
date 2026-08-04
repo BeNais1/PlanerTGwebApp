@@ -76,6 +76,18 @@ final class FinanceStore {
             .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
     }
 
+    var todayExpenses: Double {
+        transactions
+            .filter { $0.kind == .expense && Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
+    }
+
+    var todayIncome: Double {
+        transactions
+            .filter { $0.kind == .income && Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
+    }
+
     var budgetProgress: Double {
         guard budgetLimit > 0 else { return 0 }
         return min(monthlyExpenses / budgetLimit, 1)
@@ -91,6 +103,14 @@ final class FinanceStore {
 
     func receipt(for transactionID: UUID) -> ReceiptSummary? {
         receipts.first { $0.transactionID == transactionID }
+    }
+
+    func savedReceipt(matching receipt: ReceiptSummary) -> ReceiptSummary? {
+        if let shareCode = receipt.shareCode,
+           let shared = receipts.first(where: { $0.shareCode == shareCode }) {
+            return shared
+        }
+        return receipts.first { $0.id == receipt.id }
     }
 
     func customCategory(id: UUID) -> CustomTransactionCategory? {
@@ -267,6 +287,37 @@ final class FinanceStore {
         guard let index = receipts.firstIndex(where: { $0.id == id }) else { return }
         receipts[index].isShared = true
         receipts[index].shareCode = shareCode
+        persist()
+    }
+
+    @discardableResult
+    func saveSharedReceipt(_ receipt: ReceiptSummary) -> ReceiptSummary {
+        if let existing = savedReceipt(matching: receipt) {
+            return existing
+        }
+        let saved = ReceiptSummary(
+            merchant: receipt.merchant,
+            amount: receipt.amount,
+            currency: receipt.currency,
+            date: receipt.date,
+            isShared: true,
+            transactionID: nil,
+            categoryTitle: receipt.categoryTitle,
+            categorySystemImage: receipt.categorySystemImage,
+            transactionKind: receipt.transactionKind,
+            note: receipt.note,
+            walletName: receipt.walletName,
+            authorName: receipt.authorName,
+            shareCode: receipt.shareCode,
+            createdAt: receipt.createdAt
+        )
+        receipts.append(saved)
+        persist()
+        return saved
+    }
+
+    func deleteReceipt(id: UUID) {
+        receipts.removeAll { $0.id == id }
         persist()
     }
 

@@ -190,6 +190,26 @@ final class FirebaseSyncStore {
         )
     }
 
+    @discardableResult
+    func revokeSharedReceipt(_ receipt: ReceiptSummary) async throws -> Bool {
+        guard let code = receipt.shareCode.flatMap(Self.validShareCode) else { return false }
+        let sharedReference = Database.database().reference().child("shared_receipts").child(code)
+        guard let share = try await readValue(from: sharedReference) as? [String: Any],
+              share["ownerId"] as? String == user.id else {
+            return false
+        }
+
+        let receiptID = (share["receiptId"] as? String)
+            ?? receipt.transactionID?.uuidString
+            ?? receipt.id.uuidString
+        try await updateValues([
+            "shared_receipts/\(code)/isActive": false,
+            "shared_receipts/\(code)/updatedAt": Date.now.timeIntervalSince1970 * 1_000,
+            "user_shares/\(user.id)/\(receiptID)": NSNull()
+        ])
+        return true
+    }
+
     private static func validShareCode(_ value: String) -> String? {
         value.range(of: #"^[A-Za-z0-9_-]{8,32}$"#, options: .regularExpression) == nil ? nil : value
     }

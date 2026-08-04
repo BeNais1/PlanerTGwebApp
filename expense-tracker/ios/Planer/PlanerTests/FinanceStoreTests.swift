@@ -271,4 +271,55 @@ final class FinanceStoreTests: XCTestCase {
 
         XCTAssertEqual(try XCTUnwrap(store.transactions.first?.date), selectedDate)
     }
+
+    func testSharedReceiptCanBeSavedOnlyOnceAndDeletedWithoutTransaction() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let transaction = FinanceTransaction(
+            kind: .expense,
+            amount: 90,
+            currency: .UAH,
+            category: .food,
+            note: "Кава",
+            walletID: wallet.id
+        )
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.transactions = [transaction]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+        let incoming = ReceiptSummary(
+            merchant: "Кав’ярня",
+            amount: 90,
+            currency: .UAH,
+            date: .now,
+            isShared: true,
+            transactionID: UUID(),
+            categoryTitle: "Їжа",
+            shareCode: "ABCDEFGH"
+        )
+
+        let saved = store.saveSharedReceipt(incoming)
+        _ = store.saveSharedReceipt(incoming)
+
+        XCTAssertEqual(store.receipts.count, 1)
+        XCTAssertNil(saved.transactionID)
+        store.deleteReceipt(id: saved.id)
+        XCTAssertTrue(store.receipts.isEmpty)
+        XCTAssertEqual(store.transactions, [transaction])
+    }
+
+    func testTodayTotalsUseMainCurrencyAndIgnoreOlderTransactions() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: .now))
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.transactions = [
+            FinanceTransaction(kind: .expense, amount: 125, currency: .UAH, category: .food, note: "", date: .now, walletID: wallet.id),
+            FinanceTransaction(kind: .income, amount: 400, currency: .UAH, category: .salary, note: "", date: .now, walletID: wallet.id),
+            FinanceTransaction(kind: .expense, amount: 999, currency: .UAH, category: .other, note: "", date: yesterday, walletID: wallet.id)
+        ]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        XCTAssertEqual(store.todayExpenses, 125, accuracy: 0.001)
+        XCTAssertEqual(store.todayIncome, 400, accuracy: 0.001)
+    }
 }

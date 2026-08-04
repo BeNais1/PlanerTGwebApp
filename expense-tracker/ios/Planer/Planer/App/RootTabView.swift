@@ -40,7 +40,7 @@ struct RootTabView: View {
         }
         .task(id: pendingDeepLink) {
             guard let url = pendingDeepLink else { return }
-            await openReceiptLink(url)
+            await openDeepLink(url)
             pendingDeepLink = nil
         }
     }
@@ -71,7 +71,16 @@ struct RootTabView: View {
         }
     }
 
-    private func openReceiptLink(_ url: URL) async {
+    private func openDeepLink(_ url: URL) async {
+        if url.scheme == "planer", url.host == "transaction",
+           let rawKind = url.pathComponents.last,
+           let kind = FinanceTransactionKind(rawValue: rawKind),
+           kind != .transfer {
+            router.selectedTab = .home
+            router.presentedSheet = .newTransaction(kind)
+            return
+        }
+
         let code: String?
         if url.scheme == "planer", url.host == "receipt" {
             code = url.pathComponents.last.flatMap { $0 == "/" ? nil : $0 }

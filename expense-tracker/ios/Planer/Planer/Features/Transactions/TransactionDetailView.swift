@@ -44,7 +44,7 @@ struct TransactionDetailView: View {
                     } label: {
                         Label("Відкрити цифровий чек", systemImage: "receipt.fill")
                     }
-                    LabeledContent("Продавець", value: receipt.merchant)
+                    LabeledContent("Назва чека", value: receipt.merchant)
                 } else {
                     Button {
                         receiptTransaction = transaction
@@ -102,7 +102,7 @@ private struct ReceiptEditorView: View {
     var body: some View {
         Form {
             Section("Чек") {
-                TextField("Продавець або назва", text: $merchant)
+                TextField("Назва чека або місце", text: $merchant)
                 LabeledContent("Сума", value: transaction.currency.formatted(transaction.amount))
                 LabeledContent("Категорія", value: store.categoryPresentation(for: transaction).title)
                 LabeledContent(

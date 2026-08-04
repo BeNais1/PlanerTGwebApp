@@ -34,6 +34,28 @@ private struct GlassCapsuleModifier: ViewModifier {
     }
 }
 
+private struct GlassRoundedButtonModifier: ViewModifier {
+    let tint: Color
+    private let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(.regular.tint(tint).interactive(), in: .rect(cornerRadius: 20))
+                .clipShape(shape)
+        } else {
+            content
+                .background(tint.opacity(0.12), in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay {
+                    shape.stroke(Color.white.opacity(0.14), lineWidth: 0.5)
+                }
+                .clipShape(shape)
+        }
+    }
+}
+
 private struct GlassProminentButtonModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -52,6 +74,10 @@ extension View {
 
     func planerGlassCapsule() -> some View {
         modifier(GlassCapsuleModifier())
+    }
+
+    func planerGlassRoundedButton(tint: Color) -> some View {
+        modifier(GlassRoundedButtonModifier(tint: tint))
     }
 
     func planerProminentButton() -> some View {
@@ -98,8 +124,7 @@ struct GlassActionCluster: View {
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
-        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .planerGlassCapsule()
+        .planerGlassRoundedButton(tint: tint.opacity(0.20))
         .accessibilityLabel(title)
     }
 }

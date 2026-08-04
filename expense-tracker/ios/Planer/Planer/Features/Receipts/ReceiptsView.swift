@@ -132,6 +132,8 @@ struct ReceiptDetailView: View {
     @State private var shareLink: FirebaseSyncStore.ReceiptShareLink?
     @State private var isPublishing = false
     @State private var shareError: String?
+    @State private var showsDeleteConfirmation = false
+    @State private var isDeleting = false
 
     var body: some View {
         ZStack {
@@ -150,7 +152,7 @@ struct ReceiptDetailView: View {
                             .contentCard()
                     }
 
-                    shareAction
+                    receiptActions
                 }
                 .padding(18)
                 .padding(.bottom, 20)
@@ -168,6 +170,52 @@ struct ReceiptDetailView: View {
                   let url = URL(string: "planer://receipt/\(code)") else { return }
             shareLink = .init(code: code, url: url)
         }
+        .confirmationDialog(
+            "Видалити чек?",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Видалити чек", role: .destructive) {
+                Task { await deleteSavedReceipt() }
+            }
+            Button("Скасувати", role: .cancel) {}
+        } message: {
+            Text("Транзакція залишиться без змін. Буде видалено лише цифровий чек.")
+        }
+    }
+
+    private var savedReceipt: ReceiptSummary? {
+        store.savedReceipt(matching: receipt)
+    }
+
+    private var receiptActions: some View {
+        VStack(spacing: 12) {
+            if savedReceipt == nil {
+                Button {
+                    store.saveSharedReceipt(receipt)
+                } label: {
+                    Label("Зберегти у мої чеки", systemImage: "bookmark.fill")
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .planerProminentButton()
+            }
+
+            shareAction
+
+            if savedReceipt != nil {
+                Button(role: .destructive) {
+                    showsDeleteConfirmation = true
+                } label: {
+                    HStack {
+                        if isDeleting { ProgressView().controlSize(.small) }
+                        Label("Видалити чек", systemImage: "trash")
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isDeleting)
+            }
+        }
     }
 
     @ViewBuilder
@@ -176,10 +224,7 @@ struct ReceiptDetailView: View {
             ShareLink(
                 item: shareLink.url,
                 subject: Text("Чек Planer"),
-                message: Text(
-                    "Відкрийте чек у Planner. Код: \(shareLink.code). "
-                        + "Веб-версія: https://planer-app-3a0f2.web.app/?receipt=\(shareLink.code)"
-                )
+                message: Text("Відкрийте цей чек у застосунку Planer.")
             ) {
                 Label("Поділитися чеком", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity, minHeight: 50)
@@ -215,6 +260,15 @@ struct ReceiptDetailView: View {
         }
         isPublishing = false
     }
+
+    private func deleteSavedReceipt() async {
+        guard let savedReceipt else { return }
+        isDeleting = true
+        _ = try? await syncStore.revokeSharedReceipt(savedReceipt)
+        store.deleteReceipt(id: savedReceipt.id)
+        isDeleting = false
+        dismiss()
+    }
 }
 
 private struct DigitalReceiptTicket: View {
@@ -226,7 +280,7 @@ private struct DigitalReceiptTicket: View {
                 Text("PLANER")
                     .font(.system(.title2, design: .monospaced, weight: .black))
                     .tracking(3)
-                Text("DIGITAL RECEIPT")
+                Text("ЦИФРОВИЙ ЧЕК")
                     .font(.system(.caption2, design: .monospaced, weight: .medium))
                     .foregroundStyle(.black.opacity(0.54))
             }
