@@ -185,10 +185,22 @@ final class FinanceStore {
         persist()
     }
 
-    func topUpGoal(id: UUID, amount: Double) {
-        guard amount > 0, let index = goals.firstIndex(where: { $0.id == id }) else { return }
-        goals[index].savedAmount = min(goals[index].savedAmount + amount, goals[index].targetAmount)
+    @discardableResult
+    func topUpGoal(id: UUID, amount: Double, sourceWalletID: UUID? = nil) -> Bool {
+        guard amount > 0, let goalIndex = goals.firstIndex(where: { $0.id == id }) else { return false }
+        let remainingAmount = max(0, goals[goalIndex].targetAmount - goals[goalIndex].savedAmount)
+        let contribution = min(amount, remainingAmount)
+        guard contribution > 0 else { return false }
+
+        if let sourceWalletID {
+            guard let walletIndex = wallets.firstIndex(where: { $0.id == sourceWalletID }) else { return false }
+            let debit = converted(contribution, from: goals[goalIndex].currency, to: wallets[walletIndex].currency)
+            wallets[walletIndex].balance -= debit
+        }
+
+        goals[goalIndex].savedAmount += contribution
         persist()
+        return true
     }
 
     func addDebt(person: String, amount: Double, currency: Currency, direction: DebtDirection, dueDate: Date?) {
@@ -197,10 +209,28 @@ final class FinanceStore {
         persist()
     }
 
-    func toggleDebt(id: UUID) {
-        guard let index = debts.firstIndex(where: { $0.id == id }) else { return }
-        debts[index].isPaid.toggle()
+    @discardableResult
+    func settleDebt(id: UUID, walletID: UUID? = nil) -> Bool {
+        guard let debtIndex = debts.firstIndex(where: { $0.id == id }), !debts[debtIndex].isPaid else { return false }
+
+        if let walletID {
+            guard let walletIndex = wallets.firstIndex(where: { $0.id == walletID }) else { return false }
+            let walletAmount = converted(
+                debts[debtIndex].amount,
+                from: debts[debtIndex].currency,
+                to: wallets[walletIndex].currency
+            )
+            switch debts[debtIndex].direction {
+            case .owedToMe:
+                wallets[walletIndex].balance += walletAmount
+            case .iOwe:
+                wallets[walletIndex].balance -= walletAmount
+            }
+        }
+
+        debts[debtIndex].isPaid = true
         persist()
+        return true
     }
 
     var snapshot: PlanerSnapshot {

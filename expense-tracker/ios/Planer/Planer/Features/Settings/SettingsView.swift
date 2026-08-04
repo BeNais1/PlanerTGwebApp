@@ -9,9 +9,9 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Внешний вид") {
+            Section("Вигляд") {
                 Toggle(
-                    "Тёмная тема",
+                    "Темна тема",
                     isOn: Binding(
                         get: { store.prefersDarkAppearance },
                         set: { store.setDarkAppearance($0) }
@@ -19,7 +19,7 @@ struct SettingsView: View {
                 )
 
                 Picker(
-                    "Основная валюта",
+                    "Основна валюта",
                     selection: Binding(
                         get: { store.mainCurrency },
                         set: { store.setMainCurrency($0) }
@@ -31,9 +31,9 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Данные") {
-                LabeledContent("Пространство", value: store.activeSpaceName)
-                LabeledContent("Хранилище", value: "Firebase + локальный кеш")
+            Section("Дані") {
+                LabeledContent("Простір", value: store.activeSpaceName)
+                LabeledContent("Сховище", value: "Firebase + локальний кеш")
                 Label(syncStore.status.title, systemImage: syncStatusIcon)
                     .foregroundStyle(syncStatusColor)
 
@@ -44,36 +44,36 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Аккаунт Google") {
+            Section("Обліковий запис Google") {
                 if case .signedIn(let user) = authSession.state {
-                    LabeledContent("Пользователь", value: user.displayName)
+                    LabeledContent("Користувач", value: user.displayName)
                     if !user.email.isEmpty {
-                        LabeledContent("Email", value: user.email)
+                        LabeledContent("Електронна пошта", value: user.email)
                     }
                 }
 
-                Button("Выйти", role: .destructive) {
+                Button("Вийти", role: .destructive) {
                     dismiss()
                     authSession.signOut()
                 }
             }
 
             Section {
-                Button("Удалить все данные", role: .destructive) {
+                Button("Видалити всі дані", role: .destructive) {
                     showClearConfirmation = true
                 }
-                Text("Кошельки, операции, цели и долги будут удалены с устройства и из Firebase.")
+                Text("Гаманці, операції, цілі та борги буде видалено з пристрою і Firebase.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("О приложении") {
-                LabeledContent("Версия", value: "1.0 (2)")
-                LabeledContent("Минимальная iOS", value: "17.0")
+            Section("Про застосунок") {
+                LabeledContent("Версія", value: "1.0 (3)")
+                LabeledContent("Мінімальна iOS", value: "17.0")
                 LabeledContent("Liquid Glass", value: "iOS 26+")
             }
         }
-        .navigationTitle("Настройки")
+        .navigationTitle("Налаштування")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -81,14 +81,14 @@ struct SettingsView: View {
             }
         }
         .confirmationDialog(
-            "Удалить все финансовые данные?",
+            "Видалити всі фінансові дані?",
             isPresented: $showClearConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Удалить", role: .destructive) { store.clearAllData() }
-            Button("Отмена", role: .cancel) { }
+            Button("Видалити", role: .destructive) { store.clearAllData() }
+            Button("Скасувати", role: .cancel) { }
         } message: {
-            Text("Это действие нельзя отменить.")
+            Text("Цю дію неможливо скасувати.")
         }
     }
 

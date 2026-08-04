@@ -117,8 +117,9 @@ struct PlanerAnalyticsView: View {
                     VStack(spacing: 8) {
                         HStack(spacing: 10) {
                             Image(systemName: row.category.systemImage)
-                                .foregroundStyle(PlanerTheme.accent)
-                                .frame(width: 30)
+                                .foregroundStyle(row.category.tint)
+                                .frame(width: 30, height: 30)
+                                .background(row.category.tint.opacity(0.14), in: Circle())
                             Text(row.category.title)
                                 .font(.subheadline.weight(.medium))
                             Spacer()
@@ -131,7 +132,7 @@ struct PlanerAnalyticsView: View {
                                 .fill(Color.secondary.opacity(0.14))
                                 .overlay(alignment: .leading) {
                                     Capsule()
-                                        .fill(PlanerTheme.accent.gradient)
+                                        .fill(row.category.tint.gradient)
                                         .frame(width: proxy.size.width * max(0.04, row.amount / maxValue))
                                 }
                         }

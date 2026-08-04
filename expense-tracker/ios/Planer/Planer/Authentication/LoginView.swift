@@ -21,7 +21,7 @@ struct LoginView: View {
                     VStack(spacing: 8) {
                         Text("Planer")
                             .font(.largeTitle.bold())
-                        Text("Ваши финансы синхронизируются через Firebase и доступны после входа в Google.")
+                        Text("Ваші фінанси синхронізуються через Firebase і доступні після входу через Google.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -44,7 +44,7 @@ struct LoginView: View {
                                 .background(.white, in: Circle())
                                 .foregroundStyle(.blue)
                         }
-                        Text(authSession.isSigningIn ? "Входим…" : "Продолжить с Google")
+                        Text(authSession.isSigningIn ? "Входимо…" : "Продовжити через Google")
                             .font(.headline)
                     }
                     .frame(maxWidth: .infinity, minHeight: 52)
@@ -53,7 +53,7 @@ struct LoginView: View {
                 .planerProminentButton()
                 .accessibilityIdentifier("googleSignInButton")
 
-                Text("При первом входе приложение начнётся с чистого листа.")
+                Text("Після першого входу застосунок почнеться з чистого аркуша.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -61,10 +61,10 @@ struct LoginView: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 36)
         }
-        .alert("Не удалось войти", isPresented: errorBinding) {
-            Button("OK", role: .cancel) { authSession.errorMessage = nil }
+        .alert("Не вдалося увійти", isPresented: errorBinding) {
+            Button("Гаразд", role: .cancel) { authSession.errorMessage = nil }
         } message: {
-            Text(authSession.errorMessage ?? "Попробуйте ещё раз.")
+            Text(authSession.errorMessage ?? "Спробуйте ще раз.")
         }
     }
 

@@ -22,6 +22,22 @@ enum PlanerTheme {
     }
 }
 
+extension TransactionCategory {
+    var tint: Color {
+        switch self {
+        case .food: Color(red: 1.00, green: 0.48, blue: 0.22)
+        case .transport: Color(red: 0.18, green: 0.58, blue: 1.00)
+        case .home: Color(red: 0.55, green: 0.36, blue: 0.96)
+        case .health: Color(red: 1.00, green: 0.31, blue: 0.45)
+        case .shopping: Color(red: 0.93, green: 0.31, blue: 0.72)
+        case .entertainment: Color(red: 0.98, green: 0.68, blue: 0.12)
+        case .salary: PlanerTheme.positive
+        case .transfer: PlanerTheme.accent
+        case .other: Color(red: 0.45, green: 0.49, blue: 0.57)
+        }
+    }
+}
+
 struct AtmosphericBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 

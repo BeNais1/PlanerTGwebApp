@@ -1,6 +1,7 @@
 name: Planer
 options:
   bundleIdPrefix: planer
+  developmentLanguage: uk
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "26.0"

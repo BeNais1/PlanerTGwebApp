@@ -285,7 +285,7 @@ struct TransactionRowView: View {
 
     private var iconColor: Color {
         switch transaction.kind {
-        case .expense: PlanerTheme.negative
+        case .expense: transaction.category.tint
         case .income: PlanerTheme.positive
         case .transfer: PlanerTheme.accent
         }

@@ -1,19 +1,21 @@
 # Planer for iOS
 
-Нативное SwiftUI-приложение для личных финансов с Google Sign-In, Firebase Realtime Database и Liquid Glass на iOS 26+.
+Нативний SwiftUI-застосунок для особистих фінансів із Google Sign-In, Firebase Realtime Database та Liquid Glass на iOS 26+.
 
-## Что реализовано
+## Що реалізовано
 
-- вход только через Google с помощью Firebase Authentication;
-- отдельное облачное пространство для каждого Firebase UID;
-- чистый первый запуск без демо-кошельков и операций;
-- локальный кеш в `UserDefaults`, разделённый по Google-аккаунтам;
-- синхронизация полного финансового snapshot в `users/{uid}/iosSnapshot`;
-- удаление всех локальных и облачных финансовых данных из настроек;
-- кошельки, расходы, доходы, переводы, лимит, цели, долги, чеки и аналитика;
-- Liquid Glass на iOS 26+ и системный material fallback на iOS 17–25.
+- вхід лише через Google за допомогою Firebase Authentication;
+- окремий хмарний простір для кожного Firebase UID;
+- чистий перший запуск без демонстраційних гаманців та операцій;
+- локальний кеш у `UserDefaults`, розділений за Google-акаунтами;
+- синхронізація повного фінансового знімка в `users/{uid}/iosSnapshot`;
+- кольорові категорії витрат у редакторі, списках та аналітиці;
+- поповнення цілі з необов’язковим списанням із вибраного гаманця;
+- закриття боргу з необов’язковим зарахуванням або списанням;
+- видалення всіх локальних і хмарних фінансових даних із налаштувань;
+- Liquid Glass на iOS 26+ і системний material fallback на iOS 17–25.
 
-Telegram-авторизация и связывание с Telegram-профилем намеренно не используются.
+Застосунок не використовує Telegram-авторизацію або прив’язування Telegram-профілю.
 
 ## Firebase
 
@@ -23,11 +25,11 @@ Telegram-авторизация и связывание с Telegram-профил
 - Провайдер: Google
 - База: Firebase Realtime Database
 
-В Firebase Console должен быть включён провайдер **Authentication → Sign-in method → Google**. Правила Realtime Database должны разрешать пользователю читать и записывать только `users/{auth.uid}`.
+У Firebase Console має бути ввімкнено провайдер **Authentication → Sign-in method → Google**. Правила Realtime Database мають дозволяти користувачеві читати й записувати лише `users/{auth.uid}`.
 
-## Генерация и запуск проекта
+## Генерація та запуск проєкту
 
-Проект описан в `project.yml`. Перед открытием в Xcode выполните:
+Проєкт описано в `project.yml`. Перед відкриттям у Xcode виконайте:
 
 ```bash
 brew install xcodegen
@@ -35,30 +37,30 @@ xcodegen generate
 open Planer.xcodeproj
 ```
 
-Выберите схему `Planer` и запустите приложение на iPhone Simulator или устройстве. Для интерактивного Google Sign-In нужен доступ к интернету.
+Виберіть схему `Planer` і запустіть застосунок на iPhone Simulator або пристрої. Для інтерактивного Google Sign-In потрібен доступ до інтернету.
 
 ## Unsigned IPA через GitHub Actions
 
-Workflow `Build unsigned iOS IPA` автоматически:
+Workflow `Build unsigned iOS IPA` автоматично:
 
-1. устанавливает XcodeGen;
-2. генерирует Xcode-проект;
-3. разрешает Firebase и GoogleSignIn Swift packages;
-4. компилирует приложение и тесты;
-5. собирает неподписанный device build;
-6. загружает `Planer-unsigned.ipa` и SHA-256 checksum.
+1. встановлює XcodeGen;
+2. генерує Xcode-проєкт;
+3. завантажує Firebase і GoogleSignIn Swift packages;
+4. компілює застосунок і запускає модульні тести;
+5. збирає непідписаний device build;
+6. завантажує `Planer-unsigned.ipa` і SHA-256 checksum.
 
-Перед установкой IPA необходимо подписать сертификатом и provisioning profile для Bundle ID `planer`.
+Перед встановленням IPA його потрібно підписати сертифікатом і provisioning profile для Bundle ID `planer`.
 
-## Формат данных
+## Формат даних
 
-Нативный snapshot хранится отдельно от данных Telegram Mini App:
+Нативний знімок зберігається у власному просторі Google-користувача:
 
 ```text
 users/{firebaseUID}/profile
 users/{firebaseUID}/iosSnapshot/schemaVersion
-users/{firebaseUID}/iosSnapshot/snapshot
+users/{firebaseUID}/iosSnapshot/snapshotJSON
 users/{firebaseUID}/iosSnapshot/updatedAt
 ```
 
-Это исключает случайное смешивание старых Telegram-данных с новым Google-аккаунтом.
+Версія 2 зберігає знімок як цілісний JSON-рядок, тому Firebase не видаляє порожні масиви й чистий акаунт коректно синхронізується.

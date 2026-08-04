@@ -13,11 +13,11 @@ final class FirebaseSyncStore {
         var title: String {
             switch self {
             case .connecting:
-                "Синхронизация…"
+                "Синхронізація…"
             case .synced:
-                "Данные синхронизированы"
+                "Дані синхронізовано"
             case .error:
-                "Ошибка синхронизации"
+                "Помилка синхронізації"
             }
         }
     }
@@ -71,7 +71,7 @@ final class FirebaseSyncStore {
             },
             withCancel: { [weak self] error in
                 Task { @MainActor in
-                    self?.status = .error(error.localizedDescription)
+                    self?.report(error)
                 }
             }
         )
@@ -92,6 +92,11 @@ final class FirebaseSyncStore {
         do {
             if dataSnapshot.exists(), let remote = try decodeSnapshot(from: dataSnapshot) {
                 store.replace(with: remote)
+
+                let schemaVersion = dataSnapshot.childSnapshot(forPath: "schemaVersion").value as? NSNumber
+                if schemaVersion?.intValue != 2 {
+                    try await upload(remote)
+                }
             } else if !receivedInitialSnapshot {
                 try await upload(store.snapshot)
             }
@@ -106,7 +111,7 @@ final class FirebaseSyncStore {
             }
             status = .synced(.now)
         } catch {
-            status = .error(error.localizedDescription)
+            report(error)
         }
     }
 
@@ -115,7 +120,7 @@ final class FirebaseSyncStore {
             try await upload(snapshot)
             status = .synced(.now)
         } catch {
-            status = .error(error.localizedDescription)
+            report(error)
         }
     }
 
@@ -125,10 +130,12 @@ final class FirebaseSyncStore {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .millisecondsSince1970
         let data = try encoder.encode(snapshot)
-        let snapshotValue = try JSONSerialization.jsonObject(with: data)
+        guard let snapshotJSON = String(data: data, encoding: .utf8) else {
+            throw FirebaseSyncError.encodingFailed
+        }
         let value: [String: Any] = [
-            "schemaVersion": 1,
-            "snapshot": snapshotValue,
+            "schemaVersion": 2,
+            "snapshotJSON": snapshotJSON,
             "updatedAt": ServerValue.timestamp()
         ]
 
@@ -144,18 +151,45 @@ final class FirebaseSyncStore {
     }
 
     private func decodeSnapshot(from dataSnapshot: DataSnapshot) throws -> PlanerSnapshot? {
-        guard let value = dataSnapshot.childSnapshot(forPath: "snapshot").value else { return nil }
-        let data = try JSONSerialization.data(withJSONObject: value)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .millisecondsSince1970
+
+        if let snapshotJSON = dataSnapshot.childSnapshot(forPath: "snapshotJSON").value as? String,
+           let data = snapshotJSON.data(using: .utf8) {
+            return try decoder.decode(PlanerSnapshot.self, from: data)
+        }
+
+        guard let value = dataSnapshot.childSnapshot(forPath: "snapshot").value else { return nil }
+        let data = try JSONSerialization.data(withJSONObject: value)
         return try decoder.decode(PlanerSnapshot.self, from: data)
+    }
+
+    private func report(_ error: Error) {
+        print("Firebase sync error: \(error)")
+        status = .error(FirebaseSyncError.userFacingMessage(for: error))
     }
 }
 
 private enum FirebaseSyncError: LocalizedError {
     case missingReference
+    case encodingFailed
 
     var errorDescription: String? {
-        "Firebase Database ещё не готова."
+        switch self {
+        case .missingReference:
+            "З’єднання з Firebase ще не готове."
+        case .encodingFailed:
+            "Не вдалося підготувати дані для синхронізації."
+        }
+    }
+
+    static func userFacingMessage(for error: Error) -> String {
+        if let localizedError = error as? FirebaseSyncError {
+            return localizedError.errorDescription ?? "Невідома помилка Firebase."
+        }
+        if error is DecodingError {
+            return "Дані в Firebase мають несумісний формат. Оновіть їх або видаліть хмарну копію."
+        }
+        return "Не вдалося з’єднатися з Firebase. Перевірте інтернет і правила доступу до бази даних."
     }
 }

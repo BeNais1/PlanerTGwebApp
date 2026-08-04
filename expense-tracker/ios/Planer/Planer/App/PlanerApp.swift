@@ -13,7 +13,7 @@ struct PlanerApp: App {
                 case .loading:
                     ZStack {
                         AtmosphericBackground()
-                        ProgressView("Проверяем вход…")
+                        ProgressView("Перевіряємо вхід…")
                     }
                 case .signedOut:
                     LoginView()
@@ -23,6 +23,7 @@ struct PlanerApp: App {
                 }
             }
             .environment(authSession)
+            .environment(\.locale, Locale(identifier: "uk_UA"))
             .task {
                 authSession.start()
             }

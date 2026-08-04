@@ -50,7 +50,7 @@ jobs:
         run: xcodegen generate
 
       - name: Cache Swift packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.SPM_PACKAGES }}
           key: planer-spm-${{ runner.os }}-${{ hashFiles('expense-tracker/ios/Planer/project.yml') }}
@@ -82,6 +82,26 @@ jobs:
             -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Run unit tests
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/PlanerTestsDerivedData
+        run: |
+          set -euo pipefail
+
+          SIMULATOR_ID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')"
+          test -n "$SIMULATOR_ID"
+          xcrun simctl boot "$SIMULATOR_ID" || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+
+          xcodebuild test-without-building \
+            -project Planer.xcodeproj \
+            -scheme Planer \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$SPM_PACKAGES" \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Build unsigned device app

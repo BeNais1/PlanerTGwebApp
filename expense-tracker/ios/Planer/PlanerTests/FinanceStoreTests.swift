@@ -92,4 +92,74 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertTrue(store.transactions.isEmpty)
         XCTAssertEqual(store.budgetLimit, 0)
     }
+
+    func testSnapshotDecodesWhenRealtimeDatabaseOmitsEmptyCollections() throws {
+        let data = Data(#"{"mainCurrency":"UAH","activeSpaceName":"Особистий бюджет"}"#.utf8)
+
+        let snapshot = try JSONDecoder().decode(PlanerSnapshot.self, from: data)
+
+        XCTAssertTrue(snapshot.wallets.isEmpty)
+        XCTAssertTrue(snapshot.transactions.isEmpty)
+        XCTAssertTrue(snapshot.goals.isEmpty)
+        XCTAssertTrue(snapshot.debts.isEmpty)
+        XCTAssertTrue(snapshot.receipts.isEmpty)
+        XCTAssertEqual(snapshot.budgetLimit, 0)
+        XCTAssertFalse(snapshot.prefersDarkAppearance)
+    }
+
+    func testGoalFundingCanDebitSelectedWallet() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let goal = SavingsGoal(title: "Ноутбук", targetAmount: 2_000, currency: .UAH)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.goals = [goal]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        XCTAssertTrue(store.topUpGoal(id: goal.id, amount: 250, sourceWalletID: wallet.id))
+
+        XCTAssertEqual(try XCTUnwrap(store.goals.first?.savedAmount), 250, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 750, accuracy: 0.001)
+    }
+
+    func testGoalFundingCanLeaveWalletBalancesUntouched() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let goal = SavingsGoal(title: "Подорож", targetAmount: 2_000, currency: .UAH)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.goals = [goal]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        XCTAssertTrue(store.topUpGoal(id: goal.id, amount: 250))
+
+        XCTAssertEqual(try XCTUnwrap(store.goals.first?.savedAmount), 250, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 1_000, accuracy: 0.001)
+    }
+
+    func testSettlingIncomingDebtCanCreditWallet() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let debt = DebtItem(person: "Олексій", amount: 100, currency: .UAH, direction: .owedToMe)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.debts = [debt]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        XCTAssertTrue(store.settleDebt(id: debt.id, walletID: wallet.id))
+
+        XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 1_100, accuracy: 0.001)
+        XCTAssertTrue(try XCTUnwrap(store.debts.first?.isPaid))
+    }
+
+    func testSettlingOutgoingDebtCanDebitWallet() throws {
+        let wallet = Wallet(name: "Основний", currency: .UAH, balance: 1_000, palette: .blue)
+        let debt = DebtItem(person: "Марія", amount: 100, currency: .UAH, direction: .iOwe)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.debts = [debt]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        XCTAssertTrue(store.settleDebt(id: debt.id, walletID: wallet.id))
+
+        XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 900, accuracy: 0.001)
+        XCTAssertTrue(try XCTUnwrap(store.debts.first?.isPaid))
+    }
 }

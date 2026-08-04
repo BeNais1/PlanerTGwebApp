@@ -88,7 +88,8 @@ final class AuthSession {
         } catch let error as NSError where error.domain == kGIDSignInErrorDomain && error.code == -5 {
             return
         } catch {
-            errorMessage = error.localizedDescription
+            print("Google sign-in error: \(error)")
+            errorMessage = Self.userFacingMessage(for: error)
         }
     }
 
@@ -98,7 +99,8 @@ final class AuthSession {
             try Auth.auth().signOut()
             GIDSignIn.sharedInstance.signOut()
         } catch {
-            errorMessage = error.localizedDescription
+            print("Sign-out error: \(error)")
+            errorMessage = "Не вдалося вийти з облікового запису. Спробуйте ще раз."
         }
     }
 
@@ -141,6 +143,13 @@ final class AuthSession {
         }
         return presenter
     }
+
+    private static func userFacingMessage(for error: Error) -> String {
+        if let authError = error as? AuthSessionError {
+            return authError.errorDescription ?? "Не вдалося увійти через Google."
+        }
+        return "Не вдалося увійти через Google. Перевірте інтернет-з’єднання та спробуйте ще раз."
+    }
 }
 
 private enum AuthSessionError: LocalizedError {
@@ -152,13 +161,13 @@ private enum AuthSessionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingClientID:
-            "Не найден Google Client ID в конфигурации Firebase."
+            "У конфігурації Firebase не знайдено Google Client ID."
         case .missingPresenter:
-            "Не удалось открыть окно входа Google."
+            "Не вдалося відкрити вікно входу Google."
         case .missingIDToken:
-            "Google не вернул токен идентификации."
+            "Google не повернув токен ідентифікації."
         case .missingGoogleResult:
-            "Google Sign-In завершился без результата."
+            "Вхід через Google завершився без результату."
         }
     }
 }

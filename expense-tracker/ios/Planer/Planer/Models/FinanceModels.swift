@@ -260,6 +260,56 @@ struct PlanerSnapshot: Codable {
     var prefersDarkAppearance: Bool
     var activeSpaceName: String
 
+    private enum CodingKeys: String, CodingKey {
+        case wallets
+        case transactions
+        case goals
+        case debts
+        case receipts
+        case budgetLimit
+        case mainCurrency
+        case prefersDarkAppearance
+        case activeSpaceName
+    }
+
+    init(
+        wallets: [Wallet],
+        transactions: [FinanceTransaction],
+        goals: [SavingsGoal],
+        debts: [DebtItem],
+        receipts: [ReceiptSummary],
+        budgetLimit: Double,
+        mainCurrency: Currency,
+        prefersDarkAppearance: Bool,
+        activeSpaceName: String
+    ) {
+        self.wallets = wallets
+        self.transactions = transactions
+        self.goals = goals
+        self.debts = debts
+        self.receipts = receipts
+        self.budgetLimit = budgetLimit
+        self.mainCurrency = mainCurrency
+        self.prefersDarkAppearance = prefersDarkAppearance
+        self.activeSpaceName = activeSpaceName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Realtime Database does not preserve empty arrays. Defaults keep an
+        // empty or older cloud snapshot decodable instead of breaking sync.
+        wallets = try container.decodeIfPresent([Wallet].self, forKey: .wallets) ?? []
+        transactions = try container.decodeIfPresent([FinanceTransaction].self, forKey: .transactions) ?? []
+        goals = try container.decodeIfPresent([SavingsGoal].self, forKey: .goals) ?? []
+        debts = try container.decodeIfPresent([DebtItem].self, forKey: .debts) ?? []
+        receipts = try container.decodeIfPresent([ReceiptSummary].self, forKey: .receipts) ?? []
+        budgetLimit = try container.decodeIfPresent(Double.self, forKey: .budgetLimit) ?? 0
+        mainCurrency = try container.decodeIfPresent(Currency.self, forKey: .mainCurrency) ?? .UAH
+        prefersDarkAppearance = try container.decodeIfPresent(Bool.self, forKey: .prefersDarkAppearance) ?? false
+        activeSpaceName = try container.decodeIfPresent(String.self, forKey: .activeSpaceName) ?? "Особистий бюджет"
+    }
+
     static let empty = PlanerSnapshot(
         wallets: [],
         transactions: [],

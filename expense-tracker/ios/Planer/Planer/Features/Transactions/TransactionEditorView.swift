@@ -46,12 +46,31 @@ struct TransactionEditorView: View {
 
                 if kind != .transfer {
                     Section("Категорія") {
-                        Picker("Категорія", selection: $category) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                             ForEach(availableCategories) { item in
-                                Label(item.title, systemImage: item.systemImage).tag(item)
+                                Button {
+                                    category = item
+                                } label: {
+                                    VStack(spacing: 7) {
+                                        Image(systemName: item.systemImage)
+                                            .font(.headline)
+                                        Text(item.title)
+                                            .font(.caption.weight(.semibold))
+                                            .lineLimit(1)
+                                    }
+                                    .foregroundStyle(category == item ? .white : item.tint)
+                                    .frame(maxWidth: .infinity, minHeight: 66)
+                                    .background(
+                                        category == item ? item.tint : item.tint.opacity(0.13),
+                                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(item.title)
+                                .accessibilityAddTraits(category == item ? .isSelected : [])
                             }
                         }
-                        .pickerStyle(.navigationLink)
+                        .padding(.vertical, 4)
                     }
                 }
 
@@ -89,7 +108,14 @@ struct TransactionEditorView: View {
     }
 
     private var availableCategories: [TransactionCategory] {
-        TransactionCategory.allCases.filter { $0 != .transfer }
+        switch kind {
+        case .expense:
+            [.food, .transport, .home, .health, .shopping, .entertainment, .other]
+        case .income:
+            [.salary, .other]
+        case .transfer:
+            []
+        }
     }
 
     private var parsedAmount: Double? {

@@ -12,9 +12,9 @@ struct TransactionDetailView: View {
                 VStack(spacing: 12) {
                     Image(systemName: transaction.category.systemImage)
                         .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(PlanerTheme.accent)
+                        .foregroundStyle(transaction.category.tint)
                         .frame(width: 62, height: 62)
-                        .background(PlanerTheme.accent.opacity(0.14), in: Circle())
+                        .background(transaction.category.tint.opacity(0.14), in: Circle())
                     Text(transaction.currency.formatted(transaction.amount))
                         .font(.largeTitle.bold())
                     Text(transaction.note.isEmpty ? transaction.category.title : transaction.note)

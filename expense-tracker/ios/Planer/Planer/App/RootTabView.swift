@@ -55,6 +55,10 @@ struct RootTabView: View {
             NavigationStack { GoalEditorView() }
         case .newDebt:
             NavigationStack { DebtEditorView() }
+        case .fundGoal(let goal):
+            NavigationStack { GoalFundingView(goal: goal) }
+        case .settleDebt(let debt):
+            NavigationStack { DebtSettlementView(debt: debt) }
         }
     }
 }

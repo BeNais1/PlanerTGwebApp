@@ -82,9 +82,7 @@ struct FinanceHubView: View {
             }
 
             ForEach(store.debts) { debt in
-                Button {
-                    store.toggleDebt(id: debt.id)
-                } label: {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
                         Image(systemName: debt.isPaid ? "checkmark.circle.fill" : "person.crop.circle")
                             .font(.title2)
@@ -98,11 +96,24 @@ struct FinanceHubView: View {
                             .font(.subheadline.bold())
                             .strikethrough(debt.isPaid)
                     }
-                    .padding(16)
-                    .contentCard()
-                    .opacity(debt.isPaid ? 0.55 : 1)
+
+                    Divider()
+
+                    if debt.isPaid {
+                        Label("Борг закрито", systemImage: "checkmark.seal.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(PlanerTheme.positive)
+                    } else {
+                        Button("Закрити борг") {
+                            router.presentedSheet = .settleDebt(debt)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .planerProminentButton()
+                    }
                 }
-                .buttonStyle(.plain)
+                .padding(16)
+                .contentCard()
+                .opacity(debt.isPaid ? 0.65 : 1)
             }
         }
     }
@@ -157,7 +168,7 @@ struct FinanceHubView: View {
 }
 
 private struct GoalCard: View {
-    @Environment(FinanceStore.self) private var store
+    @Environment(AppRouter.self) private var router
     let goal: SavingsGoal
 
     var body: some View {
@@ -189,15 +200,165 @@ private struct GoalCard: View {
                 Text("з \(goal.currency.formatted(goal.targetAmount))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button("+10%") {
-                    store.topUpGoal(id: goal.id, amount: goal.targetAmount * 0.1)
+                Button("Додати гроші") {
+                    router.presentedSheet = .fundGoal(goal)
                 }
-                .buttonStyle(.bordered)
                 .controlSize(.small)
+                .planerProminentButton()
+                .disabled(progress >= 1)
             }
         }
         .padding(16)
         .contentCard()
+    }
+}
+
+struct GoalFundingView: View {
+    @Environment(FinanceStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    let goal: SavingsGoal
+
+    @State private var amountText = ""
+    @State private var sourceWalletID: UUID?
+
+    var body: some View {
+        Form {
+            Section("Ціль") {
+                LabeledContent("Назва", value: goal.title)
+                LabeledContent("Залишилося", value: goal.currency.formatted(remainingAmount))
+            }
+
+            Section("Сума поповнення") {
+                TextField("0,00", text: $amountText)
+                    .keyboardType(.decimalPad)
+                if parsedAmount > remainingAmount {
+                    Text("Сума не може перевищувати залишок до цілі.")
+                        .font(.caption)
+                        .foregroundStyle(PlanerTheme.negative)
+                }
+            }
+
+            Section("Списання") {
+                Picker("Звідки списати", selection: $sourceWalletID) {
+                    Text("Не списувати з гаманця").tag(UUID?.none)
+                    ForEach(store.wallets) { wallet in
+                        Text("\(wallet.name) · \(wallet.currency.formatted(wallet.balance))")
+                            .tag(Optional(wallet.id))
+                    }
+                }
+
+                if let wallet = selectedWallet {
+                    Text("З гаманця буде списано \(wallet.currency.formatted(walletDebit(for: wallet))).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Прогрес цілі зміниться без зміни балансу гаманців.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Додати гроші")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Скасувати") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Додати") {
+                    if store.topUpGoal(id: goal.id, amount: parsedAmount, sourceWalletID: sourceWalletID) {
+                        dismiss()
+                    }
+                }
+                .disabled(parsedAmount <= 0 || parsedAmount > remainingAmount)
+            }
+        }
+    }
+
+    private var parsedAmount: Double {
+        Double(amountText.replacingOccurrences(of: ",", with: ".")) ?? 0
+    }
+
+    private var remainingAmount: Double {
+        max(0, goal.targetAmount - goal.savedAmount)
+    }
+
+    private var selectedWallet: Wallet? {
+        sourceWalletID.flatMap(store.wallet(id:))
+    }
+
+    private func walletDebit(for wallet: Wallet) -> Double {
+        store.converted(parsedAmount, from: goal.currency, to: wallet.currency)
+    }
+}
+
+struct DebtSettlementView: View {
+    @Environment(FinanceStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    let debt: DebtItem
+
+    @State private var walletID: UUID?
+
+    var body: some View {
+        Form {
+            Section("Борг") {
+                LabeledContent("Людина", value: debt.person)
+                LabeledContent("Сума", value: debt.currency.formatted(debt.amount))
+                LabeledContent("Тип", value: debt.direction.title)
+            }
+
+            Section(balanceActionTitle) {
+                Picker(balanceActionTitle, selection: $walletID) {
+                    Text("Не змінювати баланс").tag(UUID?.none)
+                    ForEach(store.wallets) { wallet in
+                        Text("\(wallet.name) · \(wallet.currency.formatted(wallet.balance))")
+                            .tag(Optional(wallet.id))
+                    }
+                }
+
+                if let wallet = selectedWallet {
+                    Text(balanceExplanation(for: wallet))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Борг буде закрито без зміни балансу гаманців.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Закрити борг")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Скасувати") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Закрити") {
+                    if store.settleDebt(id: debt.id, walletID: walletID) {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var balanceActionTitle: String {
+        debt.direction == .owedToMe ? "Зарахування" : "Списання"
+    }
+
+    private var selectedWallet: Wallet? {
+        walletID.flatMap(store.wallet(id:))
+    }
+
+    private func balanceExplanation(for wallet: Wallet) -> String {
+        let amount = store.converted(debt.amount, from: debt.currency, to: wallet.currency)
+        if debt.direction == .owedToMe {
+            return "На гаманець «\(wallet.name)» буде зараховано \(wallet.currency.formatted(amount))."
+        }
+        return "З гаманця «\(wallet.name)» буде списано \(wallet.currency.formatted(amount))."
     }
 }
 

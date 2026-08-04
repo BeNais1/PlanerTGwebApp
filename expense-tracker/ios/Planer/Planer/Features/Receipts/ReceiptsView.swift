@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReceiptsView: View {
     @Environment(FinanceStore.self) private var store
+    @Environment(FirebaseSyncStore.self) private var syncStore
 
     var body: some View {
         ZStack {
@@ -64,12 +65,12 @@ struct ReceiptsView: View {
 
     private var syncNotice: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "icloud.slash")
-                .foregroundStyle(PlanerTheme.warning)
+            Image(systemName: syncIcon)
+                .foregroundStyle(syncColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Синхронізація ще не підключена")
+                Text(syncStore.status.title)
                     .font(.subheadline.weight(.semibold))
-                Text("Telegram Mini App використовує власний initData та Firebase-токен. Для iOS потрібне зв’язування облікового запису.")
+                Text(syncDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -77,10 +78,38 @@ struct ReceiptsView: View {
         .padding(16)
         .contentCard()
     }
+
+    private var syncIcon: String {
+        switch syncStore.status {
+        case .connecting: "arrow.triangle.2.circlepath.icloud"
+        case .synced: "checkmark.icloud.fill"
+        case .error: "exclamationmark.icloud.fill"
+        }
+    }
+
+    private var syncColor: Color {
+        switch syncStore.status {
+        case .connecting: PlanerTheme.warning
+        case .synced: PlanerTheme.positive
+        case .error: PlanerTheme.negative
+        }
+    }
+
+    private var syncDescription: String {
+        switch syncStore.status {
+        case .connecting:
+            "Підключаємося до вашого облікового запису Firebase."
+        case .synced:
+            "Чеки та фінансові дані збережено у вашому обліковому записі."
+        case .error(let message):
+            message
+        }
+    }
 }
 
 #Preview("Receipts") {
     NavigationStack { ReceiptsView() }
         .environment(FinanceStore.previewStore())
+        .environment(FirebaseSyncStore.preview())
         .preferredColorScheme(.dark)
 }

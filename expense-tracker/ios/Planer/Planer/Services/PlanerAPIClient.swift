@@ -12,7 +12,7 @@ enum PlanerAPIError: Error {
 
 /// Narrow integration seam for the existing Express backend.
 /// Personal wallets and transactions are intentionally not wired because the web app
-/// currently reads them directly from Firebase after Telegram Mini App authentication.
+/// and the iOS app read them directly from Firebase after account authentication.
 struct PlanerAPIClient {
     var baseURL: URL
     var session: URLSession = .shared
