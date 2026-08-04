@@ -20,6 +20,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         if url.scheme == "planer" {
             return true
         }
-        GIDSignIn.sharedInstance.handle(url)
+        return GIDSignIn.sharedInstance.handle(url)
     }
 }
