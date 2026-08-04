@@ -5,6 +5,7 @@ import SwiftUI
 struct PlanerApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var authSession = AuthSession()
+    @State private var pendingDeepLink: URL?
 
     var body: some Scene {
         WindowGroup {
@@ -18,12 +19,16 @@ struct PlanerApp: App {
                 case .signedOut:
                     LoginView()
                 case .signedIn(let user):
-                    AuthenticatedAppView(user: user)
+                    AuthenticatedAppView(user: user, pendingDeepLink: $pendingDeepLink)
                         .id(user.id)
                 }
             }
             .environment(authSession)
             .environment(\.locale, Locale(identifier: "uk_UA"))
+            .onOpenURL { pendingDeepLink = $0 }
+            .onReceive(NotificationCenter.default.publisher(for: .planerOpenURL)) { notification in
+                pendingDeepLink = notification.object as? URL
+            }
             .task {
                 authSession.start()
             }

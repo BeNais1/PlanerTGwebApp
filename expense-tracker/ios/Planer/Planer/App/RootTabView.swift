@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootTabView: View {
+    @Binding var pendingDeepLink: URL?
     @Environment(FinanceStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Environment(FirebaseSyncStore.self) private var syncStore
@@ -37,8 +38,10 @@ struct RootTabView: View {
         .sheet(item: $router.presentedSheet) { destination in
             sheetContent(for: destination)
         }
-        .onOpenURL { url in
-            Task { await openReceiptLink(url) }
+        .task(id: pendingDeepLink) {
+            guard let url = pendingDeepLink else { return }
+            await openReceiptLink(url)
+            pendingDeepLink = nil
         }
     }
 
@@ -94,7 +97,7 @@ struct RootTabView: View {
 }
 
 #Preview("Root — dark") {
-    RootTabView()
+    RootTabView(pendingDeepLink: .constant(nil))
         .environment(FinanceStore.previewStore())
         .environment(AppRouter())
         .environment(FirebaseSyncStore.preview())
