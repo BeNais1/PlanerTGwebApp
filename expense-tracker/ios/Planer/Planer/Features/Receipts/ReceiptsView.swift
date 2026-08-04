@@ -165,7 +165,7 @@ struct ReceiptDetailView: View {
         }
         .onAppear {
             guard let code = receipt.shareCode,
-                  let url = URL(string: "https://planer-app-3a0f2.web.app/?receipt=\(code)") else { return }
+                  let url = URL(string: "planer://receipt/\(code)") else { return }
             shareLink = .init(code: code, url: url)
         }
     }
@@ -176,7 +176,10 @@ struct ReceiptDetailView: View {
             ShareLink(
                 item: shareLink.url,
                 subject: Text("Чек Planer"),
-                message: Text("Відкрийте чек у Planner. Код: \(shareLink.code)")
+                message: Text(
+                    "Відкрийте чек у Planner. Код: \(shareLink.code). "
+                        + "Веб-версія: https://planer-app-3a0f2.web.app/?receipt=\(shareLink.code)"
+                )
             ) {
                 Label("Поділитися чеком", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity, minHeight: 50)

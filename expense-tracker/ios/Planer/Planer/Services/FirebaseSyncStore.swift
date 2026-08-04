@@ -141,7 +141,7 @@ final class FirebaseSyncStore {
             "user_shares/\(user.id)/\(receiptID)": shareCode
         ])
 
-        guard let url = URL(string: "https://planer-app-3a0f2.web.app/?receipt=\(shareCode)") else {
+        guard let url = URL(string: "planer://receipt/\(shareCode)") else {
             throw FirebaseSyncError.encodingFailed
         }
         return ReceiptShareLink(code: shareCode, url: url)
