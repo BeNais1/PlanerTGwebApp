@@ -1,165 +1,150 @@
 import ActivityKit
+import Foundation
 import SwiftUI
 import WidgetKit
 
 @main
-struct PlanerLiveActivityBundle: WidgetBundle {
-    var body: some Widget {
-        PlanerLiveActivityWidget()
-    }
-}
-
 struct PlanerLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DailyFinanceActivityAttributes.self) { context in
-            PlanerLockScreenActivityView(state: context.state)
-                .activityBackgroundTint(Color.black.opacity(0.86))
+            LockScreenActivityView(state: context.state)
+                .activityBackgroundTint(.black)
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(URL(string: "planer://transaction/expense"))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    ActivityAmount(
+                    AmountView(
                         title: "Витрати",
+                        prefix: "−",
                         value: context.state.expenses,
                         symbol: context.state.currencySymbol,
                         color: .red,
-                        icon: "arrow.up.right"
+                        alignment: .leading
                     )
                 }
+
                 DynamicIslandExpandedRegion(.trailing) {
-                    ActivityAmount(
+                    AmountView(
                         title: "Дохід",
+                        prefix: "+",
                         value: context.state.income,
                         symbol: context.state.currencySymbol,
                         color: .green,
-                        icon: "arrow.down.left",
                         alignment: .trailing
                     )
                 }
+
                 DynamicIslandExpandedRegion(.bottom) {
-                    ActivityQuickActions()
+                    Text("Підсумок за сьогодні")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.72))
+                        .frame(maxWidth: .infinity)
                         .padding(.top, 4)
                 }
             } compactLeading: {
-                CompactAmount(value: context.state.expenses, symbol: context.state.currencySymbol, color: .red)
+                CompactAmount(
+                    prefix: "−",
+                    value: context.state.expenses,
+                    symbol: context.state.currencySymbol,
+                    color: .red
+                )
             } compactTrailing: {
-                CompactAmount(value: context.state.income, symbol: context.state.currencySymbol, color: .green)
+                CompactAmount(
+                    prefix: "+",
+                    value: context.state.income,
+                    symbol: context.state.currencySymbol,
+                    color: .green
+                )
             } minimal: {
                 Image(systemName: "chart.bar.fill")
-                    .foregroundStyle(.blue)
+                    .foregroundColor(.blue)
             }
-            .widgetURL(URL(string: "planer://transaction/expense"))
             .keylineTint(.blue)
         }
     }
 }
 
-private struct PlanerLockScreenActivityView: View {
+private struct LockScreenActivityView: View {
     let state: DailyFinanceActivityAttributes.ContentState
 
     var body: some View {
-        VStack(spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "chart.bar.fill")
+                    .foregroundColor(.blue)
+
+                VStack(alignment: .leading, spacing: 1) {
                     Text("PLANER")
                         .font(.caption.weight(.black))
-                        .tracking(1.4)
                     Text("Підсумок за сьогодні")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.72))
                 }
-                Spacer()
-                Image(systemName: "chart.bar.fill")
-                    .foregroundStyle(.blue)
+
+                Spacer(minLength: 0)
             }
 
-            HStack(alignment: .top) {
-                ActivityAmount(
+            HStack(alignment: .top, spacing: 16) {
+                AmountView(
                     title: "Витрачено",
+                    prefix: "−",
                     value: state.expenses,
                     symbol: state.currencySymbol,
                     color: .red,
-                    icon: "arrow.up.right"
+                    alignment: .leading
                 )
-                Spacer()
-                ActivityAmount(
+
+                Spacer(minLength: 0)
+
+                AmountView(
                     title: "Отримано",
+                    prefix: "+",
                     value: state.income,
                     symbol: state.currencySymbol,
                     color: .green,
-                    icon: "arrow.down.left",
                     alignment: .trailing
                 )
             }
-
-            ActivityQuickActions()
         }
-        .foregroundStyle(.white)
+        .foregroundColor(.white)
         .padding(16)
     }
 }
 
-private struct ActivityQuickActions: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            quickLink(
-                title: "Витрата",
-                icon: "arrow.up.right",
-                color: .red,
-                url: URL(string: "planer://transaction/expense")!
-            )
-            quickLink(
-                title: "Дохід",
-                icon: "arrow.down.left",
-                color: .green,
-                url: URL(string: "planer://transaction/income")!
-            )
-        }
-    }
-
-    private func quickLink(title: String, icon: String, color: Color, url: URL) -> some View {
-        Link(destination: url) {
-            Label(title, systemImage: icon)
-                .font(.caption.weight(.bold))
-                .frame(maxWidth: .infinity, minHeight: 34)
-                .background(color.opacity(0.22), in: Capsule())
-                .overlay { Capsule().stroke(color.opacity(0.52), lineWidth: 0.5) }
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(color)
-    }
-}
-
-private struct ActivityAmount: View {
+private struct AmountView: View {
     let title: String
+    let prefix: String
     let value: Double
     let symbol: String
     let color: Color
-    let icon: String
-    var alignment: HorizontalAlignment = .leading
+    let alignment: HorizontalAlignment
 
     var body: some View {
         VStack(alignment: alignment, spacing: 3) {
-            Label(title, systemImage: icon)
+            Text(title)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(color)
-            Text(value.formatted(.number.precision(.fractionLength(0...2))) + " " + symbol)
+                .foregroundColor(color)
+
+            Text("\(prefix)\(formatted(value)) \(symbol)")
                 .font(.headline.monospacedDigit())
-                .contentTransition(.numericText())
+                .foregroundColor(.white)
         }
     }
 }
 
 private struct CompactAmount: View {
+    let prefix: String
     let value: Double
     let symbol: String
     let color: Color
 
     var body: some View {
-        Text(value.formatted(.number.notation(.compactName).precision(.fractionLength(0...1))) + symbol)
-            .font(.caption2.bold().monospacedDigit())
-            .foregroundStyle(color)
+        Text("\(prefix)\(formatted(value))\(symbol)")
+            .font(.caption2.weight(.bold).monospacedDigit())
+            .foregroundColor(color)
     }
 }
 
+private func formatted(_ value: Double) -> String {
+    value.formatted(.number.precision(.fractionLength(0...1)))
+}
