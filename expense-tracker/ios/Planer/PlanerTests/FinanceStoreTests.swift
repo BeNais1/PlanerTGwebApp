@@ -366,4 +366,22 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertEqual(store.wallets, [wallet])
         XCTAssertEqual(store.budgetLimit, 5_000)
     }
+
+    func testFamilyTransactionsRecordCurrentAuthor() throws {
+        let wallet = Wallet(name: "Сімейна картка", currency: .UAH, balance: 2_000, palette: .blue)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+        store.setTransactionAuthorName("Борис Богатир")
+
+        store.addTransaction(
+            kind: .expense,
+            amount: 250,
+            walletID: wallet.id,
+            category: .food,
+            note: "Продукти"
+        )
+
+        XCTAssertEqual(try XCTUnwrap(store.transactions.first?.authorName), "Борис Богатир")
+    }
 }

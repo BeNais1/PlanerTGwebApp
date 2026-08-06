@@ -35,6 +35,10 @@ struct TransactionDetailView: View {
                 if let wallet = store.wallet(id: transaction.walletID) {
                     LabeledContent("Гаманець", value: wallet.name)
                 }
+                if let author = transaction.authorName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !author.isEmpty {
+                    LabeledContent("Додав(ла)", value: author)
+                }
             }
 
             Section("Чек") {

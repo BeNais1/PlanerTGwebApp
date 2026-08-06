@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(FirebaseSyncStore.self) private var syncStore
     @Environment(FamilyAccountStore.self) private var familyStore
     @Environment(DailyFinanceLiveActivityManager.self) private var liveActivityManager
+    @Environment(PlanerNotificationService.self) private var notificationService
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
 
@@ -56,6 +57,20 @@ struct SettingsView: View {
                     }
                 }
                 Text("Створюйте спільний бюджет і додавайте учасників через посилання або QR-код.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Сповіщення") {
+                NavigationLink {
+                    NotificationSettingsView()
+                } label: {
+                    LabeledContent("Нагадування та сімейні події") {
+                        Image(systemName: notificationStatusIcon)
+                            .foregroundStyle(notificationStatusColor)
+                    }
+                }
+                Text("Ліміти, платежі, борги, регулярні операції, цілі, прогнози, підсумки та сімейний бюджет.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -185,6 +200,24 @@ struct SettingsView: View {
         case .error: PlanerTheme.negative
         }
     }
+
+    private var notificationStatusIcon: String {
+        switch notificationService.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: "bell.fill"
+        case .denied: "bell.slash.fill"
+        case .notDetermined: "bell.badge"
+        @unknown default: "bell"
+        }
+    }
+
+    private var notificationStatusColor: Color {
+        switch notificationService.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: PlanerTheme.positive
+        case .denied: PlanerTheme.negative
+        case .notDetermined: PlanerTheme.warning
+        @unknown default: .secondary
+        }
+    }
 }
 
 #Preview("Settings") {
@@ -194,4 +227,5 @@ struct SettingsView: View {
         .environment(FirebaseSyncStore.preview())
         .environment(FamilyAccountStore.preview())
         .environment(DailyFinanceLiveActivityManager.shared)
+        .environment(PlanerNotificationService.shared)
 }

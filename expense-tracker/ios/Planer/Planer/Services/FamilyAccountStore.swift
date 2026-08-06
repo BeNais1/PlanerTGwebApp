@@ -19,6 +19,8 @@ final class FamilyAccountStore {
     @ObservationIgnored private let activeFamilyKey: String
     @ObservationIgnored private var membershipsReference: DatabaseReference?
     @ObservationIgnored private var membershipsHandle: DatabaseHandle?
+    @ObservationIgnored private var familyReferences: [String: DatabaseReference] = [:]
+    @ObservationIgnored private var familyHandles: [String: DatabaseHandle] = [:]
 
     init(user: AuthenticatedUser) {
         self.user = user
@@ -115,6 +117,11 @@ final class FamilyAccountStore {
         }
         membershipsHandle = nil
         membershipsReference = nil
+        for (familyID, handle) in familyHandles {
+            familyReferences[familyID]?.removeObserver(withHandle: handle)
+        }
+        familyHandles.removeAll()
+        familyReferences.removeAll()
     }
 
     func selectPersonalSpace() {
@@ -360,6 +367,7 @@ final class FamilyAccountStore {
                 }
             }
             families = loaded.sorted { $0.createdAt < $1.createdAt }
+            observeFamilies(ids: ids)
 
             if let activeFamilyID = activeSpace.familyID {
                 if let activeFamily = families.first(where: { $0.id == activeFamilyID }) {
@@ -372,6 +380,54 @@ final class FamilyAccountStore {
         } catch {
             status = .error(FamilyAccountError.userFacingMessage(for: error))
         }
+    }
+
+    private func observeFamilies(ids: [String]) {
+        let activeIDs = Set(ids)
+        for familyID in Array(familyHandles.keys) where !activeIDs.contains(familyID) {
+            if let handle = familyHandles[familyID] {
+                familyReferences[familyID]?.removeObserver(withHandle: handle)
+            }
+            familyHandles[familyID] = nil
+            familyReferences[familyID] = nil
+        }
+
+        for familyID in ids where familyHandles[familyID] == nil {
+            let reference = Database.database().reference().child("families").child(familyID)
+            familyReferences[familyID] = reference
+            familyHandles[familyID] = reference.observe(
+                .value,
+                with: { [weak self] snapshot in
+                    guard let data = snapshot.value as? [String: Any],
+                          let family = Self.family(from: data, id: familyID) else { return }
+                    Task { @MainActor in
+                        await self?.receiveFamilyUpdate(family)
+                    }
+                },
+                withCancel: { [weak self] error in
+                    Task { @MainActor in
+                        self?.status = .error(FamilyAccountError.userFacingMessage(for: error))
+                    }
+                }
+            )
+        }
+    }
+
+    private func receiveFamilyUpdate(_ family: FamilySummary) async {
+        if let previous = families.first(where: { $0.id == family.id }), previous != family {
+            await PlanerNotificationService.shared.notifyFamilyMembershipChanges(
+                previous: previous,
+                current: family,
+                currentUserID: user.id
+            )
+        }
+        families.removeAll { $0.id == family.id }
+        families.append(family)
+        families.sort { $0.createdAt < $1.createdAt }
+        if activeSpace.familyID == family.id {
+            activeSpace = .family(id: family.id, name: family.name)
+        }
+        status = .ready
     }
 
     private static func family(from data: [String: Any], id: String) -> FamilySummary? {

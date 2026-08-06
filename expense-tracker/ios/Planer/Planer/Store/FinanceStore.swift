@@ -8,6 +8,7 @@ final class FinanceStore {
     @ObservationIgnored private var storageKey: String
     private let persistsChanges: Bool
     @ObservationIgnored private var changeHandler: ((PlanerSnapshot) -> Void)?
+    @ObservationIgnored private var transactionAuthorName: String?
 
     var wallets: [Wallet]
     var transactions: [FinanceTransaction]
@@ -230,6 +231,7 @@ final class FinanceStore {
                 walletID: walletID,
                 destinationWalletID: destinationWalletID,
                 convertedAmount: destinationAmount,
+                authorName: transactionAuthorName,
                 customCategoryID: kind == .transfer ? nil : customCategoryID
             )
         )
@@ -420,6 +422,7 @@ final class FinanceStore {
                         ? "Повернення боргу від \(debt.person)"
                         : "Погашення боргу для \(debt.person)",
                     walletID: walletID,
+                    authorName: transactionAuthorName,
                     sourceDebtID: debt.id
                 )
             )
@@ -451,6 +454,10 @@ final class FinanceStore {
 
     func setAllowsEditing(_ allowsEditing: Bool) {
         self.allowsEditing = allowsEditing
+    }
+
+    func setTransactionAuthorName(_ name: String?) {
+        transactionAuthorName = name?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func switchStorageNamespace(_ namespace: String, fallbackSpaceName: String) {

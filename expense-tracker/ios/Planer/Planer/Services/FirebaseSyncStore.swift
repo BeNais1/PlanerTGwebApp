@@ -35,6 +35,7 @@ final class FirebaseSyncStore {
     @ObservationIgnored private weak var store: FinanceStore?
     @ObservationIgnored private var receivedInitialSnapshot = false
     @ObservationIgnored private var activeSpaceID: String?
+    @ObservationIgnored private var activeSpace: FinanceSpace?
 
     init(user: AuthenticatedUser) {
         self.user = user
@@ -61,6 +62,7 @@ final class FirebaseSyncStore {
         guard activeSpaceID != space.id || observerHandle == nil else { return }
         stop()
         activeSpaceID = space.id
+        activeSpace = space
         self.store = store
         status = .connecting
 
@@ -110,6 +112,7 @@ final class FirebaseSyncStore {
         store = nil
         receivedInitialSnapshot = false
         activeSpaceID = nil
+        activeSpace = nil
     }
 
     func publish(receipt: ReceiptSummary) async throws -> ReceiptShareLink {
@@ -263,6 +266,16 @@ final class FirebaseSyncStore {
     private func receive(_ dataSnapshot: DataSnapshot, store: FinanceStore) async {
         do {
             if dataSnapshot.exists(), let remote = try decodeSnapshot(from: dataSnapshot) {
+                if receivedInitialSnapshot,
+                   let activeSpace,
+                   case .family(_, let familyName) = activeSpace {
+                    await PlanerNotificationService.shared.notifyFamilyChanges(
+                        previous: store.snapshot,
+                        current: remote,
+                        familyName: familyName,
+                        currentUserName: user.displayName
+                    )
+                }
                 store.replace(with: remote)
 
                 let schemaVersion = dataSnapshot.childSnapshot(forPath: "schemaVersion").value as? NSNumber

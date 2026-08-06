@@ -70,12 +70,20 @@ struct RootTabView: View {
             NavigationStack { DebtSettlementView(debt: debt) }
         case .receipt(let receipt):
             NavigationStack { ReceiptDetailView(receipt: receipt) }
+        case .familyAccounts:
+            NavigationStack { FamilyAccountsView() }
         case .familyJoin(let code):
             NavigationStack { FamilyJoinView(codeOrLink: code) }
         }
     }
 
     private func openDeepLink(_ url: URL) async {
+        if url.scheme == "planer", url.host == "family", url.pathComponents.count <= 1 {
+            router.selectedTab = .home
+            router.presentedSheet = .familyAccounts
+            return
+        }
+
         if let familyCode = FamilyInviteLink.code(from: url.absoluteString),
            url.scheme == "planer",
            url.host == "family" {

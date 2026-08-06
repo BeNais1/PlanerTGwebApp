@@ -272,7 +272,7 @@ struct TransactionRowView: View {
                 Text(transaction.note.isEmpty ? category.title : transaction.note)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Text("\(category.title) · \(transaction.date.formatted(.dateTime.day().month(.abbreviated).hour().minute()))")
+                Text(transactionMetadata)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -309,6 +309,18 @@ struct TransactionRowView: View {
     private var amountText: String {
         let prefix = transaction.kind == .income ? "+" : transaction.kind == .expense ? "−" : ""
         return prefix + transaction.currency.formatted(transaction.amount)
+    }
+
+    private var transactionMetadata: String {
+        var values = [
+            category.title,
+            transaction.date.formatted(.dateTime.day().month(.abbreviated).hour().minute())
+        ]
+        if let author = transaction.authorName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !author.isEmpty {
+            values.append("Додав(ла): \(author)")
+        }
+        return values.joined(separator: " · ")
     }
 }
 
