@@ -3,6 +3,7 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(FinanceStore.self) private var store
     @Environment(AppRouter.self) private var router
+    @Environment(FamilyAccountStore.self) private var familyStore
 
     var body: some View {
         ZStack {
@@ -26,6 +27,7 @@ struct DashboardView: View {
                 onIncome: { router.presentedSheet = .newTransaction(.income) },
                 onTransfer: { router.presentedSheet = .newTransaction(.transfer) }
             )
+            .disabled(!store.allowsEditing)
             .padding(.bottom, 6)
         }
     }
@@ -33,7 +35,7 @@ struct DashboardView: View {
     private var header: some View {
         HStack(spacing: 12) {
             Button {
-                router.presentedSheet = .settings
+                router.presentedSheet = .spaceSwitcher
             } label: {
                 HStack(spacing: 10) {
                     Text("Я")
@@ -43,7 +45,7 @@ struct DashboardView: View {
                         .foregroundStyle(.white)
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(store.activeSpaceName)
+                        Text(familyStore.activeSpace.title)
                             .font(.subheadline.weight(.semibold))
                         Text(Date.now.formatted(.dateTime.month(.wide)))
                             .font(.caption)
@@ -117,6 +119,7 @@ struct DashboardView: View {
                         .contentCard()
                     }
                     .buttonStyle(.plain)
+                    .disabled(!store.allowsEditing)
                     .containerRelativeFrame(.horizontal, count: 1, spacing: 14)
                 }
                 .scrollTargetLayout()
@@ -154,6 +157,7 @@ struct DashboardView: View {
             .contentCard()
         }
         .buttonStyle(.plain)
+        .disabled(!store.allowsEditing)
         .padding(.horizontal, 18)
         .accessibilityHint("Відкрити налаштування ліміту")
     }

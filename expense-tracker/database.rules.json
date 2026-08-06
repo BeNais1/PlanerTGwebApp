@@ -76,18 +76,18 @@
         },
         "members": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && ((!newData.exists() && data.exists()) || (data.exists() && newData.child('userId').val() === auth.uid && newData.child('role').val() === data.child('role').val()) || (!data.exists() && newData.child('userId').val() === auth.uid && newData.child('role').val() === 'member' && newData.child('inviteCode').isString() && root.child('family_invites').child(newData.child('inviteCode').val()).child('familyId').val() === $familyId && root.child('family_invites').child(newData.child('inviteCode').val()).child('isActive').val() === true && root.child('family_invites').child(newData.child('inviteCode').val()).child('expiresAt').val() > now))"
+            ".write": "auth != null && auth.uid === $uid && ((!newData.exists() && data.exists()) || (data.exists() && newData.child('userId').val() === auth.uid && newData.child('role').val() === data.child('role').val() && newData.child('canEditBudget').val() === data.child('canEditBudget').val() && newData.child('canInviteMembers').val() === data.child('canInviteMembers').val()) || (!data.exists() && newData.child('userId').val() === auth.uid && newData.child('role').val() === 'member' && newData.child('canEditBudget').val() === true && newData.child('canInviteMembers').val() === false && newData.child('inviteCode').isString() && root.child('family_invites').child(newData.child('inviteCode').val()).child('familyId').val() === $familyId && root.child('family_invites').child(newData.child('inviteCode').val()).child('isActive').val() === true && root.child('family_invites').child(newData.child('inviteCode').val()).child('expiresAt').val() > now))"
           }
         },
         "iosSnapshot": {
-          ".write": "auth != null && (auth.token.admin === true || root.child('families').child($familyId).child('members').child(auth.uid).exists())"
+          ".write": "auth != null && (auth.token.admin === true || root.child('families').child($familyId).child('ownerId').val() === auth.uid || (root.child('families').child($familyId).child('members').child(auth.uid).exists() && (!root.child('families').child($familyId).child('members').child(auth.uid).child('canEditBudget').exists() || root.child('families').child($familyId).child('members').child(auth.uid).child('canEditBudget').val() === true)))"
         }
       }
     },
     "family_invites": {
       "$code": {
         ".read": "auth != null",
-        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('createdBy').val() === auth.uid && root.child('families').child(newData.child('familyId').val()).child('members').child(auth.uid).exists()) || (data.exists() && (data.child('createdBy').val() === auth.uid || root.child('families').child(data.child('familyId').val()).child('ownerId').val() === auth.uid)))",
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('createdBy').val() === auth.uid && (root.child('families').child(newData.child('familyId').val()).child('ownerId').val() === auth.uid || root.child('families').child(newData.child('familyId').val()).child('members').child(auth.uid).child('canInviteMembers').val() === true)) || (data.exists() && (data.child('createdBy').val() === auth.uid || root.child('families').child(data.child('familyId').val()).child('ownerId').val() === auth.uid)))",
         ".validate": "newData.hasChildren(['code', 'familyId', 'familyName', 'createdBy', 'createdAt', 'expiresAt', 'isActive']) && newData.child('code').val() === $code && newData.child('familyId').isString() && newData.child('familyName').isString() && newData.child('expiresAt').isNumber()"
       }
     },

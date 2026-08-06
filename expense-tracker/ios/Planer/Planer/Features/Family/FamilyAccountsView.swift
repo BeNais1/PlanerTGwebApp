@@ -30,7 +30,9 @@ struct FamilyAccountsView: View {
                     .listRowBackground(Color.clear)
                 } else {
                     ForEach(familyStore.families) { family in
-                        NavigationLink(value: family) {
+                        NavigationLink {
+                            FamilyDetailView(familyID: family.id)
+                        } label: {
                             SpaceRow(
                                 title: family.name,
                                 subtitle: "Учасників: \(family.members.count)",
@@ -70,9 +72,6 @@ struct FamilyAccountsView: View {
             }
         }
         .navigationTitle("Сімейні акаунти")
-        .navigationDestination(for: FamilySummary.self) { family in
-            FamilyDetailView(familyID: family.id)
-        }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .create:
@@ -141,7 +140,7 @@ private enum FamilyAccountsSheet: Identifiable {
     }
 }
 
-private struct CreateFamilyView: View {
+struct CreateFamilyView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(FamilyAccountStore.self) private var familyStore
     @Environment(FinanceStore.self) private var financeStore

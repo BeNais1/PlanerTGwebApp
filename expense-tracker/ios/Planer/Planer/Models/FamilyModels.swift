@@ -55,8 +55,13 @@ struct FamilyMember: Identifiable, Hashable {
     let email: String
     let role: FamilyMemberRole
     let joinedAt: Date
+    let canEditBudget: Bool
+    let canInviteMembers: Bool
 
     var id: String { userID }
+
+    var effectiveCanEditBudget: Bool { role == .owner || canEditBudget }
+    var effectiveCanInviteMembers: Bool { role == .owner || canInviteMembers }
 }
 
 struct FamilySummary: Identifiable, Hashable {

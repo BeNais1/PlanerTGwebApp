@@ -58,6 +58,8 @@ struct RootTabView: View {
             NavigationStack { BudgetEditorView() }
         case .settings:
             NavigationStack { SettingsView() }
+        case .spaceSwitcher:
+            NavigationStack { SpaceSwitcherView() }
         case .newGoal:
             NavigationStack { GoalEditorView() }
         case .newDebt:

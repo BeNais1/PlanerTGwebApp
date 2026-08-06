@@ -7,6 +7,7 @@ struct FamilyDetailView: View {
     @State private var isCreatingInvite = false
     @State private var errorMessage: String?
     @State private var memberToRemove: FamilyMember?
+    @State private var memberToConfigure: FamilyMember?
     @State private var showLeaveConfirmation = false
 
     private var family: FamilySummary? {
@@ -41,7 +42,19 @@ struct FamilyDetailView: View {
 
                     Section("Учасники") {
                         ForEach(family.members) { member in
-                            FamilyMemberRow(member: member)
+                            Group {
+                                if family.ownerID == familyStore.currentUserID,
+                                   member.userID != family.ownerID {
+                                    Button {
+                                        memberToConfigure = member
+                                    } label: {
+                                        FamilyMemberRow(member: member)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else {
+                                    FamilyMemberRow(member: member)
+                                }
+                            }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if family.ownerID == familyStore.currentUserID,
                                        member.userID != family.ownerID {
@@ -66,10 +79,15 @@ struct FamilyDetailView: View {
                                 Label("Посилання та QR-код", systemImage: "qrcode")
                             }
                         }
-                        .disabled(isCreatingInvite)
+                        .disabled(isCreatingInvite || !familyStore.canInvite(to: family))
                         Text("Нове запрошення діє сім днів. Його можна надіслати як посилання або показати у вигляді QR-коду.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if !familyStore.canInvite(to: family) {
+                            Label("Власник сім’ї не надав вам право запрошувати учасників.", systemImage: "lock.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     if family.ownerID != familyStore.currentUserID {
@@ -91,6 +109,14 @@ struct FamilyDetailView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .sheet(item: $invite) { invite in
                     NavigationStack { FamilyInviteView(invite: invite) }
+                }
+                .sheet(item: $memberToConfigure) { member in
+                    NavigationStack {
+                        FamilyMemberPermissionsView(
+                            familyID: family.id,
+                            member: member
+                        )
+                    }
                 }
                 .confirmationDialog(
                     "Видалити учасника?",
@@ -177,6 +203,11 @@ private struct FamilyMemberRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                if member.role == .member {
+                    Text(permissionSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Text(member.role.title)
@@ -184,5 +215,92 @@ private struct FamilyMemberRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
+    }
+
+    private var permissionSummary: String {
+        var permissions: [String] = []
+        if member.canEditBudget { permissions.append("редагування бюджету") }
+        if member.canInviteMembers { permissions.append("запрошення") }
+        return permissions.isEmpty ? "лише перегляд" : permissions.joined(separator: " · ")
+    }
+}
+
+private struct FamilyMemberPermissionsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(FamilyAccountStore.self) private var familyStore
+    let familyID: String
+    let member: FamilyMember
+    @State private var canEditBudget: Bool
+    @State private var canInviteMembers: Bool
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    init(familyID: String, member: FamilyMember) {
+        self.familyID = familyID
+        self.member = member
+        _canEditBudget = State(initialValue: member.canEditBudget)
+        _canInviteMembers = State(initialValue: member.canInviteMembers)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("Учасник", value: member.displayName)
+                if !member.email.isEmpty {
+                    LabeledContent("Email", value: member.email)
+                }
+            }
+
+            Section {
+                Toggle("Змінювати сімейний бюджет", isOn: $canEditBudget)
+                Toggle("Запрошувати учасників", isOn: $canInviteMembers)
+            } header: {
+                Text("Дозволи")
+            } footer: {
+                Text("Без дозволу на зміни учасник бачить бюджет, але не може додавати або видаляти гаманці, операції, цілі, борги та чеки.")
+            }
+
+            if let errorMessage {
+                Section {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(PlanerTheme.negative)
+                }
+            }
+        }
+        .navigationTitle("Права учасника")
+        .navigationBarTitleDisplayMode(.inline)
+        .interactiveDismissDisabled(isSaving)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Скасувати") { dismiss() }
+                    .disabled(isSaving)
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(isSaving ? "Зберігаємо…" : "Зберегти") {
+                    Task { await save() }
+                }
+                .disabled(isSaving)
+            }
+        }
+    }
+
+    private func save() async {
+        guard let family = familyStore.families.first(where: { $0.id == familyID }) else {
+            errorMessage = "Сімейний простір більше не існує."
+            return
+        }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await familyStore.updatePermissions(
+                for: member,
+                in: family,
+                canEditBudget: canEditBudget,
+                canInviteMembers: canInviteMembers
+            )
+            dismiss()
+        } catch {
+            errorMessage = FamilyAccountError.userFacingMessage(for: error)
+        }
     }
 }

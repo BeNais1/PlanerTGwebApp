@@ -50,14 +50,18 @@ final class FamilyAccountStore {
                         displayName: user.displayName,
                         email: user.email,
                         role: .owner,
-                        joinedAt: .now
+                        joinedAt: .now,
+                        canEditBudget: true,
+                        canInviteMembers: true
                     ),
                     FamilyMember(
                         userID: "preview-member",
                         displayName: "Марія",
                         email: "maria@example.com",
                         role: .member,
-                        joinedAt: .now
+                        joinedAt: .now,
+                        canEditBudget: true,
+                        canInviteMembers: false
                     )
                 ]
             )
@@ -71,6 +75,15 @@ final class FamilyAccountStore {
     var activeFamily: FamilySummary? {
         guard let familyID = activeSpace.familyID else { return nil }
         return families.first { $0.id == familyID }
+    }
+
+    var canEditActiveSpace: Bool {
+        guard let family = activeFamily else { return activeSpace.familyID == nil }
+        return family.member(id: user.id)?.effectiveCanEditBudget == true
+    }
+
+    func canInvite(to family: FamilySummary) -> Bool {
+        family.member(id: user.id)?.effectiveCanInviteMembers == true
     }
 
     func start() {
@@ -137,7 +150,9 @@ final class FamilyAccountStore {
             displayName: user.displayName,
             email: user.email,
             role: .owner,
-            joinedAt: now
+            joinedAt: now,
+            canEditBudget: true,
+            canInviteMembers: true
         )
         var emptySnapshot = PlanerSnapshot.empty
         emptySnapshot.mainCurrency = mainCurrency
@@ -174,8 +189,8 @@ final class FamilyAccountStore {
     }
 
     func createInvite(for family: FamilySummary) async throws -> FamilyInvite {
-        guard family.member(id: user.id) != nil else {
-            throw FamilyAccountError.notFamilyMember
+        guard canInvite(to: family) else {
+            throw FamilyAccountError.invitePermissionRequired
         }
 
         let code = Self.makeInviteCode()
@@ -238,7 +253,9 @@ final class FamilyAccountStore {
             displayName: user.displayName,
             email: user.email,
             role: .member,
-            joinedAt: .now
+            joinedAt: .now,
+            canEditBudget: true,
+            canInviteMembers: false
         )
         var memberValue = Self.firebaseValue(for: member)
         memberValue["inviteCode"] = invite.code
@@ -293,6 +310,43 @@ final class FamilyAccountStore {
         }
     }
 
+    func updatePermissions(
+        for member: FamilyMember,
+        in family: FamilySummary,
+        canEditBudget: Bool,
+        canInviteMembers: Bool
+    ) async throws {
+        guard family.ownerID == user.id else { throw FamilyAccountError.ownerPermissionRequired }
+        guard member.userID != family.ownerID else { throw FamilyAccountError.cannotChangeOwnerPermissions }
+
+        try await updateValues([
+            "families/\(family.id)/members/\(member.userID)/canEditBudget": canEditBudget,
+            "families/\(family.id)/members/\(member.userID)/canInviteMembers": canInviteMembers
+        ])
+
+        guard let familyIndex = families.firstIndex(where: { $0.id == family.id }) else { return }
+        let current = families[familyIndex]
+        let members = current.members.map { currentMember in
+            guard currentMember.userID == member.userID else { return currentMember }
+            return FamilyMember(
+                userID: currentMember.userID,
+                displayName: currentMember.displayName,
+                email: currentMember.email,
+                role: currentMember.role,
+                joinedAt: currentMember.joinedAt,
+                canEditBudget: canEditBudget,
+                canInviteMembers: canInviteMembers
+            )
+        }
+        families[familyIndex] = FamilySummary(
+            id: current.id,
+            name: current.name,
+            ownerID: current.ownerID,
+            createdAt: current.createdAt,
+            members: members
+        )
+    }
+
     private func refreshFamilies(from snapshot: DataSnapshot) async {
         let ids = (snapshot.value as? [String: Any])?.keys.sorted() ?? []
         do {
@@ -335,7 +389,9 @@ final class FamilyAccountStore {
                 displayName: member["displayName"] as? String ?? "Учасник",
                 email: member["email"] as? String ?? "",
                 role: FamilyMemberRole(rawValue: member["role"] as? String ?? "member") ?? .member,
-                joinedAt: Date(timeIntervalSince1970: joinedMilliseconds / 1_000)
+                joinedAt: Date(timeIntervalSince1970: joinedMilliseconds / 1_000),
+                canEditBudget: member["canEditBudget"] as? Bool ?? true,
+                canInviteMembers: member["canInviteMembers"] as? Bool ?? false
             )
         }
         .sorted { lhs, rhs in
@@ -358,7 +414,9 @@ final class FamilyAccountStore {
             "displayName": member.displayName,
             "email": member.email,
             "role": member.role.rawValue,
-            "joinedAt": member.joinedAt.millisecondsSince1970
+            "joinedAt": member.joinedAt.millisecondsSince1970,
+            "canEditBudget": member.canEditBudget,
+            "canInviteMembers": member.canInviteMembers
         ]
     }
 
@@ -431,6 +489,8 @@ enum FamilyAccountError: LocalizedError {
     case ownerCannotLeave
     case ownerPermissionRequired
     case cannotRemoveOwner
+    case cannotChangeOwnerPermissions
+    case invitePermissionRequired
     case encodingFailed
 
     var errorDescription: String? {
@@ -455,6 +515,10 @@ enum FamilyAccountError: LocalizedError {
             "Ця дія доступна лише власнику сім’ї."
         case .cannotRemoveOwner:
             "Власника сім’ї неможливо видалити зі списку учасників."
+        case .cannotChangeOwnerPermissions:
+            "Права власника сім’ї завжди увімкнені."
+        case .invitePermissionRequired:
+            "У вас немає дозволу запрошувати учасників."
         case .encodingFailed:
             "Не вдалося підготувати сімейний бюджет для Firebase."
         }

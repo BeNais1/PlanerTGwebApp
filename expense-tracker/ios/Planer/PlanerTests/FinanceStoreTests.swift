@@ -342,4 +342,28 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertEqual(store.todayExpenses, 125, accuracy: 0.001)
         XCTAssertEqual(store.todayIncome, 400, accuracy: 0.001)
     }
+
+    func testReadOnlyFamilyMemberCannotMutateBudget() {
+        let wallet = Wallet(name: "Сімейна картка", currency: .UAH, balance: 1_000, palette: .blue)
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.budgetLimit = 5_000
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+        store.setAllowsEditing(false)
+
+        store.addTransaction(
+            kind: .expense,
+            amount: 250,
+            walletID: wallet.id,
+            category: .food,
+            note: "Продукти"
+        )
+        store.addWallet(name: "Нова картка", currency: .UAH, balance: 100)
+        store.setBudgetLimit(1_000)
+        store.clearAllData()
+
+        XCTAssertTrue(store.transactions.isEmpty)
+        XCTAssertEqual(store.wallets, [wallet])
+        XCTAssertEqual(store.budgetLimit, 5_000)
+    }
 }

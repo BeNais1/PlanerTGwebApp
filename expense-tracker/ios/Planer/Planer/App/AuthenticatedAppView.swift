@@ -27,10 +27,15 @@ struct AuthenticatedAppView: View {
             .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
             .task {
                 familyStore.start()
+                store.setAllowsEditing(familyStore.canEditActiveSpace)
                 syncStore.start(store: store, space: familyStore.activeSpace)
             }
             .onChange(of: familyStore.activeSpace) { _, space in
+                store.setAllowsEditing(familyStore.canEditActiveSpace)
                 syncStore.switchSpace(to: space, store: store)
+            }
+            .onChange(of: familyStore.canEditActiveSpace) { _, canEdit in
+                store.setAllowsEditing(canEdit)
             }
             .task(id: liveActivitySnapshot) {
                 guard scenePhase == .active else { return }

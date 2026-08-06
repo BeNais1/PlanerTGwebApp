@@ -14,6 +14,7 @@ enum SheetDestination: Identifiable, Hashable {
     case addWallet
     case budget
     case settings
+    case spaceSwitcher
     case newGoal
     case newDebt
     case fundGoal(SavingsGoal)
@@ -28,6 +29,7 @@ enum SheetDestination: Identifiable, Hashable {
         case .addWallet: "add-wallet"
         case .budget: "budget"
         case .settings: "settings"
+        case .spaceSwitcher: "space-switcher"
         case .newGoal: "new-goal"
         case .newDebt: "new-debt"
         case .fundGoal(let goal): "fund-goal-\(goal.id)"

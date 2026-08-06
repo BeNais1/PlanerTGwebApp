@@ -19,6 +19,7 @@ final class FinanceStore {
     var mainCurrency: Currency
     var prefersDarkAppearance: Bool
     var activeSpaceName: String
+    private(set) var allowsEditing = true
 
     init(
         snapshot: PlanerSnapshot? = nil,
@@ -174,6 +175,7 @@ final class FinanceStore {
         colorHex: String,
         kind: FinanceTransactionKind
     ) -> CustomTransactionCategory? {
+        guard allowsEditing else { return nil }
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty, kind != .transfer else { return nil }
         let category = CustomTransactionCategory(
@@ -197,7 +199,8 @@ final class FinanceStore {
         note: String,
         date: Date = .now
     ) {
-        guard amount > 0, let sourceIndex = wallets.firstIndex(where: { $0.id == walletID }) else { return }
+        guard allowsEditing, amount > 0,
+              let sourceIndex = wallets.firstIndex(where: { $0.id == walletID }) else { return }
 
         let sourceCurrency = wallets[sourceIndex].currency
         var destinationAmount: Double?
@@ -234,7 +237,8 @@ final class FinanceStore {
     }
 
     func deleteTransaction(_ transaction: FinanceTransaction) {
-        guard let sourceIndex = wallets.firstIndex(where: { $0.id == transaction.walletID }) else { return }
+        guard allowsEditing,
+              let sourceIndex = wallets.firstIndex(where: { $0.id == transaction.walletID }) else { return }
 
         switch transaction.kind {
         case .expense:
@@ -259,7 +263,7 @@ final class FinanceStore {
         merchant: String,
         authorName: String? = nil
     ) -> ReceiptSummary? {
-        guard receipt(for: transaction.id) == nil else { return nil }
+        guard allowsEditing, receipt(for: transaction.id) == nil else { return nil }
         let trimmedMerchant = merchant.trimmingCharacters(in: .whitespacesAndNewlines)
         let category = categoryPresentation(for: transaction)
         let receipt = ReceiptSummary(
@@ -284,7 +288,7 @@ final class FinanceStore {
     }
 
     func markReceiptShared(id: UUID, shareCode: String) {
-        guard let index = receipts.firstIndex(where: { $0.id == id }) else { return }
+        guard allowsEditing, let index = receipts.firstIndex(where: { $0.id == id }) else { return }
         receipts[index].isShared = true
         receipts[index].shareCode = shareCode
         persist()
@@ -295,6 +299,7 @@ final class FinanceStore {
         if let existing = savedReceipt(matching: receipt) {
             return existing
         }
+        guard allowsEditing else { return receipt }
         let saved = ReceiptSummary(
             merchant: receipt.merchant,
             amount: receipt.amount,
@@ -317,11 +322,13 @@ final class FinanceStore {
     }
 
     func deleteReceipt(id: UUID) {
+        guard allowsEditing else { return }
         receipts.removeAll { $0.id == id }
         persist()
     }
 
     func addWallet(name: String, currency: Currency, balance: Double) {
+        guard allowsEditing else { return }
         let palette = WalletPalette.allCases[wallets.count % WalletPalette.allCases.count]
         wallets.append(
             Wallet(
@@ -335,11 +342,13 @@ final class FinanceStore {
     }
 
     func setBudgetLimit(_ amount: Double) {
+        guard allowsEditing else { return }
         budgetLimit = max(0, amount)
         persist()
     }
 
     func setMainCurrency(_ currency: Currency) {
+        guard allowsEditing else { return }
         mainCurrency = currency
         persist()
     }
@@ -350,14 +359,15 @@ final class FinanceStore {
     }
 
     func addGoal(title: String, target: Double, currency: Currency, dueDate: Date?) {
-        guard target > 0 else { return }
+        guard allowsEditing, target > 0 else { return }
         goals.append(SavingsGoal(title: title, targetAmount: target, currency: currency, dueDate: dueDate))
         persist()
     }
 
     @discardableResult
     func topUpGoal(id: UUID, amount: Double, sourceWalletID: UUID? = nil) -> Bool {
-        guard amount > 0, let goalIndex = goals.firstIndex(where: { $0.id == id }) else { return false }
+        guard allowsEditing, amount > 0,
+              let goalIndex = goals.firstIndex(where: { $0.id == id }) else { return false }
         let remainingAmount = max(0, goals[goalIndex].targetAmount - goals[goalIndex].savedAmount)
         let contribution = min(amount, remainingAmount)
         guard contribution > 0 else { return false }
@@ -374,14 +384,16 @@ final class FinanceStore {
     }
 
     func addDebt(person: String, amount: Double, currency: Currency, direction: DebtDirection, dueDate: Date?) {
-        guard amount > 0 else { return }
+        guard allowsEditing, amount > 0 else { return }
         debts.append(DebtItem(person: person, amount: amount, currency: currency, direction: direction, dueDate: dueDate))
         persist()
     }
 
     @discardableResult
     func settleDebt(id: UUID, walletID: UUID? = nil) -> Bool {
-        guard let debtIndex = debts.firstIndex(where: { $0.id == id }), !debts[debtIndex].isPaid else { return false }
+        guard allowsEditing,
+              let debtIndex = debts.firstIndex(where: { $0.id == id }),
+              !debts[debtIndex].isPaid else { return false }
 
         if let walletID {
             guard let walletIndex = wallets.firstIndex(where: { $0.id == walletID }) else { return false }
@@ -437,6 +449,10 @@ final class FinanceStore {
         changeHandler = handler
     }
 
+    func setAllowsEditing(_ allowsEditing: Bool) {
+        self.allowsEditing = allowsEditing
+    }
+
     func switchStorageNamespace(_ namespace: String, fallbackSpaceName: String) {
         let nextStorageKey = "\(Self.storageKeyPrefix).\(namespace)"
         guard storageKey != nextStorageKey else { return }
@@ -470,6 +486,7 @@ final class FinanceStore {
     }
 
     func clearAllData() {
+        guard allowsEditing else { return }
         replace(with: .empty, notifyChange: true)
     }
 
