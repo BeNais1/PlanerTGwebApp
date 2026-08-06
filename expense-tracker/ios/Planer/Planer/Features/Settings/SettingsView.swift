@@ -64,6 +64,13 @@ struct SettingsView: View {
                 Label(liveActivityManager.status.title, systemImage: liveActivityManager.status.systemImage)
                     .foregroundStyle(liveActivityStatusColor)
 
+                if let installationDetails = liveActivityManager.installationDetails {
+                    Text(installationDetails)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
                 if case .failed(let details) = liveActivityManager.status {
                     Text(details)
                         .font(.caption)
@@ -74,7 +81,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if liveActivityManager.status == .active {
-                    Text("Live Activity створено. Якщо капсула порожня, підпишіть не лише Planer, а й вкладене розширення з Bundle ID planer.liveactivity.")
+                    Text("ActivityKit створив активність, а Bundle ID перевірено. Якщо капсула порожня, WidgetKit extension не зареєструвався після підпису — збережіть Device System Log у Sideloadly.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

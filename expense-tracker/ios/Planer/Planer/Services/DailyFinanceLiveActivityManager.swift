@@ -44,15 +44,39 @@ final class DailyFinanceLiveActivityManager {
 
     static let shared = DailyFinanceLiveActivityManager()
     private(set) var status: Status = .checking
+    private(set) var installationDetails: String?
 
     private init() {}
 
     func refresh(with snapshot: DailyFinanceSnapshot, forceRestart: Bool = false) async {
-        guard let plugInsURL = Bundle.main.builtInPlugInsURL,
-              FileManager.default.fileExists(
-                atPath: plugInsURL.appendingPathComponent("PlanerLiveActivity.appex").path
-              ) else {
+        let hostBundleID = Bundle.main.bundleIdentifier ?? "невідомий"
+        guard let plugInsURL = Bundle.main.builtInPlugInsURL else {
+            installationDetails = "App: \(hostBundleID)\nExtension: відсутній"
             status = .failed("Розширення PlanerLiveActivity.appex відсутнє. Підписувач IPA видалив його або не встановив.")
+            return
+        }
+        let extensionURL = plugInsURL.appendingPathComponent("PlanerLiveActivity.appex")
+        guard FileManager.default.fileExists(atPath: extensionURL.path),
+              let extensionBundle = Bundle(url: extensionURL),
+              let extensionBundleID = extensionBundle.bundleIdentifier else {
+            installationDetails = "App: \(hostBundleID)\nExtension: відсутній"
+            status = .failed("Розширення PlanerLiveActivity.appex відсутнє або має пошкоджений Info.plist.")
+            return
+        }
+        installationDetails = "App: \(hostBundleID)\nExtension: \(extensionBundleID)"
+
+        guard extensionBundleID.hasPrefix(hostBundleID + ".") else {
+            status = .failed("Bundle ID розширення не належить застосунку. У Sideloadly потрібно підписати вкладений Plug-in окремо та не видаляти його.")
+            return
+        }
+        guard let executableURL = extensionBundle.executableURL,
+              FileManager.default.fileExists(atPath: executableURL.path) else {
+            status = .failed("У PlanerLiveActivity.appex відсутній виконуваний файл.")
+            return
+        }
+        let extensionPoint = (extensionBundle.infoDictionary?["NSExtension"] as? [String: Any])?["NSExtensionPointIdentifier"] as? String
+        guard extensionPoint == "com.apple.widgetkit-extension" else {
+            status = .failed("PlanerLiveActivity.appex не зареєстровано як WidgetKit extension.")
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {

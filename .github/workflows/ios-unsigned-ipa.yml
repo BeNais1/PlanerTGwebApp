@@ -135,13 +135,29 @@ jobs:
           set -euo pipefail
 
           APP_PATH="$DERIVED_DATA/Build/Products/Release-iphoneos/Planer.app"
+          EXTENSION_PATH="$APP_PATH/PlugIns/PlanerLiveActivity.appex"
           OUTPUT_DIR="$GITHUB_WORKSPACE/expense-tracker/ios/Planer/build"
 
           test -d "$APP_PATH"
-          test -x "$APP_PATH/PlugIns/PlanerLiveActivity.appex/PlanerLiveActivity"
+          test -x "$EXTENSION_PATH/PlanerLiveActivity"
           test "$(/usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$APP_PATH/Info.plist")" = "true"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$APP_PATH/PlugIns/PlanerLiveActivity.appex/Info.plist")" = "true"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/PlugIns/PlanerLiveActivity.appex/Info.plist")" = "planer.liveactivity"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSSupportsLiveActivities' "$EXTENSION_PATH/Info.plist")" = "true"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$EXTENSION_PATH/Info.plist")" = "com.apple.widgetkit-extension"
+
+          APP_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist")"
+          EXTENSION_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$EXTENSION_PATH/Info.plist")"
+          APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
+          EXTENSION_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$EXTENSION_PATH/Info.plist")"
+          APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
+          EXTENSION_BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$EXTENSION_PATH/Info.plist")"
+
+          test "$EXTENSION_BUNDLE_ID" = "$APP_BUNDLE_ID.liveactivity"
+          test "$EXTENSION_VERSION" = "$APP_VERSION"
+          test "$EXTENSION_BUILD" = "$APP_BUILD"
+
+          printf 'App: %s %s (%s)\nExtension: %s %s (%s)\n' \
+            "$APP_BUNDLE_ID" "$APP_VERSION" "$APP_BUILD" \
+            "$EXTENSION_BUNDLE_ID" "$EXTENSION_VERSION" "$EXTENSION_BUILD"
           rm -rf "$OUTPUT_DIR"
           mkdir -p "$OUTPUT_DIR/Payload"
           ditto "$APP_PATH" "$OUTPUT_DIR/Payload/Planer.app"

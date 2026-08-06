@@ -61,6 +61,20 @@ Workflow `Build unsigned iOS IPA` автоматично:
 
 Перед встановленням IPA його потрібно підписати сертифікатом і provisioning profile для Bundle ID `planer`.
 
+### Встановлення через Sideloadly
+
+Live Activity працює через вкладене розширення `PlugIns/PlanerLiveActivity.appex`, тому його не можна видаляти під час підпису:
+
+1. відкрийте **Advanced Options**;
+2. залиште **Use automatic bundle ID** увімкненим;
+3. натисніть рядок керування Plug-ins і переконайтеся, що `PlanerLiveActivity.appex` зберігається — інтерфейс не має показувати `Dropping all (1) plug-ins`;
+4. не вмикайте **Use custom entitlements** і не додавайте tweak injection;
+5. встановіть IPA, відкрийте Planer та перейдіть у **Налаштування → Dynamic Island і екран блокування**;
+6. перевірте, що показані Bundle ID застосунку й extension, а ID extension починається з повного ID застосунку та крапки;
+7. натисніть **Запустити повторно**, згорніть застосунок і заблокуйте екран.
+
+Безкоштовний Apple ID має підписати два App ID — основний застосунок і Live Activity extension — і потребує повторного встановлення щонайменше раз на сім днів.
+
 ## Формат даних
 
 Нативний знімок зберігається у власному просторі Google-користувача:
