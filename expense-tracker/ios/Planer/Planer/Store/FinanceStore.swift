@@ -5,7 +5,7 @@ import Observation
 @Observable
 final class FinanceStore {
     private static let storageKeyPrefix = "planer.ios.snapshot.v2"
-    @ObservationIgnored private let storageKey: String
+    @ObservationIgnored private var storageKey: String
     private let persistsChanges: Bool
     @ObservationIgnored private var changeHandler: ((PlanerSnapshot) -> Void)?
 
@@ -435,6 +435,24 @@ final class FinanceStore {
 
     func setChangeHandler(_ handler: ((PlanerSnapshot) -> Void)?) {
         changeHandler = handler
+    }
+
+    func switchStorageNamespace(_ namespace: String, fallbackSpaceName: String) {
+        let nextStorageKey = "\(Self.storageKeyPrefix).\(namespace)"
+        guard storageKey != nextStorageKey else { return }
+
+        changeHandler = nil
+        storageKey = nextStorageKey
+        let restored: PlanerSnapshot?
+        if let data = UserDefaults.standard.data(forKey: storageKey) {
+            restored = try? JSONDecoder().decode(PlanerSnapshot.self, from: data)
+        } else {
+            restored = nil
+        }
+
+        var fallback = PlanerSnapshot.empty
+        fallback.activeSpaceName = fallbackSpaceName
+        replace(with: restored ?? fallback)
     }
 
     func replace(with snapshot: PlanerSnapshot, notifyChange: Bool = false) {

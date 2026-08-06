@@ -7,12 +7,14 @@ struct AuthenticatedAppView: View {
     @State private var store: FinanceStore
     @State private var router = AppRouter()
     @State private var syncStore: FirebaseSyncStore
+    @State private var familyStore: FamilyAccountStore
     @State private var liveActivityManager = DailyFinanceLiveActivityManager.shared
 
     init(user: AuthenticatedUser, pendingDeepLink: Binding<URL?>) {
         _pendingDeepLink = pendingDeepLink
         _store = State(initialValue: FinanceStore(storageNamespace: user.id))
         _syncStore = State(initialValue: FirebaseSyncStore(user: user))
+        _familyStore = State(initialValue: FamilyAccountStore(user: user))
     }
 
     var body: some View {
@@ -20,10 +22,15 @@ struct AuthenticatedAppView: View {
             .environment(store)
             .environment(router)
             .environment(syncStore)
+            .environment(familyStore)
             .environment(liveActivityManager)
             .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
             .task {
-                syncStore.start(store: store)
+                familyStore.start()
+                syncStore.start(store: store, space: familyStore.activeSpace)
+            }
+            .onChange(of: familyStore.activeSpace) { _, space in
+                syncStore.switchSpace(to: space, store: store)
             }
             .task(id: liveActivitySnapshot) {
                 guard scenePhase == .active else { return }
@@ -38,6 +45,7 @@ struct AuthenticatedAppView: View {
             }
             .onDisappear {
                 syncStore.stop()
+                familyStore.stop()
             }
     }
 

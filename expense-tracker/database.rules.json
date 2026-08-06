@@ -58,6 +58,39 @@
         ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('creatorId').val() === auth.uid && newData.child('participants').child(auth.uid).exists()) || (data.exists() && data.child('participants').child(auth.uid).exists()))"
       }
     },
+    "user_families": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        "$familyId": {
+          ".write": "auth != null && (auth.token.admin === true || auth.uid === $uid || root.child('families').child($familyId).child('ownerId').val() === auth.uid)"
+        }
+      }
+    },
+    "families": {
+      "$familyId": {
+        ".read": "auth != null && (auth.token.admin === true || data.child('members').child(auth.uid).exists())",
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('ownerId').val() === auth.uid && newData.child('members').child(auth.uid).child('role').val() === 'owner') || (data.exists() && data.child('ownerId').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['id', 'name', 'ownerId', 'createdAt', 'members']) && newData.child('id').val() === $familyId && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 40",
+        "ownerId": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() === data.val())"
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && ((!newData.exists() && data.exists()) || (data.exists() && newData.child('userId').val() === auth.uid && newData.child('role').val() === data.child('role').val()) || (!data.exists() && newData.child('userId').val() === auth.uid && newData.child('role').val() === 'member' && newData.child('inviteCode').isString() && root.child('family_invites').child(newData.child('inviteCode').val()).child('familyId').val() === $familyId && root.child('family_invites').child(newData.child('inviteCode').val()).child('isActive').val() === true && root.child('family_invites').child(newData.child('inviteCode').val()).child('expiresAt').val() > now))"
+          }
+        },
+        "iosSnapshot": {
+          ".write": "auth != null && (auth.token.admin === true || root.child('families').child($familyId).child('members').child(auth.uid).exists())"
+        }
+      }
+    },
+    "family_invites": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('createdBy').val() === auth.uid && root.child('families').child(newData.child('familyId').val()).child('members').child(auth.uid).exists()) || (data.exists() && (data.child('createdBy').val() === auth.uid || root.child('families').child(data.child('familyId').val()).child('ownerId').val() === auth.uid)))",
+        ".validate": "newData.hasChildren(['code', 'familyId', 'familyName', 'createdBy', 'createdAt', 'expiresAt', 'isActive']) && newData.child('code').val() === $code && newData.child('familyId').isString() && newData.child('familyName').isString() && newData.child('expiresAt').isNumber()"
+      }
+    },
     "vault_payments": {
       ".read": false,
       ".write": false

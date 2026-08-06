@@ -3,6 +3,26 @@ import XCTest
 
 @MainActor
 final class FinanceStoreTests: XCTestCase {
+    func testFamilyInviteLinkParsesAppURLAndRawCode() {
+        XCTAssertEqual(
+            FamilyInviteLink.code(from: "planer://family/join/PLANER2026"),
+            "PLANER2026"
+        )
+        XCTAssertEqual(FamilyInviteLink.code(from: "PLANER2026"), "PLANER2026")
+        XCTAssertNil(FamilyInviteLink.code(from: "planer://receipt/PLANER2026"))
+        XCTAssertNil(FamilyInviteLink.code(from: "short"))
+    }
+
+    func testFinanceSpaceUsesIndependentCacheNamespaces() {
+        let personal = FinanceSpace.personal(userID: "user-1")
+        let family = FinanceSpace.family(id: "family-1", name: "Родина")
+
+        XCTAssertEqual(personal.cacheNamespace, "user-1")
+        XCTAssertEqual(family.cacheNamespace, "family.family-1")
+        XCTAssertNotEqual(personal.cacheNamespace, family.cacheNamespace)
+        XCTAssertEqual(family.title, "Родина")
+    }
+
     func testFreshStoreStartsEmpty() {
         let store = FinanceStore(
             storageNamespace: UUID().uuidString,

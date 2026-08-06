@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(FinanceStore.self) private var store
     @Environment(AuthSession.self) private var authSession
     @Environment(FirebaseSyncStore.self) private var syncStore
+    @Environment(FamilyAccountStore.self) private var familyStore
     @Environment(DailyFinanceLiveActivityManager.self) private var liveActivityManager
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
@@ -33,7 +34,7 @@ struct SettingsView: View {
             }
 
             Section("Дані") {
-                LabeledContent("Простір", value: store.activeSpaceName)
+                LabeledContent("Простір", value: familyStore.activeSpace.title)
                 LabeledContent("Сховище", value: "Firebase + локальний кеш")
                 Label(syncStore.status.title, systemImage: syncStatusIcon)
                     .foregroundStyle(syncStatusColor)
@@ -43,6 +44,20 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(PlanerTheme.negative)
                 }
+            }
+
+            Section("Сімейний акаунт") {
+                NavigationLink {
+                    FamilyAccountsView()
+                } label: {
+                    LabeledContent("Сімейні простори") {
+                        Text(familyStore.families.isEmpty ? "Налаштувати" : "\(familyStore.families.count)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("Створюйте спільний бюджет і додавайте учасників через посилання або QR-код.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Dynamic Island і екран блокування") {
@@ -170,5 +185,6 @@ struct SettingsView: View {
         .environment(FinanceStore.previewStore())
         .environment(AuthSession.preview())
         .environment(FirebaseSyncStore.preview())
+        .environment(FamilyAccountStore.preview())
         .environment(DailyFinanceLiveActivityManager.shared)
 }

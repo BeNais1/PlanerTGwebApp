@@ -19,6 +19,7 @@ enum SheetDestination: Identifiable, Hashable {
     case fundGoal(SavingsGoal)
     case settleDebt(DebtItem)
     case receipt(ReceiptSummary)
+    case familyJoin(code: String)
 
     var id: String {
         switch self {
@@ -32,6 +33,7 @@ enum SheetDestination: Identifiable, Hashable {
         case .fundGoal(let goal): "fund-goal-\(goal.id)"
         case .settleDebt(let debt): "settle-debt-\(debt.id)"
         case .receipt(let receipt): "receipt-\(receipt.id)"
+        case .familyJoin(let code): "family-join-\(code)"
         }
     }
 }

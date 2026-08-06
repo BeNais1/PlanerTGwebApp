@@ -34,6 +34,7 @@ final class FirebaseSyncStore {
     @ObservationIgnored private var observerHandle: DatabaseHandle?
     @ObservationIgnored private weak var store: FinanceStore?
     @ObservationIgnored private var receivedInitialSnapshot = false
+    @ObservationIgnored private var activeSpaceID: String?
 
     init(user: AuthenticatedUser) {
         self.user = user
@@ -52,10 +53,18 @@ final class FirebaseSyncStore {
         return syncStore
     }
 
-    func start(store: FinanceStore) {
-        guard observerHandle == nil else { return }
+    func start(store: FinanceStore, space: FinanceSpace) {
+        switchSpace(to: space, store: store)
+    }
+
+    func switchSpace(to space: FinanceSpace, store: FinanceStore) {
+        guard activeSpaceID != space.id || observerHandle == nil else { return }
+        stop()
+        activeSpaceID = space.id
         self.store = store
         status = .connecting
+
+        store.switchStorageNamespace(space.cacheNamespace, fallbackSpaceName: space.title)
 
         let userReference = Database.database().reference().child("users").child(user.id)
         userReference.updateChildValues([
@@ -64,7 +73,16 @@ final class FirebaseSyncStore {
             "profile/lastLoginAt": ServerValue.timestamp()
         ])
 
-        let reference = userReference.child("iosSnapshot")
+        let reference: DatabaseReference
+        switch space {
+        case .personal:
+            reference = userReference.child("iosSnapshot")
+        case .family(let familyID, _):
+            reference = Database.database().reference()
+                .child("families")
+                .child(familyID)
+                .child("iosSnapshot")
+        }
         self.reference = reference
         observerHandle = reference.observe(
             .value,
@@ -91,6 +109,7 @@ final class FirebaseSyncStore {
         reference = nil
         store = nil
         receivedInitialSnapshot = false
+        activeSpaceID = nil
     }
 
     func publish(receipt: ReceiptSummary) async throws -> ReceiptShareLink {

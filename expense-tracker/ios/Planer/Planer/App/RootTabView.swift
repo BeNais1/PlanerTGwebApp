@@ -68,10 +68,20 @@ struct RootTabView: View {
             NavigationStack { DebtSettlementView(debt: debt) }
         case .receipt(let receipt):
             NavigationStack { ReceiptDetailView(receipt: receipt) }
+        case .familyJoin(let code):
+            NavigationStack { FamilyJoinView(codeOrLink: code) }
         }
     }
 
     private func openDeepLink(_ url: URL) async {
+        if let familyCode = FamilyInviteLink.code(from: url.absoluteString),
+           url.scheme == "planer",
+           url.host == "family" {
+            router.selectedTab = .home
+            router.presentedSheet = .familyJoin(code: familyCode)
+            return
+        }
+
         if url.scheme == "planer", url.host == "transaction",
            let rawKind = url.pathComponents.last,
            let kind = FinanceTransactionKind(rawValue: rawKind),
@@ -110,5 +120,6 @@ struct RootTabView: View {
         .environment(FinanceStore.previewStore())
         .environment(AppRouter())
         .environment(FirebaseSyncStore.preview())
+        .environment(FamilyAccountStore.preview())
         .preferredColorScheme(.dark)
 }
