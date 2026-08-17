@@ -1,3 +1,4 @@
+import FirebaseDatabase
 import Foundation
 import Observation
 import UserNotifications
@@ -8,6 +9,7 @@ struct PlanerNotificationPreferences: Codable, Hashable {
     var upcomingPayments = true
     var debtReminders = true
     var recurringOperations = true
+    var creditReminders = true
     var goalUpdates = true
     var lowBalanceForecast = true
     var periodicSummaries = true
@@ -33,6 +35,8 @@ final class PlanerNotificationService {
     private static let requestPrefix = "planer.notification."
 
     private let center = UNUserNotificationCenter.current()
+    @ObservationIgnored private var familyEventsReference: DatabaseReference?
+    @ObservationIgnored private var familyEventsHandle: DatabaseHandle?
     private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     private(set) var lastError: String?
     var preferences: PlanerNotificationPreferences {
@@ -118,6 +122,9 @@ final class PlanerNotificationService {
         if preferences.recurringOperations {
             await scheduleRecurringOperations(store: store)
         }
+        if preferences.creditReminders {
+            await scheduleCreditPayments(store: store)
+        }
         if preferences.goalUpdates {
             await scheduleGoalDeadlines(store: store)
             await evaluateGoalProgress(store: store)
@@ -131,6 +138,63 @@ final class PlanerNotificationService {
         if preferences.lowBalanceForecast {
             await evaluateBalanceForecast(store: store)
         }
+    }
+
+    func startFamilyEventListener(userID: String) {
+        stopFamilyEventListener()
+        let reference = Database.database().reference().child("user_family_events").child(userID)
+        familyEventsReference = reference
+        familyEventsHandle = reference.observe(.childAdded) { [weak self] snapshot in
+            guard let data = snapshot.value as? [String: Any],
+                  let title = data["title"] as? String,
+                  let body = data["body"] as? String else { return }
+            Task { @MainActor in
+                guard let self else { return }
+                await self.refreshAuthorizationStatus()
+                if self.preferences.familyUpdates,
+                   self.authorizationStatus == .authorized || self.authorizationStatus == .provisional {
+                    await self.deliverFamilyNotification(title: title, body: body, suffix: snapshot.key)
+                }
+                try? await reference.child(snapshot.key).removeValue()
+            }
+        }
+    }
+
+    func stopFamilyEventListener() {
+        if let familyEventsHandle {
+            familyEventsReference?.removeObserver(withHandle: familyEventsHandle)
+        }
+        familyEventsHandle = nil
+        familyEventsReference = nil
+    }
+
+    func publishFamilyChanges(
+        previous: PlanerSnapshot,
+        current: PlanerSnapshot,
+        familyID: String,
+        familyName: String,
+        authorID: String,
+        authorName: String
+    ) async throws {
+        let events = familyEvents(
+            previous: previous,
+            current: current,
+            familyID: familyID,
+            familyName: familyName,
+            authorName: authorName
+        )
+        guard !events.isEmpty else { return }
+
+        let familyReference = Database.database().reference().child("families").child(familyID).child("members")
+        let members = try await readValue(from: familyReference) as? [String: Any] ?? [:]
+        var updates: [AnyHashable: Any] = [:]
+        for memberID in members.keys where memberID != authorID {
+            for event in events {
+                updates["user_family_events/\(memberID)/\(event.id)"] = event.value
+            }
+        }
+        guard !updates.isEmpty else { return }
+        try await updateValues(updates)
     }
 
     func notifyFamilyChanges(
@@ -295,6 +359,28 @@ final class PlanerNotificationService {
                 interruption: .active
             )
             await addCalendar(identifier: "recurring.\(last.id)", content: notification, date: next)
+        }
+    }
+
+    private func scheduleCreditPayments(store: FinanceStore) async {
+        for credit in store.credits {
+            for payment in credit.payments where !payment.isPaid && payment.dueDate > .now {
+                let amount = preferences.showAmounts ? " — \(credit.currency.formatted(payment.amount))" : ""
+                let walletText = payment.deductFromWallet ? " Після оплати підтвердьте списання з картки." : " Без списання з картки."
+                let notification = content(
+                    title: "Терміново: платіж за кредитом",
+                    body: "«\(credit.title)»\(amount).\(walletText)",
+                    category: Self.financeCategory,
+                    interruption: .timeSensitive,
+                    url: "planer://credit/\(credit.id.uuidString)"
+                )
+                await addCalendar(
+                    identifier: "credit.\(credit.id).\(payment.id)",
+                    content: notification,
+                    date: payment.dueDate,
+                    hour: 9
+                )
+            }
         }
     }
 
@@ -478,5 +564,103 @@ final class PlanerNotificationService {
     private func savePreferences() {
         guard let data = try? JSONEncoder().encode(preferences) else { return }
         UserDefaults.standard.set(data, forKey: Self.preferencesKey)
+    }
+
+    private func familyEvents(
+        previous: PlanerSnapshot,
+        current: PlanerSnapshot,
+        familyID: String,
+        familyName: String,
+        authorName: String
+    ) -> [FamilyNotificationEvent] {
+        var events: [FamilyNotificationEvent] = []
+        let oldTransactions = Set(previous.transactions.map(\.id))
+        for transaction in current.transactions where !oldTransactions.contains(transaction.id) {
+            let amount = preferences.showAmounts ? " · \(transaction.currency.formatted(transaction.amount))" : ""
+            events.append(FamilyNotificationEvent(
+                id: "transaction-\(transaction.id.uuidString)",
+                title: "Нова сімейна операція",
+                body: "\(authorName) додав(ла) \(transaction.kind.title.lowercased())\(amount) у «\(familyName)».",
+                familyID: familyID
+            ))
+        }
+
+        let oldReceipts = Set(previous.receipts.map(\.id))
+        for receipt in current.receipts where !oldReceipts.contains(receipt.id) {
+            events.append(FamilyNotificationEvent(
+                id: "receipt-\(receipt.id.uuidString)",
+                title: "Новий сімейний чек",
+                body: "\(authorName) зберіг(ла) чек «\(receipt.merchant)» у «\(familyName)».",
+                familyID: familyID
+            ))
+        }
+
+        for goal in current.goals {
+            guard let old = previous.goals.first(where: { $0.id == goal.id }), goal.savedAmount > old.savedAmount else { continue }
+            events.append(FamilyNotificationEvent(
+                id: "goal-\(goal.id.uuidString)-\(Int(goal.savedAmount * 100))",
+                title: "Сімейну ціль поповнено",
+                body: "\(authorName) поповнив(ла) «\(goal.title)» у «\(familyName)».",
+                familyID: familyID
+            ))
+        }
+
+        let oldCredits = Dictionary(uniqueKeysWithValues: previous.credits.map { ($0.id, $0) })
+        for credit in current.credits {
+            guard let oldCredit = oldCredits[credit.id] else {
+                events.append(FamilyNotificationEvent(
+                    id: "credit-\(credit.id.uuidString)",
+                    title: "Додано сімейний кредит",
+                    body: "\(authorName) додав(ла) графік «\(credit.title)» у «\(familyName)».",
+                    familyID: familyID
+                ))
+                continue
+            }
+            for payment in credit.payments where payment.isPaid {
+                guard oldCredit.payments.first(where: { $0.id == payment.id })?.isPaid == false else { continue }
+                events.append(FamilyNotificationEvent(
+                    id: "credit-payment-\(payment.id.uuidString)",
+                    title: "Платіж за кредитом виконано",
+                    body: "\(authorName) підтвердив(ла) платіж за «\(credit.title)» у «\(familyName)».",
+                    familyID: familyID
+                ))
+            }
+        }
+        return events
+    }
+
+    private func readValue(from reference: DatabaseReference) async throws -> Any? {
+        try await withCheckedThrowingContinuation { continuation in
+            reference.observeSingleEvent(
+                of: .value,
+                with: { continuation.resume(returning: $0.value) },
+                withCancel: { continuation.resume(throwing: $0) }
+            )
+        }
+    }
+
+    private func updateValues(_ values: [AnyHashable: Any]) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Database.database().reference().updateChildValues(values) { error, _ in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            }
+        }
+    }
+}
+
+private struct FamilyNotificationEvent {
+    let id: String
+    let title: String
+    let body: String
+    let familyID: String
+
+    var value: [String: Any] {
+        [
+            "title": title,
+            "body": body,
+            "familyId": familyID,
+            "createdAt": ServerValue.timestamp()
+        ]
     }
 }

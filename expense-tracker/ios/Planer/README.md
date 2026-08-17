@@ -22,6 +22,11 @@
 - поповнення цілі з необов’язковим списанням із вибраного гаманця;
 - закриття боргу з необов’язковим зарахуванням або списанням;
 - видалення всіх локальних і хмарних фінансових даних із налаштувань;
+- кредити з довільним графіком платежів, терміновими нагадуваннями та окремим вибором списання з картки;
+- надійна офлайн-черга з operation ID і SHA-256 перевіркою після підтвердження Firebase;
+- серверна черга сімейних подій для доставки операцій іншим учасникам;
+- попередження про можливі неактуальні сімейні дані без мережі;
+- знайомство із застосунком на першому запуску та після видалення даних;
 - Liquid Glass на iOS 26+ і системний material fallback на iOS 17–25.
 
 Застосунок не використовує Telegram-авторизацію або прив’язування Telegram-профілю.
@@ -84,10 +89,13 @@ users/{firebaseUID}/profile
 users/{firebaseUID}/iosSnapshot/schemaVersion
 users/{firebaseUID}/iosSnapshot/snapshotJSON
 users/{firebaseUID}/iosSnapshot/updatedAt
+users/{firebaseUID}/iosSnapshot/operationID
+users/{firebaseUID}/iosSnapshot/checksum
+user_family_events/{firebaseUID}/{eventId}
 user_families/{firebaseUID}/{familyId}
 families/{familyId}/members/{firebaseUID}
 families/{familyId}/iosSnapshot/snapshotJSON
 family_invites/{inviteCode}
 ```
 
-Версія 2 зберігає знімок як цілісний JSON-рядок, тому Firebase не видаляє порожні масиви й чистий акаунт коректно синхронізується.
+Версія 3 зберігає знімок як цілісний JSON-рядок, додає ідентифікатор операції та SHA-256 checksum. Локальна черга видаляє зміну тільки після відповіді Firebase і повторного читання збіжного checksum.

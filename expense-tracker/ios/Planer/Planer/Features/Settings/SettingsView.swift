@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(FamilyAccountStore.self) private var familyStore
     @Environment(DailyFinanceLiveActivityManager.self) private var liveActivityManager
     @Environment(PlanerNotificationService.self) private var notificationService
+    @Environment(AppOnboardingStore.self) private var onboardingStore
     @Environment(\.dismiss) private var dismiss
     @State private var showClearConfirmation = false
 
@@ -70,7 +71,7 @@ struct SettingsView: View {
                             .foregroundStyle(notificationStatusColor)
                     }
                 }
-                Text("Ліміти, платежі, борги, регулярні операції, цілі, прогнози, підсумки та сімейний бюджет.")
+                Text("Ліміти, термінові кредитні платежі, борги, регулярні операції, цілі, прогнози, підсумки та сімейний бюджет.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -131,12 +132,17 @@ struct SettingsView: View {
                 Button("Видалити всі дані", role: .destructive) {
                     showClearConfirmation = true
                 }
-                Text("Гаманці, операції, цілі та борги буде видалено з пристрою і Firebase.")
+                Text("Гаманці, операції, цілі, борги та кредити буде видалено з пристрою і Firebase. Після очищення знову відкриється знайомство із застосунком.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section("Про застосунок") {
+                Button {
+                    onboardingStore.present()
+                } label: {
+                    Label("Знайомство із застосунком", systemImage: "sparkles.rectangle.stack")
+                }
                 LabeledContent("Версія", value: appVersion)
                 LabeledContent("Мінімальна iOS", value: "17.0")
                 LabeledContent("Liquid Glass", value: "iOS 26+")
@@ -156,7 +162,10 @@ struct SettingsView: View {
             isPresented: $showClearConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Видалити", role: .destructive) { store.clearAllData() }
+            Button("Видалити", role: .destructive) {
+                store.clearAllData()
+                onboardingStore.resetAfterDataRemoval()
+            }
             Button("Скасувати", role: .cancel) { }
         } message: {
             Text("Цю дію неможливо скасувати.")
@@ -189,6 +198,7 @@ struct SettingsView: View {
         switch syncStore.status {
         case .connecting: "arrow.triangle.2.circlepath.icloud"
         case .synced: "checkmark.icloud.fill"
+        case .offline: "wifi.slash"
         case .error: "exclamationmark.icloud.fill"
         }
     }
@@ -197,6 +207,7 @@ struct SettingsView: View {
         switch syncStore.status {
         case .connecting: .secondary
         case .synced: PlanerTheme.positive
+        case .offline: PlanerTheme.warning
         case .error: PlanerTheme.negative
         }
     }
@@ -228,4 +239,5 @@ struct SettingsView: View {
         .environment(FamilyAccountStore.preview())
         .environment(DailyFinanceLiveActivityManager.shared)
         .environment(PlanerNotificationService.shared)
+        .environment(AppOnboardingStore(userID: "preview-user"))
 }

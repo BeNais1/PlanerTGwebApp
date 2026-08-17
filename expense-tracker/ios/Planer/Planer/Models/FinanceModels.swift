@@ -255,6 +255,63 @@ struct DebtItem: Identifiable, Codable, Hashable {
     }
 }
 
+struct CreditPayment: Identifiable, Codable, Hashable {
+    let id: UUID
+    var dueDate: Date
+    var amount: Double
+    var deductFromWallet: Bool
+    var isPaid: Bool
+    var paidAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        dueDate: Date,
+        amount: Double,
+        deductFromWallet: Bool = true,
+        isPaid: Bool = false,
+        paidAt: Date? = nil
+    ) {
+        self.id = id
+        self.dueDate = dueDate
+        self.amount = amount
+        self.deductFromWallet = deductFromWallet
+        self.isPaid = isPaid
+        self.paidAt = paidAt
+    }
+}
+
+struct CreditAccount: Identifiable, Codable, Hashable {
+    let id: UUID
+    var title: String
+    var lender: String
+    var currency: Currency
+    var walletID: UUID?
+    var payments: [CreditPayment]
+    var createdAt: Date
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        lender: String,
+        currency: Currency,
+        walletID: UUID?,
+        payments: [CreditPayment],
+        createdAt: Date = .now
+    ) {
+        self.id = id
+        self.title = title
+        self.lender = lender
+        self.currency = currency
+        self.walletID = walletID
+        self.payments = payments.sorted { $0.dueDate < $1.dueDate }
+        self.createdAt = createdAt
+    }
+
+    var remainingAmount: Double {
+        payments.filter { !$0.isPaid }.reduce(0) { $0 + $1.amount }
+    }
+}
+
 struct ReceiptSummary: Identifiable, Codable, Hashable {
     let id: UUID
     var merchant: String
@@ -346,11 +403,12 @@ struct CategoryTotal: Identifiable, Hashable {
     let amount: Double
 }
 
-struct PlanerSnapshot: Codable {
+struct PlanerSnapshot: Codable, Equatable {
     var wallets: [Wallet]
     var transactions: [FinanceTransaction]
     var goals: [SavingsGoal]
     var debts: [DebtItem]
+    var credits: [CreditAccount]
     var receipts: [ReceiptSummary]
     var customCategories: [CustomTransactionCategory]
     var budgetLimit: Double
@@ -363,6 +421,7 @@ struct PlanerSnapshot: Codable {
         case transactions
         case goals
         case debts
+        case credits
         case receipts
         case customCategories
         case budgetLimit
@@ -376,6 +435,7 @@ struct PlanerSnapshot: Codable {
         transactions: [FinanceTransaction],
         goals: [SavingsGoal],
         debts: [DebtItem],
+        credits: [CreditAccount] = [],
         receipts: [ReceiptSummary],
         customCategories: [CustomTransactionCategory] = [],
         budgetLimit: Double,
@@ -387,6 +447,7 @@ struct PlanerSnapshot: Codable {
         self.transactions = transactions
         self.goals = goals
         self.debts = debts
+        self.credits = credits
         self.receipts = receipts
         self.customCategories = customCategories
         self.budgetLimit = budgetLimit
@@ -404,6 +465,7 @@ struct PlanerSnapshot: Codable {
         transactions = try container.decodeIfPresent([FinanceTransaction].self, forKey: .transactions) ?? []
         goals = try container.decodeIfPresent([SavingsGoal].self, forKey: .goals) ?? []
         debts = try container.decodeIfPresent([DebtItem].self, forKey: .debts) ?? []
+        credits = try container.decodeIfPresent([CreditAccount].self, forKey: .credits) ?? []
         receipts = try container.decodeIfPresent([ReceiptSummary].self, forKey: .receipts) ?? []
         customCategories = try container.decodeIfPresent([CustomTransactionCategory].self, forKey: .customCategories) ?? []
         budgetLimit = try container.decodeIfPresent(Double.self, forKey: .budgetLimit) ?? 0
@@ -417,6 +479,7 @@ struct PlanerSnapshot: Codable {
         transactions: [],
         goals: [],
         debts: [],
+        credits: [],
         receipts: [],
         customCategories: [],
         budgetLimit: 0,

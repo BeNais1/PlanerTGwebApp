@@ -3,6 +3,7 @@ import SwiftUI
 private enum FinanceHubSection: String, CaseIterable, Identifiable {
     case goals
     case debts
+    case credits
     case search
 
     var id: String { rawValue }
@@ -10,6 +11,7 @@ private enum FinanceHubSection: String, CaseIterable, Identifiable {
         switch self {
         case .goals: "Цілі"
         case .debts: "Борги"
+        case .credits: "Кредити"
         case .search: "Пошук"
         }
     }
@@ -37,6 +39,7 @@ struct FinanceHubView: View {
                     switch section {
                     case .goals: goalsContent
                     case .debts: debtsContent
+                    case .credits: creditsContent
                     case .search: searchContent
                     }
                 }
@@ -49,13 +52,18 @@ struct FinanceHubView: View {
         .searchable(text: $searchText, prompt: "Сума, опис або категорія")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                if section == .goals || section == .debts {
+                if section != .search {
                     Button {
-                        router.presentedSheet = section == .goals ? .newGoal : .newDebt
+                        switch section {
+                        case .goals: router.presentedSheet = .newGoal
+                        case .debts: router.presentedSheet = .newDebt
+                        case .credits: router.presentedSheet = .newCredit
+                        case .search: break
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .accessibilityLabel(section == .goals ? "Додати ціль" : "Додати борг")
+                    .accessibilityLabel("Додати \(section.title.lowercased())")
                 }
             }
         }
@@ -114,6 +122,58 @@ struct FinanceHubView: View {
                 .padding(16)
                 .contentCard()
                 .opacity(debt.isPaid ? 0.65 : 1)
+            }
+        }
+    }
+
+    private var creditsContent: some View {
+        VStack(spacing: 12) {
+            ForEach(store.credits) { credit in
+                Button {
+                    router.presentedSheet = .credit(credit)
+                } label: {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                                .font(.title2)
+                                .foregroundStyle(PlanerTheme.warning)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(credit.title).font(.headline)
+                                if !credit.lender.isEmpty {
+                                    Text(credit.lender).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Text(credit.currency.formatted(credit.remainingAmount))
+                                .font(.subheadline.bold())
+                        }
+                        if let next = credit.payments.filter({ !$0.isPaid }).min(by: { $0.dueDate < $1.dueDate }) {
+                            Label(
+                                "Наступний платіж \(next.dueDate.formatted(date: .abbreviated, time: .omitted))",
+                                systemImage: next.deductFromWallet ? "creditcard.fill" : "hand.raised.fill"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        } else {
+                            Label("Кредит погашено", systemImage: "checkmark.seal.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(PlanerTheme.positive)
+                        }
+                    }
+                    .padding(16)
+                    .contentCard()
+                }
+                .buttonStyle(.plain)
+            }
+
+            if store.credits.isEmpty {
+                ContentUnavailableView(
+                    "Немає кредитів",
+                    systemImage: "creditcard",
+                    description: Text("Додайте графік платежів і термінові нагадування")
+                )
+                .frame(minHeight: 280)
+                .contentCard()
             }
         }
     }

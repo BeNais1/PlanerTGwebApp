@@ -11,6 +11,7 @@ struct AuthenticatedAppView: View {
     @State private var familyStore: FamilyAccountStore
     @State private var liveActivityManager = DailyFinanceLiveActivityManager.shared
     @State private var notificationService = PlanerNotificationService.shared
+    @State private var onboardingStore: AppOnboardingStore
 
     init(user: AuthenticatedUser, pendingDeepLink: Binding<URL?>) {
         self.user = user
@@ -18,6 +19,7 @@ struct AuthenticatedAppView: View {
         _store = State(initialValue: FinanceStore(storageNamespace: user.id))
         _syncStore = State(initialValue: FirebaseSyncStore(user: user))
         _familyStore = State(initialValue: FamilyAccountStore(user: user))
+        _onboardingStore = State(initialValue: AppOnboardingStore(userID: user.id))
     }
 
     var body: some View {
@@ -28,6 +30,7 @@ struct AuthenticatedAppView: View {
             .environment(familyStore)
             .environment(liveActivityManager)
             .environment(notificationService)
+            .environment(onboardingStore)
             .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
             .task {
                 familyStore.start()
@@ -35,6 +38,7 @@ struct AuthenticatedAppView: View {
                 store.setTransactionAuthorName(familyStore.activeFamily == nil ? nil : user.displayName)
                 syncStore.start(store: store, space: familyStore.activeSpace)
                 await notificationService.refreshAuthorizationStatus()
+                notificationService.startFamilyEventListener(userID: user.id)
             }
             .onChange(of: familyStore.activeSpace) { _, space in
                 store.setAllowsEditing(familyStore.canEditActiveSpace)
@@ -64,6 +68,15 @@ struct AuthenticatedAppView: View {
             .onDisappear {
                 syncStore.stop()
                 familyStore.stop()
+                notificationService.stopFamilyEventListener()
+            }
+            .fullScreenCover(isPresented: Binding(
+                get: { onboardingStore.shouldPresent },
+                set: { if !$0 { onboardingStore.complete() } }
+            )) {
+                WelcomeOnboardingView()
+                    .environment(onboardingStore)
+                    .preferredColorScheme(store.prefersDarkAppearance ? .dark : .light)
             }
     }
 
@@ -81,6 +94,7 @@ struct AuthenticatedAppView: View {
             wallets: store.wallets.hashValue,
             goals: store.goals.hashValue,
             debts: store.debts.hashValue,
+            credits: store.credits.hashValue,
             receipts: store.receipts.hashValue,
             budgetLimit: store.budgetLimit,
             familyID: familyStore.activeSpace.familyID,
@@ -94,6 +108,7 @@ private struct NotificationEvaluationKey: Hashable {
     let wallets: Int
     let goals: Int
     let debts: Int
+    let credits: Int
     let receipts: Int
     let budgetLimit: Double
     let familyID: String?

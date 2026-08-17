@@ -66,6 +66,15 @@
         }
       }
     },
+    "user_family_events": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        "$eventId": {
+          ".write": "auth != null && (auth.token.admin === true || (!newData.exists() && auth.uid === $uid) || (!data.exists() && newData.child('familyId').isString() && root.child('families').child(newData.child('familyId').val()).child('members').child(auth.uid).exists() && root.child('families').child(newData.child('familyId').val()).child('members').child($uid).exists()))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['title', 'body', 'familyId', 'createdAt']) && newData.child('title').isString() && newData.child('title').val().length <= 100 && newData.child('body').isString() && newData.child('body').val().length <= 500)"
+        }
+      }
+    },
     "families": {
       "$familyId": {
         ".read": "auth != null && (auth.token.admin === true || data.child('members').child(auth.uid).exists())",

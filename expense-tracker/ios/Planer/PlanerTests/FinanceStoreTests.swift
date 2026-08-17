@@ -34,8 +34,34 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertTrue(store.transactions.isEmpty)
         XCTAssertTrue(store.goals.isEmpty)
         XCTAssertTrue(store.debts.isEmpty)
+        XCTAssertTrue(store.credits.isEmpty)
         XCTAssertTrue(store.receipts.isEmpty)
         XCTAssertEqual(store.budgetLimit, 0)
+    }
+
+    func testCreditPaymentCanDebitWalletOnlyWhenEnabled() throws {
+        let wallet = Wallet(name: "Картка", currency: .UAH, balance: 10_000, palette: .blue)
+        let debitPayment = CreditPayment(dueDate: .now, amount: 1_500, deductFromWallet: true)
+        let manualPayment = CreditPayment(dueDate: .now, amount: 500, deductFromWallet: false)
+        let credit = CreditAccount(
+            title: "Тестовий кредит",
+            lender: "Банк",
+            currency: .UAH,
+            walletID: wallet.id,
+            payments: [debitPayment, manualPayment]
+        )
+        var snapshot = PlanerSnapshot.empty
+        snapshot.wallets = [wallet]
+        snapshot.credits = [credit]
+        let store = FinanceStore(snapshot: snapshot, loadPersisted: false, persistsChanges: false)
+
+        XCTAssertTrue(store.markCreditPaymentPaid(creditID: credit.id, paymentID: debitPayment.id))
+        XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 8_500, accuracy: 0.001)
+        XCTAssertEqual(store.transactions.count, 1)
+
+        XCTAssertTrue(store.markCreditPaymentPaid(creditID: credit.id, paymentID: manualPayment.id))
+        XCTAssertEqual(try XCTUnwrap(store.wallet(id: wallet.id)?.balance), 8_500, accuracy: 0.001)
+        XCTAssertEqual(store.transactions.count, 1)
     }
 
     func testExpenseUpdatesBalanceAndCanBeReversed() throws {
@@ -122,6 +148,7 @@ final class FinanceStoreTests: XCTestCase {
         XCTAssertTrue(snapshot.transactions.isEmpty)
         XCTAssertTrue(snapshot.goals.isEmpty)
         XCTAssertTrue(snapshot.debts.isEmpty)
+        XCTAssertTrue(snapshot.credits.isEmpty)
         XCTAssertTrue(snapshot.receipts.isEmpty)
         XCTAssertEqual(snapshot.budgetLimit, 0)
         XCTAssertFalse(snapshot.prefersDarkAppearance)

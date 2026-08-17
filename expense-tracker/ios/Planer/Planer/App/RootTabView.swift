@@ -64,6 +64,10 @@ struct RootTabView: View {
             NavigationStack { GoalEditorView() }
         case .newDebt:
             NavigationStack { DebtEditorView() }
+        case .newCredit:
+            NavigationStack { CreditEditorView() }
+        case .credit(let credit):
+            NavigationStack { CreditDetailView(creditID: credit.id) }
         case .fundGoal(let goal):
             NavigationStack { GoalFundingView(goal: goal) }
         case .settleDebt(let debt):
@@ -98,6 +102,15 @@ struct RootTabView: View {
            kind != .transfer {
             router.selectedTab = .home
             router.presentedSheet = .newTransaction(kind)
+            return
+        }
+
+        if url.scheme == "planer", url.host == "credit",
+           let rawID = url.pathComponents.last,
+           let id = UUID(uuidString: rawID),
+           let credit = store.credits.first(where: { $0.id == id }) {
+            router.selectedTab = .finance
+            router.presentedSheet = .credit(credit)
             return
         }
 

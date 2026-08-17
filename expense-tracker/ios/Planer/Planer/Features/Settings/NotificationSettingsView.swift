@@ -51,6 +51,7 @@ struct NotificationSettingsView: View {
                 Toggle("Майбутні платежі", isOn: $notificationService.preferences.upcomingPayments)
                 Toggle("Строки повернення боргів", isOn: $notificationService.preferences.debtReminders)
                 Toggle("Регулярні операції", isOn: $notificationService.preferences.recurringOperations)
+                Toggle("Термінові платежі за кредитами", isOn: $notificationService.preferences.creditReminders)
                 Toggle("Прогноз низького залишку", isOn: $notificationService.preferences.lowBalanceForecast)
             }
 

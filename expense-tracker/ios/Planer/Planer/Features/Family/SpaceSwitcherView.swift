@@ -3,9 +3,26 @@ import SwiftUI
 struct SpaceSwitcherView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(FamilyAccountStore.self) private var familyStore
+    @Environment(FirebaseSyncStore.self) private var syncStore
 
     var body: some View {
         List {
+            if !syncStore.isOnline {
+                Section {
+                    Label {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Немає з’єднання")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Дані сімейного акаунта можуть бути неактуальними. Зміни збережені на телефоні й будуть перевірені після підключення.")
+                                .font(.caption)
+                        }
+                    } icon: {
+                        Image(systemName: "wifi.slash")
+                    }
+                    .foregroundStyle(PlanerTheme.warning)
+                }
+            }
+
             Section("Оберіть бюджет") {
                 Button {
                     familyStore.selectPersonalSpace()
@@ -99,4 +116,5 @@ private struct SpaceSwitcherRow: View {
     NavigationStack { SpaceSwitcherView() }
         .environment(FamilyAccountStore.preview())
         .environment(FinanceStore.previewStore())
+        .environment(FirebaseSyncStore.preview())
 }

@@ -43,14 +43,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: planer
         INFOPLIST_FILE: Planer/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Planer/Planer.entitlements
         GENERATE_INFOPLIST_FILE: NO
         OTHER_LDFLAGS:
           - $(inherited)
           - -ObjC
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        MARKETING_VERSION: 1.3.0
-        CURRENT_PROJECT_VERSION: 13
+        MARKETING_VERSION: 1.4.0
+        CURRENT_PROJECT_VERSION: 14
     scheme:
       testTargets:
         - PlanerTests
@@ -80,5 +81,5 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         APPLICATION_EXTENSION_API_ONLY: YES
-        MARKETING_VERSION: 1.3.0
-        CURRENT_PROJECT_VERSION: 13
+        MARKETING_VERSION: 1.4.0
+        CURRENT_PROJECT_VERSION: 14
