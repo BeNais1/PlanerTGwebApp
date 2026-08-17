@@ -1,4 +1,5 @@
 import FirebaseCore
+import FirebaseDatabase
 import GoogleSignIn
 import UIKit
 import UserNotifications
@@ -9,6 +10,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         FirebaseApp.configure()
+        Database.database().isPersistenceEnabled = true
         GIDSignIn.sharedInstance.configure(completion: nil)
         UNUserNotificationCenter.current().delegate = self
         PlanerNotificationService.registerCategories()

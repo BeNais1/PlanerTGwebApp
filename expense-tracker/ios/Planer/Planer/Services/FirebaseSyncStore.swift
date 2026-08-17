@@ -1,5 +1,7 @@
 import FirebaseDatabase
+import CryptoKit
 import Foundation
+import Network
 import Observation
 
 @MainActor
@@ -13,6 +15,7 @@ final class FirebaseSyncStore {
     enum Status: Equatable {
         case connecting
         case synced(Date)
+        case offline(pending: Int, lastSynced: Date?)
         case error(String)
 
         var title: String {
@@ -21,6 +24,8 @@ final class FirebaseSyncStore {
                 "Синхронізація…"
             case .synced:
                 "Дані синхронізовано"
+            case .offline(let pending, _):
+                pending > 0 ? "Офлайн · очікує \(pending) змін" : "Офлайн · показано кеш"
             case .error:
                 "Помилка синхронізації"
             }
@@ -28,6 +33,8 @@ final class FirebaseSyncStore {
     }
 
     private(set) var status: Status = .connecting
+    private(set) var isOnline = true
+    private(set) var pendingOperationCount = 0
 
     @ObservationIgnored private let user: AuthenticatedUser
     @ObservationIgnored private var reference: DatabaseReference?
@@ -36,9 +43,29 @@ final class FirebaseSyncStore {
     @ObservationIgnored private var receivedInitialSnapshot = false
     @ObservationIgnored private var activeSpaceID: String?
     @ObservationIgnored private var activeSpace: FinanceSpace?
+    @ObservationIgnored private var lastConfirmedSnapshot: PlanerSnapshot?
+    @ObservationIgnored private var pendingOperations: [PendingSyncOperation]
+    @ObservationIgnored private var isUploading = false
+    @ObservationIgnored private let pathMonitor = NWPathMonitor()
+    @ObservationIgnored private let pathQueue = DispatchQueue(label: "planer.network.monitor")
+
+    private var outboxKey: String { "planer.sync.outbox.v1.\(user.id)" }
 
     init(user: AuthenticatedUser) {
         self.user = user
+        if let data = UserDefaults.standard.data(forKey: "planer.sync.outbox.v1.\(user.id)"),
+           let decoded = try? JSONDecoder().decode([PendingSyncOperation].self, from: data) {
+            pendingOperations = decoded
+        } else {
+            pendingOperations = []
+        }
+        pendingOperationCount = pendingOperations.count
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.networkChanged(isOnline: path.status == .satisfied)
+            }
+        }
+        pathMonitor.start(queue: pathQueue)
     }
 
     static func preview() -> FirebaseSyncStore {
@@ -63,6 +90,7 @@ final class FirebaseSyncStore {
         stop()
         activeSpaceID = space.id
         activeSpace = space
+        lastConfirmedSnapshot = nil
         self.store = store
         status = .connecting
 
@@ -86,6 +114,11 @@ final class FirebaseSyncStore {
                 .child("iosSnapshot")
         }
         self.reference = reference
+        store.setChangeHandler { [weak self] snapshot in
+            Task { @MainActor in
+                self?.enqueue(snapshot)
+            }
+        }
         observerHandle = reference.observe(
             .value,
             with: { [weak self, weak store] snapshot in
@@ -113,6 +146,7 @@ final class FirebaseSyncStore {
         receivedInitialSnapshot = false
         activeSpaceID = nil
         activeSpace = nil
+        lastConfirmedSnapshot = nil
     }
 
     func publish(receipt: ReceiptSummary) async throws -> ReceiptShareLink {
@@ -266,61 +300,119 @@ final class FirebaseSyncStore {
     private func receive(_ dataSnapshot: DataSnapshot, store: FinanceStore) async {
         do {
             if dataSnapshot.exists(), let remote = try decodeSnapshot(from: dataSnapshot) {
-                if receivedInitialSnapshot,
-                   let activeSpace,
-                   case .family(_, let familyName) = activeSpace {
-                    await PlanerNotificationService.shared.notifyFamilyChanges(
-                        previous: store.snapshot,
-                        current: remote,
-                        familyName: familyName,
-                        currentUserName: user.displayName
-                    )
+                let remoteOperationID = dataSnapshot.childSnapshot(forPath: "operationID").value as? String
+                let pending = pendingOperation(for: activeSpaceID)
+                if let pending, pending.id.uuidString == remoteOperationID {
+                    try verify(remote: dataSnapshot, expected: pending)
+                    complete(pending)
+                    lastConfirmedSnapshot = remote
+                    if store.snapshot != remote {
+                        store.replace(with: remote)
+                    }
+                } else if pending == nil {
+                    if receivedInitialSnapshot,
+                       let activeSpace,
+                       case .family(_, let familyName) = activeSpace {
+                        await PlanerNotificationService.shared.notifyFamilyChanges(
+                            previous: store.snapshot,
+                            current: remote,
+                            familyName: familyName,
+                            currentUserName: user.displayName
+                        )
+                    }
+                    store.replace(with: remote)
+                    lastConfirmedSnapshot = remote
                 }
-                store.replace(with: remote)
 
                 let schemaVersion = dataSnapshot.childSnapshot(forPath: "schemaVersion").value as? NSNumber
-                if schemaVersion?.intValue != 2 {
-                    try await upload(remote)
+                if schemaVersion?.intValue != 3, pending == nil {
+                    enqueue(remote)
                 }
             } else if !receivedInitialSnapshot {
-                try await upload(store.snapshot)
+                enqueue(store.snapshot)
             }
 
             if !receivedInitialSnapshot {
                 receivedInitialSnapshot = true
-                store.setChangeHandler { [weak self] snapshot in
-                    Task { @MainActor in
-                        await self?.uploadSafely(snapshot)
-                    }
-                }
             }
-            status = .synced(.now)
+            updateStatusAfterQueueChange()
+            await flushPendingOperations()
         } catch {
             report(error)
         }
     }
 
-    private func uploadSafely(_ snapshot: PlanerSnapshot) async {
+    private func enqueue(_ snapshot: PlanerSnapshot) {
+        guard let activeSpaceID else { return }
         do {
-            try await upload(snapshot)
-            status = .synced(.now)
+            let baseSnapshot = pendingOperation(for: activeSpaceID)?.baseSnapshot ?? lastConfirmedSnapshot
+            let operation = try PendingSyncOperation.make(
+                spaceID: activeSpaceID,
+                snapshot: snapshot,
+                baseSnapshot: baseSnapshot
+            )
+            pendingOperations.removeAll { $0.spaceID == activeSpaceID }
+            pendingOperations.append(operation)
+            saveOutbox()
+            updateStatusAfterQueueChange()
+            if isOnline {
+                Task { await flushPendingOperations() }
+            }
         } catch {
             report(error)
         }
     }
 
-    private func upload(_ snapshot: PlanerSnapshot) async throws {
+    private func flushPendingOperations() async {
+        guard isOnline, !isUploading else { return }
+        isUploading = true
+        defer { isUploading = false }
+
+        while isOnline, let operation = pendingOperation(for: activeSpaceID) {
+            do {
+                let previous = operation.baseSnapshot ?? lastConfirmedSnapshot
+                try await upload(operation)
+                let serverSnapshot = try await readSnapshot()
+                try verify(remote: serverSnapshot, expected: operation)
+
+                if let previous,
+                   let activeSpace,
+                   case .family(let familyID, let familyName) = activeSpace {
+                    try await PlanerNotificationService.shared.publishFamilyChanges(
+                        previous: previous,
+                        current: operation.snapshot,
+                        familyID: familyID,
+                        familyName: familyName,
+                        authorID: user.id,
+                        authorName: user.displayName
+                    )
+                }
+                lastConfirmedSnapshot = operation.snapshot
+                complete(operation)
+                status = .synced(.now)
+            } catch {
+                report(error)
+                return
+            }
+        }
+        updateStatusAfterQueueChange()
+    }
+
+    private func upload(_ operation: PendingSyncOperation) async throws {
         guard let reference else { throw FirebaseSyncError.missingReference }
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .millisecondsSince1970
-        let data = try encoder.encode(snapshot)
+        let data = try encoder.encode(operation.snapshot)
         guard let snapshotJSON = String(data: data, encoding: .utf8) else {
             throw FirebaseSyncError.encodingFailed
         }
         let value: [String: Any] = [
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "snapshotJSON": snapshotJSON,
+            "operationID": operation.id.uuidString,
+            "checksum": operation.checksum,
+            "writerID": user.id,
             "updatedAt": ServerValue.timestamp()
         ]
 
@@ -332,6 +424,62 @@ final class FirebaseSyncStore {
                     continuation.resume(returning: ())
                 }
             }
+        }
+    }
+
+    private func readSnapshot() async throws -> DataSnapshot {
+        guard let reference else { throw FirebaseSyncError.missingReference }
+        return try await withCheckedThrowingContinuation { continuation in
+            reference.observeSingleEvent(
+                of: .value,
+                with: { continuation.resume(returning: $0) },
+                withCancel: { continuation.resume(throwing: $0) }
+            )
+        }
+    }
+
+    private func verify(remote: DataSnapshot, expected: PendingSyncOperation) throws {
+        let operationID = remote.childSnapshot(forPath: "operationID").value as? String
+        let checksum = remote.childSnapshot(forPath: "checksum").value as? String
+        guard operationID == expected.id.uuidString, checksum == expected.checksum else {
+            throw FirebaseSyncError.verificationFailed
+        }
+    }
+
+    private func pendingOperation(for spaceID: String?) -> PendingSyncOperation? {
+        guard let spaceID else { return nil }
+        return pendingOperations.last { $0.spaceID == spaceID }
+    }
+
+    private func complete(_ operation: PendingSyncOperation) {
+        pendingOperations.removeAll { $0.id == operation.id }
+        saveOutbox()
+    }
+
+    private func saveOutbox() {
+        pendingOperationCount = pendingOperations.count
+        if let data = try? JSONEncoder().encode(pendingOperations) {
+            UserDefaults.standard.set(data, forKey: outboxKey)
+        }
+    }
+
+    private func networkChanged(isOnline: Bool) {
+        self.isOnline = isOnline
+        updateStatusAfterQueueChange()
+        guard isOnline else { return }
+        Task { await flushPendingOperations() }
+    }
+
+    private func updateStatusAfterQueueChange() {
+        pendingOperationCount = pendingOperations.count
+        if !isOnline {
+            let lastSynced: Date?
+            if case .synced(let date) = status { lastSynced = date } else { lastSynced = nil }
+            status = .offline(pending: pendingOperationCount, lastSynced: lastSynced)
+        } else if pendingOperation(for: activeSpaceID) != nil {
+            status = .connecting
+        } else if case .connecting = status, receivedInitialSnapshot {
+            status = .synced(.now)
         }
     }
 
@@ -360,6 +508,7 @@ private enum FirebaseSyncError: LocalizedError {
     case encodingFailed
     case invalidReceiptLink
     case receiptNotFound
+    case verificationFailed
 
     var errorDescription: String? {
         switch self {
@@ -371,6 +520,8 @@ private enum FirebaseSyncError: LocalizedError {
             "Посилання на чек має неправильний формат."
         case .receiptNotFound:
             "Чек не знайдено або автор вимкнув посилання."
+        case .verificationFailed:
+            "Сервер не підтвердив цілісність даних. Зміни залишено в черзі для повторної відправки."
         }
     }
 
@@ -382,5 +533,33 @@ private enum FirebaseSyncError: LocalizedError {
             return "Дані в Firebase мають несумісний формат. Оновіть їх або видаліть хмарну копію."
         }
         return "Не вдалося з’єднатися з Firebase. Перевірте інтернет і правила доступу до бази даних."
+    }
+}
+
+private struct PendingSyncOperation: Codable {
+    let id: UUID
+    let spaceID: String
+    let snapshot: PlanerSnapshot
+    let baseSnapshot: PlanerSnapshot?
+    let checksum: String
+    let createdAt: Date
+
+    static func make(
+        spaceID: String,
+        snapshot: PlanerSnapshot,
+        baseSnapshot: PlanerSnapshot?
+    ) throws -> PendingSyncOperation {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let data = try encoder.encode(snapshot)
+        let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return PendingSyncOperation(
+            id: UUID(),
+            spaceID: spaceID,
+            snapshot: snapshot,
+            baseSnapshot: baseSnapshot,
+            checksum: digest,
+            createdAt: .now
+        )
     }
 }

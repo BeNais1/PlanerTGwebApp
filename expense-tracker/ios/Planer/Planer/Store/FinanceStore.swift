@@ -14,6 +14,7 @@ final class FinanceStore {
     var transactions: [FinanceTransaction]
     var goals: [SavingsGoal]
     var debts: [DebtItem]
+    var credits: [CreditAccount]
     var receipts: [ReceiptSummary]
     var customCategories: [CustomTransactionCategory]
     var budgetLimit: Double
@@ -47,6 +48,7 @@ final class FinanceStore {
         transactions = initial.transactions
         goals = initial.goals
         debts = initial.debts
+        credits = initial.credits
         receipts = initial.receipts
         customCategories = initial.customCategories
         budgetLimit = initial.budgetLimit
@@ -391,6 +393,68 @@ final class FinanceStore {
         persist()
     }
 
+    func addCredit(
+        title: String,
+        lender: String,
+        currency: Currency,
+        walletID: UUID?,
+        payments: [CreditPayment]
+    ) {
+        guard allowsEditing else { return }
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validPayments = payments.filter { $0.amount > 0 }.sorted { $0.dueDate < $1.dueDate }
+        guard !cleanTitle.isEmpty, !validPayments.isEmpty else { return }
+        credits.append(
+            CreditAccount(
+                title: cleanTitle,
+                lender: lender.trimmingCharacters(in: .whitespacesAndNewlines),
+                currency: currency,
+                walletID: walletID,
+                payments: validPayments
+            )
+        )
+        persist()
+    }
+
+    @discardableResult
+    func markCreditPaymentPaid(creditID: UUID, paymentID: UUID) -> Bool {
+        guard allowsEditing,
+              let creditIndex = credits.firstIndex(where: { $0.id == creditID }),
+              let paymentIndex = credits[creditIndex].payments.firstIndex(where: { $0.id == paymentID }),
+              !credits[creditIndex].payments[paymentIndex].isPaid else { return false }
+
+        let credit = credits[creditIndex]
+        let payment = credit.payments[paymentIndex]
+        if payment.deductFromWallet {
+            guard let walletID = credit.walletID,
+                  let walletIndex = wallets.firstIndex(where: { $0.id == walletID }) else { return false }
+            let walletAmount = converted(payment.amount, from: credit.currency, to: wallets[walletIndex].currency)
+            wallets[walletIndex].balance -= walletAmount
+            transactions.append(
+                FinanceTransaction(
+                    kind: .expense,
+                    amount: walletAmount,
+                    currency: wallets[walletIndex].currency,
+                    category: .other,
+                    note: "Платіж за кредитом: \(credit.title)",
+                    walletID: walletID,
+                    authorName: transactionAuthorName
+                )
+            )
+        }
+
+        credits[creditIndex].payments[paymentIndex].isPaid = true
+        credits[creditIndex].payments[paymentIndex].paidAt = .now
+        persist()
+        return true
+    }
+
+    func deleteCredit(id: UUID) {
+        guard allowsEditing else { return }
+        credits.removeAll { $0.id == id }
+        persist()
+    }
+
     @discardableResult
     func settleDebt(id: UUID, walletID: UUID? = nil) -> Bool {
         guard allowsEditing,
@@ -439,6 +503,7 @@ final class FinanceStore {
             transactions: transactions,
             goals: goals,
             debts: debts,
+            credits: credits,
             receipts: receipts,
             customCategories: customCategories,
             budgetLimit: budgetLimit,
@@ -483,6 +548,7 @@ final class FinanceStore {
         transactions = snapshot.transactions
         goals = snapshot.goals
         debts = snapshot.debts
+        credits = snapshot.credits
         receipts = snapshot.receipts
         customCategories = snapshot.customCategories
         budgetLimit = snapshot.budgetLimit
@@ -572,6 +638,18 @@ final class FinanceStore {
             debts: [
                 DebtItem(person: "Олексій", amount: 2_500, currency: .UAH, direction: .owedToMe, dueDate: daysAgo(-7)),
                 DebtItem(person: "Марія", amount: 80, currency: .EUR, direction: .iOwe)
+            ],
+            credits: [
+                CreditAccount(
+                    title: "Ноутбук",
+                    lender: "Банк",
+                    currency: .UAH,
+                    walletID: mono.id,
+                    payments: [
+                        CreditPayment(dueDate: daysAgo(-5), amount: 4_500),
+                        CreditPayment(dueDate: daysAgo(-35), amount: 4_500, deductFromWallet: false)
+                    ]
+                )
             ],
             receipts: [
                 ReceiptSummary(id: UUID(), merchant: "Сільпо", amount: 680, currency: .UAH, date: daysAgo(0), isShared: true),

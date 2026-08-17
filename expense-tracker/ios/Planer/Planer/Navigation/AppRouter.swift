@@ -17,6 +17,8 @@ enum SheetDestination: Identifiable, Hashable {
     case spaceSwitcher
     case newGoal
     case newDebt
+    case newCredit
+    case credit(CreditAccount)
     case fundGoal(SavingsGoal)
     case settleDebt(DebtItem)
     case receipt(ReceiptSummary)
@@ -33,6 +35,8 @@ enum SheetDestination: Identifiable, Hashable {
         case .spaceSwitcher: "space-switcher"
         case .newGoal: "new-goal"
         case .newDebt: "new-debt"
+        case .newCredit: "new-credit"
+        case .credit(let credit): "credit-\(credit.id)"
         case .fundGoal(let goal): "fund-goal-\(goal.id)"
         case .settleDebt(let debt): "settle-debt-\(debt.id)"
         case .receipt(let receipt): "receipt-\(receipt.id)"

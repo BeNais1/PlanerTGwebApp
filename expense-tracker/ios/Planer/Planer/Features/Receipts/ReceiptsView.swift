@@ -62,6 +62,7 @@ struct ReceiptsView: View {
         switch syncStore.status {
         case .connecting: "arrow.triangle.2.circlepath.icloud"
         case .synced: "checkmark.icloud.fill"
+        case .offline: "wifi.slash"
         case .error: "exclamationmark.icloud.fill"
         }
     }
@@ -70,6 +71,7 @@ struct ReceiptsView: View {
         switch syncStore.status {
         case .connecting: PlanerTheme.warning
         case .synced: PlanerTheme.positive
+        case .offline: PlanerTheme.warning
         case .error: PlanerTheme.negative
         }
     }
@@ -80,6 +82,8 @@ struct ReceiptsView: View {
             "Підключаємося до вашого облікового запису Firebase."
         case .synced:
             "Чеки та фінансові дані збережено у вашому обліковому записі."
+        case .offline(let pending, _):
+            pending > 0 ? "Офлайн: зміни чека очікують відправки." : "Офлайн: показано локально збережені чеки."
         case .error(let message):
             message
         }
