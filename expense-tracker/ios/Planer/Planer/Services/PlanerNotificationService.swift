@@ -91,7 +91,7 @@ final class PlanerNotificationService {
     @discardableResult
     func requestAuthorization() async -> Bool {
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound, .timeSensitive])
+            let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
             await refreshAuthorizationStatus()
             lastError = nil
             return granted
@@ -155,7 +155,7 @@ final class PlanerNotificationService {
                    self.authorizationStatus == .authorized || self.authorizationStatus == .provisional {
                     await self.deliverFamilyNotification(title: title, body: body, suffix: snapshot.key)
                 }
-                reference.child(snapshot.key).removeValue()
+                try? await reference.child(snapshot.key).removeValue()
             }
         }
     }

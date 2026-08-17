@@ -43,6 +43,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: planer
         INFOPLIST_FILE: Planer/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Planer/Planer.entitlements
         GENERATE_INFOPLIST_FILE: NO
         OTHER_LDFLAGS:
           - $(inherited)
