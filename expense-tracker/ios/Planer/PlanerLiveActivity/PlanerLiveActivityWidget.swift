@@ -7,7 +7,7 @@ import WidgetKit
 struct PlanerLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DailyFinanceActivityAttributes.self) { context in
-            LockScreenActivityView(state: context.state)
+            LockScreenActivityView(state: context.state, isStale: context.isStale)
                 .activityBackgroundTint(.black)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
@@ -66,6 +66,7 @@ struct PlanerLiveActivityWidget: Widget {
 
 private struct LockScreenActivityView: View {
     let state: DailyFinanceActivityAttributes.ContentState
+    let isStale: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -82,6 +83,14 @@ private struct LockScreenActivityView: View {
                 }
 
                 Spacer(minLength: 0)
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(isStale ? "Оновіть у Planer" : "Оновлено")
+                    Text(state.updatedAt, style: .time)
+                        .monospacedDigit()
+                }
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.72))
             }
 
             HStack(alignment: .top, spacing: 16) {
@@ -127,6 +136,8 @@ private struct AmountView: View {
 
             Text("\(prefix)\(formatted(value)) \(symbol)")
                 .font(.headline.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundColor(.white)
         }
     }
@@ -139,9 +150,13 @@ private struct CompactAmount: View {
     let color: Color
 
     var body: some View {
-        Text("\(prefix)\(formatted(value))\(symbol)")
+        Text("\(prefix)\(value.formatted(.number.notation(.compactName).precision(.fractionLength(0...1))))\(symbol)")
             .font(.caption2.weight(.bold).monospacedDigit())
             .foregroundColor(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+            .frame(maxWidth: 64)
+            .accessibilityLabel("\(prefix)\(formatted(value)) \(symbol)")
     }
 }
 

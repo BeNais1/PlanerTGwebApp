@@ -52,18 +52,29 @@ struct AuthenticatedAppView: View {
                 guard scenePhase == .active else { return }
                 await liveActivityManager.refresh(with: liveActivitySnapshot)
             }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                // Refresh on activation and across midnight, even if totals are unchanged.
+                // This task is cancelled when the scene leaves the foreground.
+                do { try await Task.sleep(for: .milliseconds(350)) }
+                catch { return }
+                await liveActivityManager.refresh(with: liveActivitySnapshot)
+                var day = Calendar.current.startOfDay(for: Date.now)
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(60)) }
+                    catch { return }
+                    let currentDay = Calendar.current.startOfDay(for: Date.now)
+                    if currentDay != day {
+                        day = currentDay
+                        await liveActivityManager.refresh(with: liveActivitySnapshot)
+                    }
+                }
+            }
             .task(id: notificationEvaluationKey) {
                 await notificationService.rescheduleAll(
                     store: store,
                     familyName: familyStore.activeFamily?.name
                 )
-            }
-            .onChange(of: scenePhase) { _, newPhase in
-                guard newPhase == .active else { return }
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    await liveActivityManager.refresh(with: liveActivitySnapshot)
-                }
             }
             .onDisappear {
                 syncStore.stop()

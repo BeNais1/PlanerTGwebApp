@@ -80,11 +80,13 @@ struct SettingsView: View {
                 Label(liveActivityManager.status.title, systemImage: liveActivityManager.status.systemImage)
                     .foregroundStyle(liveActivityStatusColor)
 
-                if let installationDetails = liveActivityManager.installationDetails {
-                    Text(installationDetails)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+                DisclosureGroup("Діагностика встановлення") {
+                    if let installationDetails = liveActivityManager.installationDetails {
+                        Text(installationDetails)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
                 }
 
                 if case .failed(let details) = liveActivityManager.status {
@@ -97,7 +99,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if liveActivityManager.status == .active {
-                    Text("ActivityKit створив активність, а Bundle ID перевірено. Якщо капсула порожня, WidgetKit extension не зареєструвався після підпису — збережіть Device System Log у Sideloadly.")
+                    Text("Картку запущено. Згорніть Planer або заблокуйте iPhone, щоб її побачити. Dynamic Island доступний на моделях, які його підтримують.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -105,6 +107,10 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                Text("iOS обмежує одну Live Activity до 8 годин. Відкрийте Planer, щоб оновити підсумок або запустити нову картку. Зміни з інших пристроїв з’являться після синхронізації у застосунку.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Button("Запустити повторно") {
                     Task {
