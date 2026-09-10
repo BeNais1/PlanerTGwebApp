@@ -46,6 +46,11 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Generate Xcode project with Swift packages
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec project.yml --project Planer.xcodeproj
+
       - name: Build app without signing
         run: |
           set -euo pipefail
