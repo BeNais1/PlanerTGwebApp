@@ -1,5 +1,5 @@
 name: Build iOS IPA
-# Builds the Planer iOS project from the selected iOS branch.
+# Builds the Planer iOS project from the selected iOS branch with matching extension IDs.
 
 on:
   push:
@@ -63,7 +63,6 @@ jobs:
             -destination "generic/platform=iOS" \
             -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "$RESULT_BUNDLE_PATH" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             MARKETING_VERSION="$APP_MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
             CODE_SIGNING_ALLOWED=NO \
