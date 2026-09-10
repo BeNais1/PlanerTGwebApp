@@ -39,7 +39,18 @@ jobs:
 
       - name: Run tests
         # Keep the runner deterministic for Firebase mocks and browser-oriented packages.
-        run: npm test -- --maxWorkers=1 --minWorkers=1
+        run: npm test -- --maxWorkers=1 --minWorkers=1 --reporter=dot
+
+      - name: Run focused domain tests
+        if: always()
+        run: |
+          npm test -- tests/planning.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
+          npm test -- tests/finance.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
+          npm test -- tests/currency.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
+          npm test -- tests/subscriptions.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
+          npm test -- tests/families.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
+          npm test -- tests/deletion.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
+          npm test -- tests/reconciliation.test.ts --maxWorkers=1 --minWorkers=1 --reporter=verbose
 
       - name: Type check
         run: npx tsc -b
