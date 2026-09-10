@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { useFamilyBudget } from '../context/useFamilyBudget';
 import { subscribeToSettings, type UserSettings } from '../services/database';
+import { convertCurrency } from '../domain/currency';
 
 export type Currency = 'EUR' | 'USD' | 'UAH';
 
@@ -29,7 +31,9 @@ function loadCachedRates(): Record<Currency, number> | null {
     if (data && time && Date.now() - parseInt(time) < CACHE_TTL) {
       return JSON.parse(data);
     }
-  } catch {}
+  } catch {
+    return null;
+  }
   return null;
 }
 
@@ -70,6 +74,7 @@ async function fetchNBURates(): Promise<Record<Currency, number>> {
 
 export const useCurrency = () => {
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [mainWalletId, setMainWalletId] = useState<string | null>(null);
   const [walletNames, setWalletNames] = useState<Record<string, string>>({});
@@ -84,26 +89,22 @@ export const useCurrency = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-    const unsubscribe = subscribeToSettings(user.id, (settings: UserSettings | null) => {
+    if (!user || !dataOwnerId) return;
+    const unsubscribe = subscribeToSettings(dataOwnerId, (settings: UserSettings | null) => {
       setCurrency((settings?.currency as Currency) || 'EUR');
       setMainWalletId(settings?.mainWalletId || null);
       setWalletNames(settings?.walletNames || {});
     });
     return () => unsubscribe();
-  }, [user]);
-
-  const toBase = useCallback((amount: number, fromCurr: Currency) => {
-    return amount / exchangeRates[fromCurr];
-  }, [exchangeRates]);
+  }, [user, dataOwnerId]);
 
   const toTarget = useCallback((amountInEur: number, targetCurr: Currency) => {
     return amountInEur * exchangeRates[targetCurr];
   }, [exchangeRates]);
 
   const convertToMain = useCallback((amount: number, fromCurr: Currency) => {
-    return toTarget(toBase(amount, fromCurr), currency);
-  }, [currency, toBase, toTarget]);
+    return convertCurrency(amount, fromCurr, currency, exchangeRates);
+  }, [currency, exchangeRates]);
 
   const formatValue = useCallback((amount: number, curr: Currency = currency, includeSymbol = true) => {
     const formatted = amount.toLocaleString('en-US', {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
+import { useFamilyBudget } from "../context/useFamilyBudget";
 import { useCategories } from "../hooks/useCategories";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
 import { NumericKeypad, getKeypadNumericValue } from "./NumericKeypad";
@@ -18,6 +19,8 @@ import {
   type UserSettings,
 } from "../services/database";
 import { SubscriptionsView } from "./SubscriptionsView";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { deleteSmartGoal } from "../services/database";
 import "./FinancialHubView.css";
 
 type HubTab = "goals" | "auto" | "search" | "recurring" | "debts" | "receipts";
@@ -36,9 +39,9 @@ interface FinancialHubViewProps {
 
 const TABS: { id: HubTab; label: string }[] = [
   { id: "goals", label: "Цілі" },
-  { id: "auto", label: "Авто-категорії" },
+  { id: "auto", label: "Категорії" },
   { id: "search", label: "Пошук" },
-  { id: "recurring", label: "Повторні списання" },
+  { id: "recurring", label: "Підписки" },
   { id: "debts", label: "Борги" },
   { id: "receipts", label: "Чеки" },
 ];
@@ -69,8 +72,9 @@ function getDefaultCategory(description: string) {
   return match?.[0] || "other";
 }
 
-export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOpenTransaction }: FinancialHubViewProps) => {
+export const FinancialHubView = ({ isActive, onOpenReceipt, onOpenTransaction }: FinancialHubViewProps) => {
   const { user } = useAuth();
+  const { activeSpace, dataOwnerId, isFamily } = useFamilyBudget();
   const { currency: mainCurrency, formatValue, convertToMain, CURRENCY_SYMBOLS } = useCurrency();
   const { names: categoryNames, icons: categoryIcons } = useCategories();
   const [activeTab, setActiveTab] = useState<HubTab>("goals");
@@ -82,6 +86,8 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
   const [goalTarget, setGoalTarget] = useState("");
   const [goalSaved, setGoalSaved] = useState("");
   const [goalDate, setGoalDate] = useState("");
+  const [goalToDelete, setGoalToDelete] = useState<SmartGoal | null>(null);
+  const [selectedTag, setSelectedTag] = useState('');
   const [search, setSearch] = useState("");
   const [debtPerson, setDebtPerson] = useState("");
   const [debtAmount, setDebtAmount] = useState("");
@@ -91,20 +97,19 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
   const [keypadValue, setKeypadValue] = useState("");
 
   useEffect(() => {
-    if (!isActive || !user) return;
-    const unsubTransactions = subscribeToAllTransactions(user.id, setTransactions);
-    const unsubSettings = subscribeToUserSettings(user.id, setSettings);
+    if (!isActive || !user || !dataOwnerId) return;
+    const unsubTransactions = subscribeToAllTransactions(dataOwnerId, setTransactions);
+    const unsubSettings = subscribeToUserSettings(dataOwnerId, setSettings);
     const unsubSavedReceipts = subscribeToSavedReceipts(user.id, setSavedReceipts);
     return () => {
       unsubTransactions();
       unsubSettings();
       unsubSavedReceipts();
     };
-  }, [isActive, user]);
+  }, [isActive, user, dataOwnerId]);
 
   useEffect(() => {
     if (!isActive || savedReceipts.length === 0) {
-      setReceiptCache({});
       return;
     }
     let cancelled = false;
@@ -120,34 +125,34 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
 
   const autoSuggestions = useMemo(() => (
     transactions
-      .filter((tx) => tx.type === "expense" && tx.description.trim().length > 0)
+      .filter((tx) => !tx.isReconciliation && tx.type === "expense" && tx.description.trim().length > 0)
+      .filter((tx) => !isFamily || activeSpace.role !== "member" || tx.authorId === String(user?.id))
       .map((tx) => ({ tx, suggestedCategory: getDefaultCategory(tx.description) }))
       .filter(({ tx, suggestedCategory }) => suggestedCategory !== "other" && suggestedCategory !== tx.category)
       .slice(0, 12)
-  ), [transactions]);
+  ), [activeSpace.role, isFamily, transactions, user?.id]);
 
   const searchResults = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    if (!needle) return transactions.slice(0, 20);
     return transactions.filter((tx) => {
-      const haystack = `${tx.description} ${tx.category} ${categoryNames[tx.category] || ""} ${tx.amount}`.toLowerCase();
+      if (selectedTag && !(tx.tags || []).includes(selectedTag)) return false;
+      if (!needle) return true;
+      const haystack = `${(tx.tags || []).map(tag => '#' + tag).join(' ')} ${tx.description} ${tx.category} ${categoryNames[tx.category] || ""} ${tx.amount}`.toLowerCase();
       return haystack.includes(needle);
     }).slice(0, 40);
-  }, [categoryNames, search, transactions]);
+  }, [categoryNames, search, selectedTag, transactions]);
 
   const totalDebtsToMe = debts.filter((debt) => !debt.isPaid && debt.direction === "owed_to_me")
     .reduce((sum, debt) => sum + convertToMain(debt.amount, (debt.currency || "EUR") as Currency), 0);
   const totalDebtsIOwe = debts.filter((debt) => !debt.isPaid && debt.direction === "i_owe")
     .reduce((sum, debt) => sum + convertToMain(debt.amount, (debt.currency || "EUR") as Currency), 0);
 
-  if (!isActive) return null;
-
   const saveGoals = async (nextGoals: SmartGoal[]) => {
-    if (user) await updateUserSettings(user.id, { smartGoals: nextGoals });
+    if (user && dataOwnerId) await updateUserSettings(dataOwnerId, { smartGoals: nextGoals });
   };
 
   const saveDebts = async (nextDebts: DebtItem[]) => {
-    if (user) await updateUserSettings(user.id, { debts: nextDebts });
+    if (user && dataOwnerId) await updateUserSettings(dataOwnerId, { debts: nextDebts });
   };
 
   const openAmountEditor = (editor: AmountEditor, initialValue = "") => {
@@ -180,15 +185,16 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     const targetAmount = Number(goalTarget);
     const savedAmount = Number(goalSaved) || 0;
     if (!Number.isFinite(targetAmount) || targetAmount <= 0) return;
+    const id = makeId("goal");
     await saveGoals([
       {
-        id: makeId("goal"),
+        id,
         title: goalTitle.trim(),
         targetAmount,
         savedAmount: Math.min(savedAmount, targetAmount),
         currency: mainCurrency,
         dueDate: parseDateInput(goalDate),
-        createdAt: Date.now(),
+        createdAt: Number(id.split("_")[1]),
       },
       ...goals,
     ]);
@@ -202,16 +208,17 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
     if (!debtPerson.trim() || !debtAmount || !user) return;
     const amount = Number(debtAmount);
     if (!Number.isFinite(amount) || amount <= 0) return;
+    const id = makeId("debt");
     await saveDebts([
       {
-        id: makeId("debt"),
+        id,
         person: debtPerson.trim(),
         amount,
         currency: mainCurrency,
         direction: debtDirection,
         dueDate: parseDateInput(debtDate),
         isPaid: false,
-        createdAt: Date.now(),
+        createdAt: Number(id.split("_")[1]),
       },
       ...debts,
     ]);
@@ -222,30 +229,27 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
 
   const handleApplyCategory = async (tx: Transaction, category: string) => {
     if (!user || !tx.id) return;
-    await updateTransaction(user.id, tx.id, { category });
+    if (isFamily && activeSpace.role === "member" && tx.authorId !== String(user.id)) return;
+    await updateTransaction(dataOwnerId, tx.id, { category });
   };
+
+  if (!isActive) return null;
 
   return (
     <div className="financial-hub">
       <div className="financial-hub-header">
         <div>
           <h2>Фінанси</h2>
-          <p>Цілі, автокатегорії, пошук, повторні списання, борги та чеки в одному місці</p>
+          
         </div>
-        <span>{Object.keys(walletBalances).length} гаман.</span>
-      </div>
-
-      <div className="financial-hub-tabs">
-        {TABS.map((tab) => (
-          <button key={tab.id} className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
+        <select className="hub-section-select" aria-label="Розділ фінансів" value={activeTab} onChange={event => setActiveTab(event.target.value as HubTab)}>
+          {TABS.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+        </select>
       </div>
 
       {activeTab === "goals" && (
         <section className="hub-section">
-          <HubForm>
+          <details className="minimal-disclosure"><summary>Додати</summary><HubForm>
             <input value={goalTitle} onChange={(event) => setGoalTitle(event.target.value)} placeholder="Назва цілі" />
             <div className="hub-form-grid">
               <AmountButton label="Сума цілі" value={goalTarget ? formatValue(Number(goalTarget), mainCurrency) : "Обрати суму"} onClick={() => openAmountEditor({ kind: "goalTarget", title: "Сума цілі" }, goalTarget)} />
@@ -255,7 +259,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
               <DateField label="Дата цілі" value={goalDate} onChange={setGoalDate} emptyText="Оберіть дату" />
               <button onClick={handleAddGoal}>Додати ціль</button>
             </div>
-          </HubForm>
+          </HubForm></details>
 
           <div className="hub-list">
             {goals.length === 0 ? <EmptyState text="Цілей поки немає" /> : goals.map((goal) => {
@@ -276,7 +280,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
                   </div>
                   <div className="hub-row compact">
                     <button onClick={() => openAmountEditor({ kind: "goalTopUp", title: `Поповнити: ${goal.title}`, goalId: goal.id })}>Поповнити</button>
-                    <button onClick={() => saveGoals(goals.filter((item) => item.id !== goal.id))}>Видалити</button>
+                    <button onClick={() => setGoalToDelete(goal)}>Видалити</button>
                   </div>
                 </div>
               );
@@ -288,9 +292,9 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
       {activeTab === "auto" && (
         <section className="hub-section">
           <div className="hub-info-card">
-            <strong>Авто-категорії</strong>
+            <strong>Категорії</strong>
             <span>
-              Це підказки для витрат, де опис схожий на відому категорію. Натисніть на підказку, щоб одразу змінити категорію операції.
+              Натисніть, щоб застосувати категорію.
             </span>
           </div>
           <SummaryCard title="Знайдено підказок" value={`${autoSuggestions.length}`} detail="на основі описів в історії" />
@@ -312,7 +316,8 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
 
       {activeTab === "search" && (
         <section className="hub-section">
-          <input className="hub-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Пошук за сумою, описом або категорією" />
+          <div className="tag-list" aria-label="Фільтр за тегом"><button className={!selectedTag ? 'active' : ''} onClick={() => setSelectedTag('')}>Усі</button>{[...new Set(transactions.flatMap(tx => tx.tags || []))].sort().map(tag => <button key={tag} className={selectedTag === tag ? 'active' : ''} aria-pressed={selectedTag === tag} onClick={() => setSelectedTag(tag)}>#{tag}</button>)}</div>
+          <input className="hub-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Пошук або #тег" />
           <div className="hub-list">
             {searchResults.map((tx) => (
               <button key={tx.id} className="hub-card clickable slim" onClick={() => onOpenTransaction(tx)}>
@@ -339,7 +344,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
             <SummaryCard title="Мені винні" value={formatValue(totalDebtsToMe)} detail="активні борги" />
             <SummaryCard title="Я винен" value={formatValue(totalDebtsIOwe)} detail="до оплати" />
           </div>
-          <HubForm>
+          <details className="minimal-disclosure"><summary>Додати</summary><HubForm>
             <input value={debtPerson} onChange={(event) => setDebtPerson(event.target.value)} placeholder="Хто" />
             <div className="hub-form-grid">
               <AmountButton label="Сума боргу" value={debtAmount ? formatValue(Number(debtAmount), mainCurrency) : "Обрати суму"} onClick={() => openAmountEditor({ kind: "debt", title: "Сума боргу" }, debtAmount)} />
@@ -352,7 +357,7 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
               <DateField label="Дата повернення" value={debtDate} onChange={setDebtDate} emptyText="Оберіть дату" />
               <button onClick={handleAddDebt}>Додати борг</button>
             </div>
-          </HubForm>
+          </HubForm></details>
           <div className="hub-list">
             {debts.length === 0 ? <EmptyState text="Боргів поки немає" /> : debts.map((debt) => (
               <div key={debt.id} className={`hub-card slim ${debt.isPaid ? "muted" : ""}`}>
@@ -393,6 +398,17 @@ export const FinancialHubView = ({ isActive, walletBalances, onOpenReceipt, onOp
         </section>
       )}
 
+      {goalToDelete && (
+        <ConfirmDeleteDialog
+          title={`Видалити ціль «${goalToDelete.title}»?`}
+          description="Буде видалено лише цю ціль. Баланси гаманців залишаться без змін."
+          onConfirm={async () => {
+            if (!user || !dataOwnerId) throw new Error('Account unavailable');
+            await deleteSmartGoal(dataOwnerId, goalToDelete.id);
+          }}
+          onClose={() => setGoalToDelete(null)}
+        />
+      )}
       {amountEditor && (
         <AmountKeypadSheet
           title={amountEditor.title}

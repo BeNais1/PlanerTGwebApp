@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import './BudgetBubble.css';
 
 interface BudgetBubbleProps {
@@ -16,6 +16,7 @@ interface Particle {
   color: string;
   angle: number;
   distance: number;
+  delay: number;
 }
 
 const generateParticles = (count: number, color: string): Particle[] => {
@@ -26,13 +27,12 @@ const generateParticles = (count: number, color: string): Particle[] => {
     color: colors[Math.floor(Math.random() * colors.length)],
     angle: (360 / count) * i + Math.random() * 30,
     distance: 40 + Math.random() * 60,
+    delay: Math.random() * 0.2,
   }));
 };
 
 export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit, period = 'month' }: BudgetBubbleProps) => {
-  const [hasPopped, setHasPopped] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
-  const prevPercent = useRef(0);
 
   const hasLimit = limit > 0;
   const percent = hasLimit ? Math.min((spent / limit) * 100, 150) : 0;
@@ -77,23 +77,19 @@ export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit, period = '
 
   // Pop detection
   useEffect(() => {
-    if (isOverBudget && !hasPopped) {
-      setHasPopped(true);
-      setShowParticles(true);
-      // Haptic feedback if available
-      try {
-        const tg = (window as any).Telegram?.WebApp;
-        if (tg?.HapticFeedback) {
-          tg.HapticFeedback.notificationOccurred('error');
-        }
-      } catch { /* ignore */ }
-      setTimeout(() => setShowParticles(false), 1000);
-    }
-    if (!isOverBudget && hasPopped) {
-      setHasPopped(false);
-    }
-    prevPercent.current = percent;
-  }, [isOverBudget, hasPopped, percent]);
+    if (!isOverBudget) return;
+
+    try {
+      window.Telegram?.WebApp.HapticFeedback?.notificationOccurred('error');
+    } catch { /* Haptics are optional. */ }
+
+    const startTimer = window.setTimeout(() => setShowParticles(true), 0);
+    const stopTimer = window.setTimeout(() => setShowParticles(false), 1000);
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearTimeout(stopTimer);
+    };
+  }, [isOverBudget]);
 
   const particles = useMemo(() => generateParticles(12, bubbleColor), [bubbleColor]);
 
@@ -123,7 +119,7 @@ export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit, period = '
   // Overspent — bubble popped
   if (phase === 'popped') {
     return (
-      <div className={`bubble-container ${hasPopped ? 'bubble-popped' : ''}`}>
+      <div className="bubble-container bubble-popped">
         {showParticles && (
           <div className="bubble-particles">
             {particles.map(p => (
@@ -135,7 +131,7 @@ export const BudgetBubble = ({ spent, limit, formatValue, onSetLimit, period = '
                   height: p.size,
                   background: p.color,
                   transform: `translate(-50%, -50%) translate(${Math.cos(p.angle * Math.PI / 180) * p.distance}px, ${Math.sin(p.angle * Math.PI / 180) * p.distance}px)`,
-                  animationDelay: `${Math.random() * 0.2}s`,
+                  animationDelay: `${p.delay}s`,
                 }}
               />
             ))}

@@ -1,102 +1,73 @@
 import { useEffect, useState } from 'react';
+import type { TelegramWebApp } from '../types/telegram';
 
 interface SafeAreaInsets {
   top: number;
   bottom: number;
 }
 
+interface PlatformState {
+  platform: string;
+  safeAreaInsets: SafeAreaInsets;
+}
+
+function getPlatformFallback(platform: string): SafeAreaInsets {
+  if (platform === 'ios') return { top: 60, bottom: 34 };
+  if (platform === 'android' || platform === 'android_x') return { top: 48, bottom: 24 };
+  if (platform === 'macos' || platform === 'tdesktop') return { top: 32, bottom: 20 };
+  return { top: 20, bottom: 0 };
+}
+
+function readSafeArea(tg: TelegramWebApp, platform: string): SafeAreaInsets {
+  const top = (tg.contentSafeAreaInset?.top || 0) + (tg.safeAreaInset?.top || 0);
+  const bottom = tg.safeAreaInset?.bottom || 0;
+  return top > 0 || bottom > 0
+    ? { top: Math.max(top, 20), bottom: Math.max(bottom, 10) }
+    : getPlatformFallback(platform);
+}
+
+function detectInitialState(): PlatformState {
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    const platform = tg.platform || 'unknown';
+    return { platform, safeAreaInsets: readSafeArea(tg, platform) };
+  }
+
+  const platform = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    ? 'ios'
+    : /Android/.test(navigator.userAgent)
+      ? 'android'
+      : 'desktop';
+  return { platform, safeAreaInsets: getPlatformFallback(platform) };
+}
+
 export const useTelegramPlatform = () => {
-  const [platform, setPlatform] = useState<string>('unknown');
-  const [safeAreaInsets, setSafeAreaInsets] = useState<SafeAreaInsets>({
-    top: 50,
-    bottom: 50
-  });
+  const [state, setState] = useState<PlatformState>(detectInitialState);
 
   useEffect(() => {
-    const tg = window.Telegram?.WebApp as any;
-    
-    if (tg) {
-      // Инициализация и переход в полноэкранный режим
-      if (typeof tg.ready === 'function') tg.ready();
-      if (typeof tg.requestFullscreen === 'function') {
-        tg.requestFullscreen();
-      } else if (typeof tg.expand === 'function') {
-        tg.expand();
-      }
-      
-      // Включаем подтверждение при закрытии
-      if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
-      
-      // Устанавливаем цвета заголовка и фона
-      if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor('#000000');
-      if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('#000000');
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
 
-      const detectedPlatform = tg.platform;
-      setPlatform(detectedPlatform);
+    tg.ready();
+    if (typeof tg.requestFullscreen === 'function') tg.requestFullscreen();
+    else tg.expand();
+    tg.enableClosingConfirmation?.();
+    tg.setHeaderColor?.('#000000');
+    tg.setBackgroundColor?.('#000000');
 
-      // Try Telegram 8.0+ safe area API first
-      const tryTelegramSafeArea = () => {
-        let top = 0;
-        let bottom = 0;
+    const updateSafeArea = () => {
+      const platform = tg.platform || 'unknown';
+      setState({ platform, safeAreaInsets: readSafeArea(tg, platform) });
+    };
 
-        // Content safe area (accounts for Telegram header buttons)
-        if (tg.contentSafeAreaInset) {
-          top += tg.contentSafeAreaInset.top || 0;
-        }
-        // Device safe area (notch, home indicator)
-        if (tg.safeAreaInset) {
-          top += tg.safeAreaInset.top || 0;
-          bottom += tg.safeAreaInset.bottom || 0;
-        }
+    tg.onEvent?.('safeAreaChanged', updateSafeArea);
+    tg.onEvent?.('contentSafeAreaChanged', updateSafeArea);
 
-        if (top > 0 || bottom > 0) {
-          setSafeAreaInsets({ top: Math.max(top, 20), bottom: Math.max(bottom, 10) });
-          return true;
-        }
-        return false;
-      };
-
-      // Listen for safe area changes (Telegram 8.0+)
-      if (typeof tg.onEvent === 'function') {
-        tg.onEvent('safeAreaChanged', tryTelegramSafeArea);
-        tg.onEvent('contentSafeAreaChanged', tryTelegramSafeArea);
-      }
-
-      // Try API first, fallback to platform-based values
-      if (!tryTelegramSafeArea()) {
-        if (detectedPlatform === 'ios') {
-          setSafeAreaInsets({ top: 60, bottom: 34 });
-        } else if (detectedPlatform === 'android') {
-          setSafeAreaInsets({ top: 48, bottom: 24 });
-        } else if (detectedPlatform === 'macos' || detectedPlatform === 'tdesktop') {
-          setSafeAreaInsets({ top: 32, bottom: 20 });
-        } else {
-          setSafeAreaInsets({ top: 50, bottom: 50 });
-        }
-      }
-
-      return () => {
-        if (typeof tg.offEvent === 'function') {
-          tg.offEvent('safeAreaChanged', tryTelegramSafeArea);
-          tg.offEvent('contentSafeAreaChanged', tryTelegramSafeArea);
-        }
-      };
-    } else {
-      // Fallback: определяем через User Agent
-      const userAgent = navigator.userAgent;
-      if (/iPhone|iPad|iPod/.test(userAgent)) {
-        setPlatform('ios');
-        setSafeAreaInsets({ top: 60, bottom: 34 });
-      } else if (/Android/.test(userAgent)) {
-        setPlatform('android');
-        setSafeAreaInsets({ top: 48, bottom: 24 });
-      } else {
-        // Desktop browser fallback
-        setPlatform('desktop');
-        setSafeAreaInsets({ top: 20, bottom: 0 });
-      }
-    }
+    return () => {
+      tg.offEvent?.('safeAreaChanged', updateSafeArea);
+      tg.offEvent?.('contentSafeAreaChanged', updateSafeArea);
+    };
   }, []);
 
-  return { platform, safeAreaInsets };
+  return state;
 };

@@ -1,22 +1,25 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { getAllTransactions, type Transaction } from '../../services/database';
+import { useAuth } from '../../context/useAuth';
+import { useFamilyBudget } from '../../context/useFamilyBudget';
+import { subscribeToAllTransactions, type Transaction } from '../../services/database';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { PaymentIcon } from '../PaymentIcon';
 import { TransactionDetailModal } from './TransactionDetailModal';
 import { JointCheckDetailModal } from '../JointCheckDetailModal';
-import { deleteTransaction, updateTransaction } from '../../services/database';
+import { updateTransaction } from '../../services/database';
 import './Modals.css';
 import '../JointCheck.css';
 
 interface HistoryModalProps {
   onClose: () => void;
+  onDeleteTransaction: (transaction: Transaction) => Promise<void>;
   walletBalances?: Record<string, number>;
 }
 
-export const HistoryModal = ({ onClose }: HistoryModalProps) => {
+export const HistoryModal = ({ onClose, onDeleteTransaction }: HistoryModalProps) => {
   const { user } = useAuth();
+  const { activeSpace, dataOwnerId, isFamily } = useFamilyBudget();
   const { formatValue } = useCurrency();
   const { names: CATEGORY_NAMES } = useCategories();
   const [history, setHistory] = useState<Transaction[]>([]);
@@ -33,29 +36,32 @@ export const HistoryModal = ({ onClose }: HistoryModalProps) => {
   };
 
   useEffect(() => {
-    if (!user) return;
-    const fetchHistory = async () => {
-      setLoading(true);
-      const allTxs = await getAllTransactions(user.id);
+    if (!user || !dataOwnerId) return;
+    return subscribeToAllTransactions(dataOwnerId, (allTxs) => {
       setHistory(allTxs);
       setLoading(false);
-    };
-    fetchHistory();
-  }, [user]);
+    }, (error) => {
+      console.error('History subscription failed:', error);
+      setLoading(false);
+    });
+  }, [user, dataOwnerId]);
 
   const handleDelete = async (id: string) => {
-    if (!user) return;
+    const transaction = history.find((item) => item.id === id);
+    if (!transaction) return;
     setIsTxActionLoading(true);
-    await deleteTransaction(user.id, id);
-    setHistory(prev => prev.filter(t => t.id !== id));
-    setIsTxActionLoading(false);
-    setSelectedTx(null);
+    try {
+      await onDeleteTransaction(transaction);
+      setSelectedTx(null);
+    } finally {
+      setIsTxActionLoading(false);
+    }
   };
 
   const handleUpdate = async (id: string, data: Partial<Transaction>) => {
     if (!user) return;
     setIsTxActionLoading(true);
-    await updateTransaction(user.id, id, data);
+    await updateTransaction(dataOwnerId, id, { ...data, updatedAt: Date.now() });
     setHistory(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
     setSelectedTx(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
     setIsTxActionLoading(false);
@@ -75,7 +81,7 @@ export const HistoryModal = ({ onClose }: HistoryModalProps) => {
     const categoryName = CATEGORY_NAMES[tx.category] || "";
     if (!query) return true;
 
-    const haystack = `${tx.description} ${tx.category} ${categoryName} ${tx.amount} ${tx.currency || ""}`.toLowerCase();
+    const haystack = `${(tx.tags || []).map(tag => '#' + tag).join(' ')} ${tx.description} ${tx.category} ${categoryName} ${tx.amount} ${tx.currency || ""}`.toLowerCase();
     return haystack.includes(query);
   });
 
@@ -96,6 +102,7 @@ export const HistoryModal = ({ onClose }: HistoryModalProps) => {
           onDelete={handleDelete}
           onUpdate={handleUpdate}
           isLoading={isTxActionLoading}
+          canEdit={!isFamily || activeSpace.role !== 'member' || selectedTx.authorId === String(user?.id)}
         />
       )}
       {selectedJointCheckId && (

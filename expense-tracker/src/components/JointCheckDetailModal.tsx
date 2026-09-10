@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
 import { NumericKeypad, getKeypadNumericValue } from "./NumericKeypad";
 import {
-  addJointCheckPayment,
   subscribeToJointCheck,
   type JointCheck,
   type JointCheckPayment,
 } from "../services/database";
+import { addJointCheckPayment } from "../services/jointChecks";
 import "./modals/Modals.css";
 import "./JointCheck.css";
 
@@ -60,8 +60,7 @@ export const JointCheckDetailModal = ({ jointCheckId, onClose }: JointCheckDetai
     setIsSaving(true);
     setError("");
     try {
-      const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ");
-      await addJointCheckPayment(jointCheck.id, user.id, displayName, amount);
+      await addJointCheckPayment(jointCheck.id, amount);
       setPaymentAmount("");
     } catch (err) {
       console.error(err);

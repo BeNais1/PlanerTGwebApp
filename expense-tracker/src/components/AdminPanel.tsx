@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { useCurrency, type Currency } from '../hooks/useCurrency';
 import { ADMIN_TELEGRAM_ID, subscribeToAdminStats, type AdminStats } from '../services/database';
 

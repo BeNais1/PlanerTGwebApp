@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { useFamilyBudget } from '../context/useFamilyBudget';
 import { subscribeToWallets, addWallet, updateWallet, deleteWallet, type Wallet } from '../services/database';
 import { type Currency } from './useCurrency';
 
@@ -10,24 +11,26 @@ function loadRates(): Record<string, number> {
   try {
     const d = localStorage.getItem('nbu_rates_v2');
     if (d) return JSON.parse(d);
-  } catch {}
+  } catch {
+    return FALLBACK_RATES;
+  }
   return FALLBACK_RATES;
 }
 
 export function useWallets() {
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    setIsLoaded(false);
+    if (!user || !dataOwnerId) return;
     const timeoutId = window.setTimeout(() => {
       console.warn('Wallet subscription timed out; continuing with empty wallets.');
       setIsLoaded(true);
     }, 8000);
 
-    const unsub = subscribeToWallets(user.id, (ws) => {
+    const unsub = subscribeToWallets(dataOwnerId, (ws) => {
       window.clearTimeout(timeoutId);
       setWallets(ws);
       setIsLoaded(true);
@@ -41,7 +44,7 @@ export function useWallets() {
       window.clearTimeout(timeoutId);
       unsub();
     };
-  }, [user]);
+  }, [user, dataOwnerId]);
 
   // Total balance in EUR (base currency)
   const totalInBase = useCallback((): number => {
@@ -64,34 +67,34 @@ export function useWallets() {
 
   const createWallet = useCallback(
     async (name: string, currency: string, balance: number) => {
-      if (!user) return;
-      await addWallet(user.id, { name, currency, balance, createdAt: Date.now() });
+      if (!user || !dataOwnerId) return;
+      await addWallet(dataOwnerId, { name, currency, balance, createdAt: Date.now() });
     },
-    [user]
+    [user, dataOwnerId]
   );
 
   const renameWallet = useCallback(
     async (walletId: string, name: string) => {
-      if (!user) return;
-      await updateWallet(user.id, walletId, { name });
+      if (!user || !dataOwnerId) return;
+      await updateWallet(dataOwnerId, walletId, { name });
     },
-    [user]
+    [user, dataOwnerId]
   );
 
   const removeWallet = useCallback(
     async (walletId: string) => {
-      if (!user) return;
-      await deleteWallet(user.id, walletId);
+      if (!user || !dataOwnerId) return;
+      await deleteWallet(dataOwnerId, walletId);
     },
-    [user]
+    [user, dataOwnerId]
   );
 
   const adjustBalance = useCallback(
     async (walletId: string, newBalance: number) => {
-      if (!user) return;
-      await updateWallet(user.id, walletId, { balance: newBalance });
+      if (!user || !dataOwnerId) return;
+      await updateWallet(dataOwnerId, walletId, { balance: newBalance });
     },
-    [user]
+    [user, dataOwnerId]
   );
 
   return {

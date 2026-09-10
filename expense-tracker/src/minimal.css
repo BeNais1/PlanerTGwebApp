@@ -1,0 +1,122 @@
+/* Shared presentation for personal and family budgets, in both themes. */
+:root {
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', sans-serif;
+  --font-text: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', sans-serif;
+  --shadow-card: 0 1px 2px rgba(0,0,0,.08);
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+}
+body button, body input, body select, body textarea { font-family: var(--font-text); }
+body button:focus-visible, body summary:focus-visible, body input:focus-visible, body select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+body .financial-hub-header h2, body .analytics-header h2 { font-size: 28px; font-weight: 650; letter-spacing: -.7px; }
+body .modal-title, body .utility-sheet h2, body .family-sheet-header h2 { font-size: 22px; font-weight: 600; letter-spacing: -.4px; }
+body .wallet-card { box-shadow: none; border-radius: 20px; }
+body .wallet-card-deco { display: none; }
+body .hub-card, body .hub-form, body .hub-summary-card, body .hub-info-card { box-shadow: none; border: 0; background: var(--card-bg); border-radius: 16px; }
+body .hub-row strong, body .hub-row b { font-weight: 600; }
+body .hub-progress { height: 4px; }
+body .financial-hub-tabs { border-radius: 12px; background: var(--card-bg-2); }
+body .financial-hub-tabs button { font-size: 13px; font-weight: 500; border-radius: 9px; min-height: 40px; }
+body .financial-hub-tabs button.active { background: var(--card-bg); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+body .family-space-avatar, body .family-sheet-mark { background: var(--card-bg-3); color: var(--text-primary); }
+body .family-invite-card { background: var(--card-bg-2); border: 0; }
+body .family-space-row.is-active { background: var(--card-bg-2); border-color: var(--accent); }
+body .family-delete-btn { background: transparent; border: 0; margin: 0; padding: 8px 12px; min-height: 44px; font-weight: 500; }
+body .modal-content { border-radius: 22px 22px 0 0; gap: 16px; }
+body .transaction-compose-category { border-radius: 12px; box-shadow: none; font-weight: 500; }
+body .transaction-compose-category.active { background: var(--accent-dim); color: var(--accent); }
+body .transaction-compose-header, body .transaction-compose-entry-head { margin-bottom: 12px; }
+body .transaction-compose-entry-head > span { font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; }
+body .transaction-compose-details { gap: 14px; }
+body .wallet-picker-sheet, body .family-sheet { box-shadow: var(--shadow-elevated); border-radius: 22px 22px 0 0; }
+body .wallet-picker-icon, body .wallet-trigger-icon { border-radius: 10px; }
+body .wallet-picker-header h2 { font-size: 22px; }
+body .wallet-picker-option { border-radius: 14px; }
+body .modal-input { min-height: 44px; font-size: 16px; border-radius: 12px; }
+body .quiet-action { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 12px; color: var(--accent); background: transparent; border: 0; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; }
+body .primary-action { min-height: 46px; padding: 12px 18px; border: 0; border-radius: 12px; background: var(--accent); color: white; font-size: 16px; font-weight: 600; cursor: pointer; }
+body .primary-action:disabled { opacity: .45; cursor: default; }
+body .field-hint { display: block; margin: 6px 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+body .field-error { color: var(--danger); font-size: 13px; line-height: 1.5; }
+body .minimal-disclosure { border-radius: 14px; background: var(--card-bg); padding: 0 12px; }
+body .minimal-disclosure > summary { color: var(--accent); cursor: pointer; font-size: 14px; font-weight: 500; padding: 14px 0; }
+body .minimal-disclosure[open] > .transaction-compose-field { margin-bottom: 12px; }
+body .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+body .tag-list span, body .tag-list button { color: var(--text-secondary); background: var(--card-bg-2); border: 0; border-radius: 8px; padding: 6px 9px; font-size: 12px; overflow-wrap: anywhere; }
+body .tag-list button { min-height: 36px; cursor: pointer; }
+body .tag-list button.active { background: var(--accent-dim); color: var(--accent); }
+body .payday-card { margin: 0 16px 12px; padding: 8px 14px; background: var(--card-bg); border-radius: 16px; }
+body .payday-card:empty { display: none; }
+body .payday-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+body .payday-summary > div { display: flex; flex-direction: column; gap: 5px; padding: 6px 0; }
+body .payday-summary span, body .payday-summary small { font-size: 12px; color: var(--text-secondary); }
+body .payday-summary strong { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+body .utility-sheet { width: min(100%, 480px); margin-inline: auto; }
+body .utility-sheet label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-secondary); }
+body .utility-sheet fieldset { padding: 10px 0; border: 0; }
+body .utility-sheet .choice-row { flex-direction: row; align-items: center; min-height: 44px; color: var(--text-primary); }
+body .utility-sheet .choice-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+body .receipt-scanner { border-bottom: 1px solid var(--card-bg-3); padding-bottom: 6px; }
+body .receipt-scanner input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+body .receipt-scanner label:focus-within { outline: 2px solid var(--accent); }
+body .receipt-scanner progress { width: 100%; accent-color: var(--accent); }
+body .receipt-scanner pre { max-height: 140px; overflow: auto; white-space: pre-wrap; font-size: 12px; }
+body .receipt-scanner summary { font-size: 13px; padding: 10px 0; cursor: pointer; color: var(--text-secondary); }
+@media (min-width: 700px) { body .modal-content, body .wallet-picker-sheet, body .family-sheet { border-radius: 22px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+:root { --text-tertiary: rgba(255,255,255,.55); }
+[data-theme="light"] { --text-tertiary: rgba(60,60,67,.58); }
+body .budget-space-switcher-avatar { background: var(--card-bg-3); color: var(--text-primary); font-weight: 600; }
+body .plus-btn { box-shadow: none; }
+@media (max-width: 899px) {
+  body .bottom-nav { padding-top: 8px; border-top: 1px solid var(--card-bg-3); }
+  body .nav-pills { --nav-center-gap: 66px; }
+  body .nav-pills::before, body .nav-pills::after { display: none; }
+  body .nav-item { flex-direction: column; gap: 4px; border-radius: 10px; height: 52px; }
+  body .nav-item::after { content: attr(data-label); font-size: 9px; color: var(--text-secondary); }
+  body .nav-item.active { background: transparent; color: var(--accent); }
+  body .nav-item.active::after { color: var(--accent); }
+  body .nav-item svg, body .nav-item .svg-repo-icon { width: 22px; height: 22px; opacity: .65; }
+  body .nav-item.active svg, body .nav-item.active .svg-repo-icon { opacity: 1; }
+  body .plus-btn { width: 48px; height: 48px; top: 14px; border-radius: 15px; }
+  body .plus-btn .svg-repo-icon { width: 24px; height: 24px; }
+  body .home-dashboard .bottom-card { border-radius: 18px; margin: 8px 16px; padding: 0; background: transparent; }
+  body .payment-history { border-radius: 16px; padding: 12px; background: var(--card-bg); }
+}
+@media (min-width: 900px) {
+  body .home-dashboard { grid-template-rows: auto auto auto minmax(0, 1fr); }
+  body .home-dashboard .payday-card { grid-column: 1; grid-row: 2; margin: 0; align-self: start; }
+  body .home-dashboard .wallet-cards-section { grid-row: 3; }
+  body .home-dashboard .budget-section { grid-row: 4; }
+  body .home-dashboard .bottom-card { grid-row: 2 / 5; }
+}
+
+body .transaction-compose-modal .modal-title { color: var(--text-primary); }
+body .transaction-compose-details { background: var(--card-bg); }
+body .transaction-compose-field { display: block; }
+body .transaction-compose-field-label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+@media (max-width: 899px) {
+  body .transaction-compose-modal { max-height: 92dvh; padding-top: 18px; gap: 12px; }
+  body .transaction-compose-details { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; flex: 1 1 auto; gap: 10px; }
+  body .transaction-compose-details > * { flex-shrink: 0; }
+  body .transaction-compose-entry { display: block; flex-shrink: 0; }
+  body .transaction-compose-entry .keypad-grid { gap: 6px; }
+  body .transaction-compose-entry .keypad-btn { height: 52px; font-size: 24px; }
+  body .transaction-compose-entry .keypad-display { min-height: 48px; padding: 6px 0; }
+  body .transaction-compose-entry .keypad-submit { margin-top: 8px; min-height: 44px; }
+  body .transaction-compose-header { margin-bottom: 0; }
+}
+
+body .hub-section-select { max-width: 48%; min-height: 44px; border: 0; border-radius: 12px; padding: 8px 12px; background: var(--card-bg); color: var(--text-primary); font-size: 14px; }
+body .financial-hub-header { align-items: center; }
+body .hub-search { font-size: 16px; }
+
+body .header, body .wallet-cards-section, body .bottom-card, body .bottom-nav, body .financial-hub-header { animation: none; }
+@media (max-width: 899px) {
+  body .home-dashboard { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
+  body .home-dashboard > * { flex-shrink: 0; }
+  body .home-dashboard .bottom-card { flex: none; min-height: 180px; overflow: visible; }
+  body .home-dashboard .payment-list { overflow-y: visible; }
+  body .home-dashboard .payment-history { margin: 0; }
+}

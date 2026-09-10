@@ -50,6 +50,7 @@ class ApiClient {
         throw new Error(error.error || `HTTP ${response.status}`);
       }
 
+      if (response.status === 204) return undefined as T;
       return await response.json();
     } catch (error) {
       console.error('API request error:', error);
@@ -68,7 +69,7 @@ class ApiClient {
   // POST request
   async post<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     requiresAuth = true
   ): Promise<T> {
     return this.request<T>(endpoint, {
@@ -81,7 +82,7 @@ class ApiClient {
   // PUT request
   async put<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     requiresAuth = true
   ): Promise<T> {
     return this.request<T>(endpoint, {

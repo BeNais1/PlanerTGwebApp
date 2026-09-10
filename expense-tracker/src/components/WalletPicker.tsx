@@ -12,15 +12,15 @@ interface WalletPickerProps {
 }
 
 const WALLET_COLORS: Record<string, string> = {
-  UAH: 'linear-gradient(135deg,#1e3a6e,#2563eb)',
-  USD: 'linear-gradient(135deg,#064e3b,#059669)',
-  EUR: 'linear-gradient(135deg,#3b1f0d,#b45309)',
+  UAH: '#283342',
+  USD: '#293a35',
+  EUR: '#3a3530',
 };
 
 // Wallet cards reuse the same currency gradient as picker items.
 // eslint-disable-next-line react-refresh/only-export-components
 export function walletColor(currency: string): string {
-  return WALLET_COLORS[currency] ?? 'linear-gradient(135deg,#2d1b69,#7c3aed)';
+  return WALLET_COLORS[currency] ?? '#34343a';
 }
 
 const walletAccentStyle = (currency: string): CSSProperties => ({
@@ -47,9 +47,9 @@ export const WalletPicker = ({
 
         <header className="wallet-picker-header">
           <div>
-            <span className="wallet-picker-kicker">Ваші гаманці</span>
+            
             <h2 id="wallet-picker-title">Оберіть гаманець</h2>
-            <p>Операція буде застосована до вибраного балансу.</p>
+            
           </div>
           <button type="button" className="wallet-picker-close" onClick={onClose} aria-label="Закрити">
             ×

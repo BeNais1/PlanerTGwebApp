@@ -1,14 +1,6 @@
-import { useEffect, useState } from 'react';
-
 export const TelegramOnlyScreen = () => {
-  const [botUrl] = useState('https://t.me/planer0bot'); // Ім'я бота @planer0bot
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-
-  useEffect(() => {
-    // Генеруємо QR код через API
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(botUrl)}`;
-    setQrCodeUrl(qrUrl);
-  }, [botUrl]);
+  const botUrl = 'https://t.me/planer0bot';
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(botUrl)}`;
 
   return (
     <div className="telegram-only-screen">

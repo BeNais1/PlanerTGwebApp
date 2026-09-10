@@ -46,9 +46,7 @@ export const AddModal = ({ onClose, onAdd, isLoading, wallets, defaultWalletId }
           <section className="transaction-compose-details">
             <div className="modal-header transaction-compose-header">
               <div>
-                <span className="transaction-compose-kicker">Нова операція</span>
                 <h2 className="modal-title">Дохід</h2>
-                <p className="transaction-compose-description">Додайте надходження до обраного гаманця.</p>
               </div>
               <button type="button" className="modal-close" onClick={handleClose} aria-label="Закрити">
                 ✕

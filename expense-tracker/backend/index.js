@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import crypto from 'crypto';
 import authRoutes from './routes/auth.js';
 import { createVaultRoutes, registerVaultPaymentHandlers } from './routes/vault.js';
+import { createJointCheckRoutes } from './routes/joint-checks.js';
+import { createFamilyRoutes } from './routes/families.js';
+import { calculateNextDate, shouldNotifySubscription } from './utils/subscriptions.js';
 import { Telegraf } from 'telegraf';
 import admin from 'firebase-admin';
 
@@ -60,17 +63,6 @@ function escHtml(str) {
 
 function getSymbol(currency) {
   return CURRENCY_SYMBOLS[currency] || currency;
-}
-
-function calculateNextDate(currentTimestamp, period) {
-  const d = new Date(currentTimestamp);
-  switch (period) {
-    case 'daily':   d.setDate(d.getDate() + 1); break;
-    case 'weekly':  d.setDate(d.getDate() + 7); break;
-    case 'monthly': d.setMonth(d.getMonth() + 1); break;
-    case 'yearly':  d.setFullYear(d.getFullYear() + 1); break;
-  }
-  return d.getTime();
 }
 
 function formatDate(timestamp) {
@@ -245,6 +237,66 @@ bot.on('callback_query', async (ctx) => {
   }
 
   // ── Підтвердити оплату ──────────────────────────────────────────────────────
+  if (data.startsWith('fconfirm:')) {
+    const [, familyId, subId] = data.split(':');
+    try {
+      const memberSnap = await db.ref(`family_spaces/${familyId}/members/${userId}`).get();
+      if (!memberSnap.exists()) return ctx.answerCbQuery('У вас больше нет доступа к этому бюджету');
+      const financeRef = db.ref(`users/family_${familyId}`);
+      let confirmedSub = null;
+      let nextDate = null;
+      const result = await financeRef.transaction((finance) => {
+        const sub = finance?.subscriptions?.[subId];
+        const pending = finance?.pendingNotifications?.[subId];
+        const wallet = sub?.walletId ? finance?.wallets?.[sub.walletId] : null;
+        if (!sub || !pending || !wallet) return;
+        const now = Date.now();
+        const txId = db.ref(`users/family_${familyId}/transactions`).push().key;
+        finance.transactions ||= {};
+        finance.transactions[txId] = {
+          type: 'expense',
+          amount: Number(sub.amount),
+          currency: wallet.currency || sub.currency || 'UAH',
+          walletId: sub.walletId,
+          category: sub.category || 'subscriptions',
+          description: sub.name,
+          date: now,
+          month: new Date(now).toISOString().slice(0, 7),
+          authorId: userId,
+          authorName: memberSnap.val().displayName || 'Участник',
+          createdAt: now,
+        };
+        wallet.balance = Number(wallet.balance || 0) - Number(sub.amount);
+        nextDate = calculateNextDate(sub.nextDate, sub.period);
+        sub.nextDate = nextDate;
+        confirmedSub = { ...sub };
+        delete finance.pendingNotifications[subId];
+        return finance;
+      });
+      if (!result.committed || !confirmedSub) return ctx.answerCbQuery('Платёж уже подтверждён');
+      await ctx.answerCbQuery('✅ Платёж добавлен в семейный бюджет');
+      return ctx.editMessageText(
+        `✅ <b>${escHtml(confirmedSub.icon)} ${escHtml(confirmedSub.name)}</b> — семейный платёж подтверждён.\n\n` +
+        `Следующее списание: <b>${escHtml(formatDate(nextDate))}</b>`,
+        { parse_mode: 'HTML' },
+      );
+    } catch (err) {
+      console.error('Family subscription confirmation failed:', err);
+      return ctx.answerCbQuery('Не удалось подтвердить платёж');
+    }
+  }
+
+  if (data.startsWith('fsnooze:')) {
+    const [, familyId, subId] = data.split(':');
+    const memberSnap = await db.ref(`family_spaces/${familyId}/members/${userId}`).get();
+    if (!memberSnap.exists()) return ctx.answerCbQuery('У вас больше нет доступа к этому бюджету');
+    await db.ref(`users/family_${familyId}/pendingNotifications/${subId}`).update({
+      snoozedUntil: Date.now() + 60 * 60 * 1000,
+    });
+    await ctx.answerCbQuery('Напомню через час ⏳');
+    return ctx.editMessageText('⏳ Хорошо! Напомню о семейном платеже через час.');
+  }
+
   if (data.startsWith('confirm:')) {
     const subId = data.replace('confirm:', '');
 
@@ -343,7 +395,7 @@ app.use(cors({
     return callback(new Error('Origin is not allowed by CORS'));
   },
   credentials: false,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Secret', 'X-Cron-Secret'],
   maxAge: 600,
 }));
@@ -362,14 +414,20 @@ app.use((req, res, next) => {
 
 const authLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30 });
 const vaultLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 20 });
+const jointCheckLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30 });
+const familyLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 30 });
 const adminLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
 
 app.use('/api/auth', authLimiter);
 app.use('/api/vault', vaultLimiter);
+app.use('/api/joint-checks', jointCheckLimiter);
+app.use('/api/families', familyLimiter);
 app.use('/api/cron', adminLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/vault', createVaultRoutes({ db, bot }));
+app.use('/api/joint-checks', createJointCheckRoutes({ db }));
+app.use('/api/families', createFamilyRoutes({ db }));
 
 // Webhook setup
 function requireAdminSecret(req, res, next) {
@@ -480,19 +538,14 @@ app.get('/api/cron', async (req, res) => {
       if (!subscriptions) continue;
 
       for (const [subId, sub] of Object.entries(subscriptions)) {
-        if (!sub.isActive) continue;
-        if (sub.nextDate > now) continue;
-
         // Перевіряємо pending-нотифікацію
         const pendingRef = db.ref(`users/${userId}/pendingNotifications/${subId}`);
         const pendingSnap = await pendingRef.get();
 
-        if (pendingSnap.exists()) {
-          const pending = pendingSnap.val();
-          if (pending.snoozedUntil && pending.snoozedUntil > now) {
-            skipped++;
-            continue;
-          }
+        const pending = pendingSnap.exists() ? pendingSnap.val() : null;
+        if (!shouldNotifySubscription(sub, pending, now)) {
+          skipped++;
+          continue;
         }
 
         // Надсилаємо повідомлення
@@ -507,6 +560,36 @@ app.get('/api/cron', async (req, res) => {
               symbol = getSymbol(wallet.currency);
               walletLabel = ` · ${wallet.name}`;
             }
+          }
+
+          if (userId.startsWith('family_')) {
+            const familyId = userId.slice('family_'.length);
+            const membersSnap = await db.ref(`family_spaces/${familyId}/members`).get();
+            const recipientIds = membersSnap.exists() ? Object.keys(membersSnap.val()) : [];
+            const messageIds = {};
+            for (const recipientId of recipientIds) {
+              const numericRecipientId = Number(recipientId);
+              if (!Number.isSafeInteger(numericRecipientId)) continue;
+              const familyMessage = await bot.telegram.sendMessage(
+                numericRecipientId,
+                `💳 <b>${escHtml(sub.icon)} ${escHtml(sub.name)}</b>\n\n` +
+                `Сумма: <b>${escHtml(sub.amount)} ${escHtml(symbol)}</b>${escHtml(walletLabel)}\n` +
+                'Семейный платёж прошёл?',
+                {
+                  parse_mode: 'HTML',
+                  reply_markup: {
+                    inline_keyboard: [[
+                      { text: '✅ Да, оплачено', callback_data: `fconfirm:${familyId}:${subId}` },
+                      { text: '⏳ Пока нет', callback_data: `fsnooze:${familyId}:${subId}` },
+                    ]],
+                  },
+                },
+              );
+              messageIds[recipientId] = familyMessage.message_id;
+            }
+            await pendingRef.set({ subId, sentAt: now, messageIds, snoozedUntil: null });
+            notified++;
+            continue;
           }
 
           const msg = await bot.telegram.sendMessage(

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { useCategories } from '../hooks/useCategories';
 import { useCurrency, type Currency } from '../hooks/useCurrency';
 import {
@@ -21,7 +21,6 @@ export const SavedReceiptsView = ({ isActive, onOpenReceipt }: SavedReceiptsView
   const { CURRENCY_SYMBOLS } = useCurrency();
   const [savedReceipts, setSavedReceipts] = useState<SavedSharedReceipt[]>([]);
   const [shareCache, setShareCache] = useState<Record<string, ReceiptShare | null>>({});
-  const [loadingShares, setLoadingShares] = useState(false);
 
   // Subscribe to saved receipts list
   useEffect(() => {
@@ -32,11 +31,9 @@ export const SavedReceiptsView = ({ isActive, onOpenReceipt }: SavedReceiptsView
   // Load full share data for each saved receipt
   useEffect(() => {
     if (savedReceipts.length === 0) {
-      setShareCache({});
       return;
     }
     let cancelled = false;
-    setLoadingShares(true);
 
     Promise.all(
       savedReceipts.map(async (sr) => {
@@ -48,12 +45,12 @@ export const SavedReceiptsView = ({ isActive, onOpenReceipt }: SavedReceiptsView
         const cache: Record<string, ReceiptShare | null> = {};
         results.forEach(([code, share]) => { cache[code] = share; });
         setShareCache(cache);
-        setLoadingShares(false);
       }
     });
 
     return () => { cancelled = true; };
   }, [savedReceipts]);
+  const loadingShares = savedReceipts.some((receipt) => !(receipt.shareCode in shareCache));
 
   const handleUnsave = useCallback(async (shareCode: string) => {
     if (!user) return;

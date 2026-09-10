@@ -1,25 +1,27 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { useFamilyBudget } from '../context/useFamilyBudget';
 import { subscribeToSettings, updateUserSettings, type UserSettings } from '../services/database';
 import { DEFAULT_CATEGORIES, getMergedCategories, buildCategoryMaps, type Category } from '../config/categories';
 
 export function useCategories() {
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
   const [customCategories, setCustomCategories] = useState<Category[]>([]);
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<string[]>([]);
   const [categoryOrder, setCategoryOrder] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !dataOwnerId) return;
 
-    const unsubscribe = subscribeToSettings(user.id, (settings: UserSettings | null) => {
+    const unsubscribe = subscribeToSettings(dataOwnerId, (settings: UserSettings | null) => {
       setCustomCategories(settings?.customCategories || []);
       setHiddenCategoryIds(settings?.hiddenCategories || []);
       setCategoryOrder(settings?.categoryOrder || []);
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, dataOwnerId]);
 
   const categories = useMemo(() => {
     const merged = getMergedCategories(hiddenCategoryIds, customCategories);
@@ -39,33 +41,33 @@ export function useCategories() {
   );
 
   const addCategory = useCallback(async (category: Omit<Category, 'isCustom'>) => {
-    if (!user) return;
+    if (!user || !dataOwnerId) return;
     const updated = [...customCategories, { ...category, isCustom: true } as Category];
-    await updateUserSettings(user.id, { customCategories: updated });
-  }, [user, customCategories]);
+    await updateUserSettings(dataOwnerId, { customCategories: updated });
+  }, [user, dataOwnerId, customCategories]);
 
   const removeCategory = useCallback(async (categoryId: string) => {
-    if (!user) return;
+    if (!user || !dataOwnerId) return;
     const isDefault = DEFAULT_CATEGORIES.some(c => c.id === categoryId);
     if (isDefault) {
       const updated = [...hiddenCategoryIds, categoryId];
-      await updateUserSettings(user.id, { hiddenCategories: updated });
+      await updateUserSettings(dataOwnerId, { hiddenCategories: updated });
     } else {
       const updated = customCategories.filter(c => c.id !== categoryId);
-      await updateUserSettings(user.id, { customCategories: updated });
+      await updateUserSettings(dataOwnerId, { customCategories: updated });
     }
-  }, [user, customCategories, hiddenCategoryIds]);
+  }, [user, dataOwnerId, customCategories, hiddenCategoryIds]);
 
   const restoreCategory = useCallback(async (categoryId: string) => {
-    if (!user) return;
+    if (!user || !dataOwnerId) return;
     const updated = hiddenCategoryIds.filter(id => id !== categoryId);
-    await updateUserSettings(user.id, { hiddenCategories: updated });
-  }, [user, hiddenCategoryIds]);
+    await updateUserSettings(dataOwnerId, { hiddenCategories: updated });
+  }, [user, dataOwnerId, hiddenCategoryIds]);
 
   const reorderCategories = useCallback(async (orderedIds: string[]) => {
-    if (!user) return;
-    await updateUserSettings(user.id, { categoryOrder: orderedIds });
-  }, [user]);
+    if (!user || !dataOwnerId) return;
+    await updateUserSettings(dataOwnerId, { categoryOrder: orderedIds });
+  }, [user, dataOwnerId]);
 
   return {
     categories,

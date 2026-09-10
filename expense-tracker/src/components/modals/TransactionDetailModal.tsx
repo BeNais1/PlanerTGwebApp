@@ -1,13 +1,26 @@
-import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { TagInput } from '../TagInput';
+import { normalizeTags } from '../../domain/planning';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useAuth } from '../../context/useAuth';
+import { useFamilyBudget } from '../../context/useFamilyBudget';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { useWallets } from '../../hooks/useWallets';
-import { type Transaction, type PrivacyMode, createReceiptShare, toggleReceiptShare, getShareStatus } from '../../services/database';
+import {
+  type Transaction,
+  type PrivacyMode,
+  calculateWalletBalanceAfterTransaction,
+  createReceiptShare,
+  getShareStatus,
+  subscribeToAllTransactions,
+  toggleReceiptShare,
+} from '../../services/database';
 import { SYSTEM_CATEGORIES } from '../../config/categories';
 import { NumericKeypad, getKeypadNumericValue } from '../NumericKeypad';
 import { toPng } from 'html-to-image';
 import './Modals.css';
+
+const VALID_CURRENCIES: Currency[] = ['EUR', 'USD', 'UAH'];
 
 interface TransactionDetailModalProps {
   transaction: Transaction;
@@ -15,6 +28,7 @@ interface TransactionDetailModalProps {
   onDelete: (id: string) => Promise<void>;
   onUpdate: (id: string, data: Partial<Transaction>) => Promise<void>;
   isLoading?: boolean;
+  canEdit?: boolean;
 }
 
 const ReceiptIcon = () => (
@@ -38,6 +52,7 @@ export const TransactionDetailModal = ({
   onDelete, 
   onUpdate,
   isLoading,
+  canEdit = true,
 }: TransactionDetailModalProps) => {
   const { formatValue, CURRENCY_SYMBOLS } = useCurrency();
   const { categories, names: CATEGORY_NAMES, icons: CATEGORY_ICONS } = useCategories();
@@ -52,23 +67,38 @@ export const TransactionDetailModal = ({
   const [isShareActive, setIsShareActive] = useState(true);
   const [shareExists, setShareExists] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [transactionsLoaded, setTransactionsLoaded] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
   
   // Edit State
   const [amount, setAmount] = useState(transaction.amount.toString());
   const [category, setCategory] = useState(transaction.category);
+  const [tags, setTags] = useState((transaction.tags || []).join(', '));
   const [description, setDescription] = useState(transaction.description || '');
-  const VALID_CURS: Currency[] = ['EUR', 'USD', 'UAH'];
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>(
-    VALID_CURS.includes(transaction.currency as Currency) ? (transaction.currency as Currency) : 'UAH'
+    VALID_CURRENCIES.includes(transaction.currency as Currency) ? (transaction.currency as Currency) : 'UAH'
   );
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
+
+  useEffect(() => {
+    if (!user || !dataOwnerId) return;
+    return subscribeToAllTransactions(dataOwnerId, (transactions) => {
+      setAllTransactions(transactions);
+      setTransactionsLoaded(true);
+    }, (error) => {
+      console.error('Balance-after subscription failed:', error);
+      setTransactionsLoaded(true);
+    });
+  }, [user, dataOwnerId]);
 
   useEffect(() => {
     setAmount(transaction.amount.toString());
     setCategory(transaction.category);
     setDescription(transaction.description || '');
-    setSelectedCurrency(VALID_CURS.includes(transaction.currency as Currency) ? (transaction.currency as Currency) : 'UAH');
+    setTags((transaction.tags || []).join(', '));
+    setSelectedCurrency(VALID_CURRENCIES.includes(transaction.currency as Currency) ? (transaction.currency as Currency) : 'UAH');
   }, [transaction]);
 
   // Load share status on mount (not on button click)
@@ -144,7 +174,7 @@ export const TransactionDetailModal = ({
   const handleSendToChat = () => {
     const text = `🧾 Чек: ${transaction.type === 'expense' ? 'Витрата' : 'Дохід'} ${transaction.amount} ${transaction.currency}`;
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(generatedLink)}&text=${encodeURIComponent(text)}`;
-    const tg = (window as any).Telegram?.WebApp;
+    const tg = window.Telegram?.WebApp;
     if (tg && tg.openTelegramLink) {
       tg.openTelegramLink(shareUrl);
     } else {
@@ -178,7 +208,7 @@ export const TransactionDetailModal = ({
     const numAmount = getKeypadNumericValue(amount);
     if (numAmount > 0) {
       await onUpdate(transaction.id!, {
-        amount: numAmount, category, description, currency: selectedCurrency });
+        amount: numAmount, category, description, tags: normalizeTags(tags), currency: selectedCurrency });
       setIsEditing(false);
     }
   };
@@ -194,10 +224,29 @@ export const TransactionDetailModal = ({
     day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  const VALID_CURRENCIES: Currency[] = ['EUR', 'USD', 'UAH'];
   const txCurrency: Currency = VALID_CURRENCIES.includes(transaction.currency as Currency)
     ? (transaction.currency as Currency)
     : (wallets.find(w => w.id === transaction.walletId)?.currency as Currency) ?? 'UAH';
+
+  const balanceAfterRows = useMemo(() => {
+    if (!transactionsLoaded) return [];
+    const walletIds = transaction.type === 'transfer'
+      ? [transaction.fromWalletId, transaction.toWalletId]
+      : [transaction.walletId];
+
+    return Array.from(new Set(walletIds.filter((walletId): walletId is string => Boolean(walletId))))
+      .map((walletId) => {
+        const wallet = wallets.find((item) => item.id === walletId);
+        if (!wallet) return null;
+        const balance = calculateWalletBalanceAfterTransaction(wallet, transaction, allTransactions);
+        if (balance === null) return null;
+        const currency = VALID_CURRENCIES.includes(wallet.currency as Currency)
+          ? wallet.currency as Currency
+          : txCurrency;
+        return { walletId, walletName: wallet.name, balance, currency };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [allTransactions, transaction, transactionsLoaded, txCurrency, wallets]);
 
   const catObj = categories.find(c => c.id === transaction.category)
     ?? SYSTEM_CATEGORIES.find(c => c.id === transaction.category);
@@ -259,6 +308,7 @@ export const TransactionDetailModal = ({
             )}
 
             <div className="modal-input-group">
+              <TagInput value={tags} onChange={setTags} />
               <label className="modal-label">Коментар</label>
               <input type="text" className="modal-input" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
@@ -303,6 +353,18 @@ export const TransactionDetailModal = ({
                 </div>
               )}
 
+              {balanceAfterRows.map((row) => (
+                <div key={row.walletId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>
+                    {balanceAfterRows.length > 1 ? `Баланс ${row.walletName} після` : 'Баланс після операції'}
+                  </span>
+                  <span style={{ fontWeight: '600', whiteSpace: 'nowrap' }}>
+                    {formatValue(row.balance, row.currency)}
+                  </span>
+                </div>
+              ))}
+
+              {(transaction.tags || []).length > 0 && <div className="tag-list">{transaction.tags!.map(tag => <span key={tag}>#{tag}</span>)}</div>}
               {transaction.description && (
                 <div style={{ borderTop: '1px solid var(--card-bg-3)', paddingTop: '16px', marginTop: '4px' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '13px', display: 'block', marginBottom: '4px' }}>Коментар</span>
@@ -311,14 +373,14 @@ export const TransactionDetailModal = ({
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+            {canEdit && <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
               <button className="modal-btn-primary" style={{ flex: 1, background: 'var(--card-bg-2)', color: 'var(--danger)' }} onClick={handleDelete} disabled={isLoading}>
                 Видалити
               </button>
               <button className="modal-btn-primary" style={{ flex: 2 }} onClick={() => setIsEditing(true)}>
                 Змінити
               </button>
-            </div>
+            </div>}
 
             {/* Share Link Section */}
             {loadingStatus ? (
@@ -497,6 +559,14 @@ export const TransactionDetailModal = ({
                 </span>
               </div>
             )}
+            {balanceAfterRows.map((row) => (
+              <div className="receipt-row" key={row.walletId}>
+                <span className="receipt-label">
+                  {balanceAfterRows.length > 1 ? `Баланс ${row.walletName} після` : 'Баланс після операції'}
+                </span>
+                <span className="receipt-value">{formatValue(row.balance, row.currency)}</span>
+              </div>
+            ))}
             {transaction.description && (
               <>
                 <div className="receipt-divider" style={{ margin: '15px 0' }} />

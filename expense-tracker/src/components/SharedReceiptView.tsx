@@ -3,7 +3,7 @@ import type { ReceiptAmountChange, ReceiptShare } from '../services/database';
 import { useCategories } from '../hooks/useCategories';
 import { useCurrency, type Currency } from '../hooks/useCurrency';
 import { saveSharedReceipt, unsaveSharedReceipt, checkIfSavedByMe, getReceiptSavers } from '../services/database';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { ReceiptSaversModal } from './ReceiptSaversModal';
 import './SharedReceiptView.css';
 

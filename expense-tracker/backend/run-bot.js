@@ -5,10 +5,10 @@ dotenv.config();
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 bot.start((ctx) => {
-  ctx.reply('Привет! Я твой Трекер Расходов 💰\n\nНажми кнопку ниже, чтобы открыть приложение.', {
+  ctx.reply('Привіт! Я твій трекер витрат 💰\n\nНатисни кнопку нижче, щоб відкрити застосунок.', {
     reply_markup: {
       inline_keyboard: [
-        [{ text: "Открыть Трекер 🚀", web_app: { url: "https://planer-app-3a0f2.web.app" } }]
+        [{ text: "Відкрити трекер 🚀", web_app: { url: "https://planer-app-3a0f2.web.app" } }]
       ]
     }
   });
@@ -18,7 +18,7 @@ console.log('Запуск бота...');
 bot.launch().then(() => {
   console.log('Бот успешно запущен и работает в режиме Polling!');
 }).catch((err) => {
-  console.error('Ошибка при запуске бота:', err);
+  console.error('Помилка під час запуску бота:', err);
 });
 
 // Enable graceful stop

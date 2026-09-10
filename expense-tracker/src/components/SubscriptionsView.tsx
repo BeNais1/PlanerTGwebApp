@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
+import { useFamilyBudget } from '../context/useFamilyBudget';
 import { useCurrency, type Currency, CURRENCY_SYMBOLS as ALL_CURRENCY_SYMBOLS } from '../hooks/useCurrency';
 // Currency used for monthlyCost calculation only
 import { useWallets } from '../hooks/useWallets';
@@ -73,6 +74,7 @@ interface SubscriptionsViewProps {
 
 export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
   const { currency: mainCurrency, mainWalletId, formatValue, convertToMain, EXCHANGE_RATES } = useCurrency();
   const { wallets } = useWallets();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -91,10 +93,10 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeToSubscriptions(user.id, setSubscriptions);
+    if (!user || !dataOwnerId) return;
+    const unsub = subscribeToSubscriptions(dataOwnerId, setSubscriptions);
     return () => unsub();
-  }, [user]);
+  }, [user, dataOwnerId]);
 
   if (!isActive) return null;
 
@@ -168,9 +170,9 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
     };
 
     if (editingSub?.id) {
-      await updateSubscription(user.id, editingSub.id, payload);
+      await updateSubscription(dataOwnerId, editingSub.id, payload);
     } else {
-      await addSubscription(user.id, { ...payload, createdAt: Date.now(), isActive: true });
+      await addSubscription(dataOwnerId, { ...payload, createdAt: Date.now(), isActive: true });
     }
     resetForm();
     setIsSaving(false);
@@ -178,7 +180,7 @@ export const SubscriptionsView = ({ isActive }: SubscriptionsViewProps) => {
 
   const handleDelete = async (id: string) => {
     if (!user) return;
-    await deleteSubscription(user.id, id);
+    await deleteSubscription(dataOwnerId, id);
     resetForm();
   };
 

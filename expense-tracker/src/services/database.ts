@@ -1,4 +1,5 @@
 import { database } from '../config/firebase';
+import { apiClient } from './api';
 import {
   ref,
   set,
@@ -14,6 +15,11 @@ import {
   type Unsubscribe,
 } from 'firebase/database';
 import type { Category } from '../config/categories';
+import {
+  getTransactionWalletDeltas,
+} from '../domain/finance';
+
+export { calculateWalletBalanceAfterTransaction } from '../domain/finance';
 
 // ====== Types ======
 
@@ -91,9 +97,22 @@ export interface Transaction {
   fromWalletId?: string;       // transfer: source
   toWalletId?: string;         // transfer: destination
   convertedAmount?: number;    // transfer: amount in destination currency
+  tags?: string[];
+  isReconciliation?: boolean;
   jointCheckId?: string;
   isJointCheck?: boolean;
   excludeFromBalance?: boolean;
+  authorId?: string;
+  authorName?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export type DataOwnerId = number | string;
+
+function getFamilyId(userId: DataOwnerId): string | null {
+  const value = String(userId);
+  return value.startsWith('family_') ? value.slice('family_'.length) : null;
 }
 
 export interface MonthData {
@@ -154,7 +173,10 @@ export interface OnboardingData {
   theme: 'dark' | 'light';
 }
 
+export interface PaydaySettings { date: string; reserve: number; currency: string; walletIds: string[] }
+
 export interface UserSettings {
+  payday?: PaydaySettings | null;
   currency?: string;
   mainWalletId?: string;
   walletNames?: Record<string, string>;
@@ -486,7 +508,7 @@ export function subscribeToAdminStats(
 // ====== Monthly Balance ======
 
 export async function setMonthlyBalance(
-  userId: number,
+  userId: DataOwnerId,
   month: string,
   amount: number,
   currency: string = 'EUR'
@@ -506,7 +528,7 @@ export async function setMonthlyBalance(
 }
 
 export async function addWalletBalance(
-  userId: number,
+  userId: DataOwnerId,
   month: string,
   currency: string,
   amount: number
@@ -515,7 +537,7 @@ export async function addWalletBalance(
 }
 
 export async function deleteWalletData(
-  userId: number,
+  userId: DataOwnerId,
   month: string,
   currency: string
 ): Promise<void> {
@@ -544,8 +566,8 @@ export async function deleteWalletData(
   const txSnap = await get(txQuery);
   if (txSnap.exists()) {
     const txData = txSnap.val();
-    const updates: Record<string, any> = {};
-    Object.entries(txData).forEach(([id, tx]: [string, any]) => {
+    const updates: Record<string, null> = {};
+    Object.entries(txData as Record<string, Partial<Transaction>>).forEach(([id, tx]) => {
       const txCur = tx.currency || 'EUR';
       if (txCur === currency) {
         updates[id] = null;
@@ -572,7 +594,7 @@ export async function deleteWalletData(
 }
 
 export async function getMonthlyBalance(
-  userId: number,
+  userId: DataOwnerId,
   month: string
 ): Promise<MonthData | null> {
   const monthRef = ref(database, `users/${userId}/months/${month}`);
@@ -586,7 +608,7 @@ export async function getMonthlyBalance(
 // ====== Wallets ======
 
 export async function addWallet(
-  userId: number,
+  userId: DataOwnerId,
   wallet: Omit<Wallet, 'id'>
 ): Promise<string> {
   const walletsRef = ref(database, `users/${userId}/wallets`);
@@ -596,7 +618,7 @@ export async function addWallet(
 }
 
 export async function updateWallet(
-  userId: number,
+  userId: DataOwnerId,
   walletId: string,
   data: Partial<Omit<Wallet, 'id'>>
 ): Promise<void> {
@@ -605,15 +627,25 @@ export async function updateWallet(
 }
 
 export async function deleteWallet(
-  userId: number,
+  userId: DataOwnerId,
   walletId: string
 ): Promise<void> {
-  const walletRef = ref(database, `users/${userId}/wallets/${walletId}`);
-  await remove(walletRef);
+  const [walletsSnapshot, mainWalletSnapshot] = await Promise.all([
+    get(ref(database, `users/${userId}/wallets`)),
+    get(ref(database, `users/${userId}/settings/mainWalletId`)),
+  ]);
+  const wallets = (walletsSnapshot.val() || {}) as Record<string, Wallet>;
+  const changes: Record<string, unknown> = { [`wallets/${walletId}`]: null };
+  if (mainWalletSnapshot.val() === walletId) {
+    const replacement = Object.entries(wallets).find(([id]) => id !== walletId);
+    changes['settings/mainWalletId'] = replacement?.[0] || null;
+    if (replacement) changes['settings/currency'] = replacement[1].currency;
+  }
+  await update(ref(database, `users/${userId}`), changes);
 }
 
 export function subscribeToWallets(
-  userId: number,
+  userId: DataOwnerId,
   callback: (wallets: Wallet[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
@@ -630,7 +662,7 @@ export function subscribeToWallets(
   }, onError);
 }
 
-export async function getWallets(userId: number): Promise<Wallet[]> {
+export async function getWallets(userId: DataOwnerId): Promise<Wallet[]> {
   const walletsRef = ref(database, `users/${userId}/wallets`);
   const snap = await get(walletsRef);
   if (!snap.exists()) return [];
@@ -643,7 +675,7 @@ export async function getWallets(userId: number): Promise<Wallet[]> {
 // ====== Transactions ======
 
 async function adjustWalletBalance(
-  userId: number,
+  userId: DataOwnerId,
   walletId: string,
   delta: number,
   updates: Record<string, unknown>
@@ -656,9 +688,18 @@ async function adjustWalletBalance(
 }
 
 export async function addTransaction(
-  userId: number,
+  userId: DataOwnerId,
   transaction: Omit<Transaction, 'id'>
 ): Promise<string> {
+  const familyId = getFamilyId(userId);
+  if (familyId) {
+    const result = await apiClient.post<{ transaction: Transaction }>(
+      `/api/families/${encodeURIComponent(familyId)}/transactions`,
+      transaction,
+    );
+    notifyTransactionsChanged(userId);
+    return result.transaction.id!;
+  }
   const txsRef = ref(database, `users/${userId}/transactions`);
   const newRef = push(txsRef);
   const txToSave = transaction.currency ? transaction : { ...transaction, currency: 'EUR' };
@@ -676,10 +717,38 @@ export async function addTransaction(
   return newRef.key!;
 }
 
+export async function reconcileWallet(userId: DataOwnerId, walletId: string, expectedBalance: number, actualBalance: number): Promise<void> {
+  if (!Number.isFinite(actualBalance) || !Number.isFinite(expectedBalance)) throw new Error('Invalid balance');
+  const familyId = getFamilyId(userId);
+  if (familyId) {
+    await apiClient.post(`/api/families/${encodeURIComponent(familyId)}/reconcile`, { walletId, expectedBalance, actualBalance });
+  } else {
+    const txId = push(ref(database, `users/${userId}/transactions`)).key!;
+    const date = Date.now();
+    const result = await runTransaction(ref(database, `users/${userId}`), finance => {
+      if (!finance) return finance;
+      const wallet = finance.wallets?.[walletId];
+      if (!wallet || Number(wallet.balance || 0) !== expectedBalance) throw new Error('Balance changed');
+      const difference = Math.round((actualBalance - expectedBalance) * 100) / 100;
+      if (!difference) return finance;
+      finance.transactions ||= {};
+      finance.transactions[txId] = {
+        type: difference > 0 ? 'income' : 'expense', amount: Math.abs(difference), category: 'other',
+        description: 'Звірка балансу', date, month: getCurrentMonth(date), currency: wallet.currency,
+        walletId, isReconciliation: true, createdAt: date,
+      };
+      wallet.balance = Math.round(actualBalance * 100) / 100;
+      return finance;
+    });
+    if (!result.committed) throw new Error('Balance update failed');
+  }
+  notifyTransactionsChanged(userId);
+}
+
 export async function addTransfer(
-  userId: number,
+  userId: DataOwnerId,
   {
-    fromWalletId, toWalletId, amount, convertedAmount, description, date,
+    fromWalletId, toWalletId, amount, convertedAmount, description, date, authorId, authorName,
   }: {
     fromWalletId: string;
     toWalletId: string;
@@ -687,8 +756,19 @@ export async function addTransfer(
     convertedAmount: number;
     description?: string;
     date: number;
+    authorId?: string;
+    authorName?: string;
   }
 ): Promise<string> {
+  const familyId = getFamilyId(userId);
+  if (familyId) {
+    const result = await apiClient.post<{ transaction: Transaction }>(
+      `/api/families/${encodeURIComponent(familyId)}/transfers`,
+      { fromWalletId, toWalletId, amount, convertedAmount, description, date },
+    );
+    notifyTransactionsChanged(userId);
+    return result.transaction.id!;
+  }
   const [fromSnap, toSnap] = await Promise.all([
     get(ref(database, `users/${userId}/wallets/${fromWalletId}`)),
     get(ref(database, `users/${userId}/wallets/${toWalletId}`)),
@@ -713,6 +793,9 @@ export async function addTransfer(
     fromWalletId,
     toWalletId,
     convertedAmount,
+    authorId,
+    authorName,
+    createdAt: Date.now(),
   };
 
   const updates: Record<string, unknown> = {};
@@ -726,7 +809,7 @@ export async function addTransfer(
 }
 
 export async function getTransactions(
-  userId: number,
+  userId: DataOwnerId,
   month: string
 ): Promise<Transaction[]> {
   const txRef = ref(database, `users/${userId}/transactions`);
@@ -743,10 +826,19 @@ export async function getTransactions(
 }
 
 export async function updateTransaction(
-  userId: number,
+  userId: DataOwnerId,
   txId: string,
   data: Partial<Omit<Transaction, 'id'>>
 ): Promise<void> {
+  const familyId = getFamilyId(userId);
+  if (familyId) {
+    await apiClient.put(
+      `/api/families/${encodeURIComponent(familyId)}/transactions/${encodeURIComponent(txId)}`,
+      data,
+    );
+    notifyTransactionsChanged(userId);
+    return;
+  }
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
   const beforeSnap = await get(txRef);
   if (!beforeSnap.exists()) {
@@ -812,54 +904,62 @@ export async function updateTransaction(
 }
 
 export async function deleteTransaction(
-  userId: number,
+  userId: DataOwnerId,
   txId: string
-): Promise<void> {
+): Promise<DeletedTransactionSnapshot | null> {
+  const familyId = getFamilyId(userId);
+  if (familyId) {
+    const result = await apiClient.delete<{ transaction: Transaction }>(
+      `/api/families/${encodeURIComponent(familyId)}/transactions/${encodeURIComponent(txId)}`,
+    );
+    notifyTransactionsChanged(userId);
+    return { transaction: result.transaction };
+  }
   const txRef = ref(database, `users/${userId}/transactions/${txId}`);
   const txSnap = await get(txRef);
+  const transaction = txSnap.exists()
+    ? ({ id: txId, ...(txSnap.val() as Omit<Transaction, 'id'>) } as Transaction)
+    : null;
+  const mappingRef = ref(database, `user_shares/${userId}/${txId}`);
+  let receiptShareCode: string | undefined;
+  let receiptShareWasActive: boolean | undefined;
+
+  try {
+    const mappingSnap = await get(mappingRef);
+    const mappedCode = mappingSnap.exists() ? mappingSnap.val() : null;
+    if (typeof mappedCode === 'string' && isValidShareCode(mappedCode)) {
+      receiptShareCode = mappedCode;
+      const shareSnap = await get(ref(database, `shared_receipts/${mappedCode}`));
+      receiptShareWasActive = shareSnap.exists()
+        ? shareSnap.val().isActive !== false
+        : undefined;
+    }
+  } catch (err) {
+    console.warn('Failed to capture receipt share before delete:', err);
+  }
 
   const updates: Record<string, unknown> = {};
   updates[`users/${userId}/transactions/${txId}`] = null;
 
-  if (txSnap.exists()) {
-    const tx = txSnap.val() as Transaction;
-    // Reverse wallet balance
-    if (tx.walletId && !tx.excludeFromBalance) {
-      if (tx.type !== 'transfer') {
-        const wSnap = await get(ref(database, `users/${userId}/wallets/${tx.walletId}`));
-        if (wSnap.exists()) {
-          const w = wSnap.val() as Wallet;
-          const delta = tx.type === 'income' ? -tx.amount : tx.amount; // reverse
-          updates[`users/${userId}/wallets/${tx.walletId}/balance`] = (w.balance || 0) + delta;
-        }
-      } else {
-        // Reverse transfer
-        const [fromSnap, toSnap] = await Promise.all([
-          tx.fromWalletId ? get(ref(database, `users/${userId}/wallets/${tx.fromWalletId}`)) : Promise.resolve(null),
-          tx.toWalletId ? get(ref(database, `users/${userId}/wallets/${tx.toWalletId}`)) : Promise.resolve(null),
-        ]);
-        if (fromSnap?.exists()) {
-          const w = fromSnap.val() as Wallet;
-          updates[`users/${userId}/wallets/${tx.fromWalletId!}/balance`] = (w.balance || 0) + tx.amount;
-        }
-        if (toSnap?.exists()) {
-          const w = toSnap.val() as Wallet;
-          updates[`users/${userId}/wallets/${tx.toWalletId!}/balance`] = (w.balance || 0) - (tx.convertedAmount ?? tx.amount);
-        }
-      }
-    }
+  if (transaction) {
+    const deltaEntries = Object.entries(getTransactionWalletDeltas(transaction));
+    const walletSnapshots = await Promise.all(
+      deltaEntries.map(([walletId]) => get(ref(database, `users/${userId}/wallets/${walletId}`))),
+    );
+    deltaEntries.forEach(([walletId, delta], index) => {
+      const snapshot = walletSnapshots[index];
+      if (!snapshot.exists()) return;
+      const wallet = snapshot.val() as Wallet;
+      updates[`users/${userId}/wallets/${walletId}/balance`] = (wallet.balance || 0) - delta;
+    });
   }
 
   await update(ref(database), updates);
   notifyTransactionsChanged(userId);
 
   try {
-    const mappingRef = ref(database, `user_shares/${userId}/${txId}`);
-    const mappingSnap = await get(mappingRef);
-    if (mappingSnap.exists()) {
-      const shareCode = mappingSnap.val() as string;
-      if (!isValidShareCode(shareCode)) return;
-      await update(ref(database, `shared_receipts/${shareCode}`), {
+    if (receiptShareCode) {
+      await update(ref(database, `shared_receipts/${receiptShareCode}`), {
         isActive: false, disabledReason: 'receipt_deleted', updatedAt: Date.now(),
       });
       await set(mappingRef, null);
@@ -867,6 +967,63 @@ export async function deleteTransaction(
   } catch (err) {
     console.warn('Failed to deactivate share on delete:', err);
   }
+
+  return transaction
+    ? { transaction, receiptShareCode, receiptShareWasActive }
+    : null;
+}
+
+export interface DeletedTransactionSnapshot {
+  transaction: Transaction;
+  receiptShareCode?: string;
+  receiptShareWasActive?: boolean;
+}
+
+export async function restoreDeletedTransaction(
+  userId: DataOwnerId,
+  snapshot: DeletedTransactionSnapshot
+): Promise<void> {
+  const { transaction, receiptShareCode, receiptShareWasActive } = snapshot;
+  if (!transaction.id) throw new Error('Deleted transaction ID is missing');
+  const familyId = getFamilyId(userId);
+  if (familyId) {
+    await apiClient.post(
+      `/api/families/${encodeURIComponent(familyId)}/transactions/${encodeURIComponent(transaction.id)}/restore`,
+      { transaction },
+    );
+    notifyTransactionsChanged(userId);
+    return;
+  }
+
+  const txRef = ref(database, `users/${userId}/transactions/${transaction.id}`);
+  const existing = await get(txRef);
+  if (existing.exists()) return;
+
+  const { id, ...transactionData } = transaction;
+  const updates: Record<string, unknown> = {
+    [`users/${userId}/transactions/${id}`]: transactionData,
+  };
+
+  const deltaEntries = Object.entries(getTransactionWalletDeltas(transaction));
+  const walletSnapshots = await Promise.all(
+    deltaEntries.map(([walletId]) => get(ref(database, `users/${userId}/wallets/${walletId}`))),
+  );
+  deltaEntries.forEach(([walletId, delta], index) => {
+    const snapshot = walletSnapshots[index];
+    if (!snapshot.exists()) return;
+    const wallet = snapshot.val() as Wallet;
+    updates[`users/${userId}/wallets/${walletId}/balance`] = (wallet.balance || 0) + delta;
+  });
+
+  if (receiptShareCode) {
+    updates[`user_shares/${userId}/${id}`] = receiptShareCode;
+    updates[`shared_receipts/${receiptShareCode}/isActive`] = receiptShareWasActive ?? true;
+    updates[`shared_receipts/${receiptShareCode}/disabledReason`] = null;
+    updates[`shared_receipts/${receiptShareCode}/updatedAt`] = Date.now();
+  }
+
+  await update(ref(database), updates);
+  notifyTransactionsChanged(userId);
 }
 
 // ====== Legacy Shared Receipts (backward compat) ======
@@ -1367,60 +1524,10 @@ export function subscribeToJointCheck(
   });
 }
 
-export async function addJointCheckPayment(
-  jointCheckId: string,
-  userId: string | number,
-  displayName: string,
-  amount: number
-): Promise<void> {
-  const jointCheckRef = ref(database, `joint_checks/${jointCheckId}`);
-  const snapshot = await get(jointCheckRef);
-  if (!snapshot.exists()) throw new Error('Joint check not found');
-
-  const jointCheck = snapshot.val() as JointCheck;
-  const safeAmount = Math.min(amount, jointCheck.remainingAmount);
-  if (safeAmount <= 0) throw new Error('Invalid payment amount');
-
-  const paymentRef = push(ref(database, `joint_checks/${jointCheckId}/payments`));
-  const remainingAmount = Math.max(0, jointCheck.remainingAmount - safeAmount);
-  const updates: Record<string, any> = {
-    remainingAmount,
-    updatedAt: Date.now(),
-    isClosed: remainingAmount === 0,
-    [`payments/${paymentRef.key}`]: {
-      userId: String(userId),
-      displayName,
-      amount: safeAmount,
-      paidAt: Date.now(),
-    } satisfies JointCheckPayment,
-  };
-
-  await update(jointCheckRef, updates);
-
-  await addTransaction(Number(userId), {
-    type: 'expense',
-    amount: safeAmount,
-    category: 'joint_check_payment',
-    description: `Погашення: ${jointCheck.title}`,
-    date: Date.now(),
-    month: getCurrentMonth(),
-    currency: jointCheck.currency,
-  });
-
-  const transactionIds = jointCheck.transactionIds || {};
-  await Promise.all(Object.entries(transactionIds).map(([participantId, txId]) => (
-    update(ref(database, `users/${participantId}/transactions/${txId}`), {
-      amount: remainingAmount,
-      description: remainingAmount === 0 ? `${jointCheck.title} · закрито` : jointCheck.title,
-    })
-  )));
-  Object.keys(transactionIds).forEach((participantId) => notifyTransactionsChanged(participantId));
-}
-
 // ====== Realtime Subscriptions ======
 
 export function subscribeToTransactions(
-  userId: number,
+  userId: DataOwnerId,
   month: string,
   callback: (transactions: Transaction[]) => void,
   onError?: (error: Error) => void
@@ -1444,8 +1551,9 @@ export function subscribeToTransactions(
 }
 
 export function subscribeToAllTransactions(
-  userId: number,
-  callback: (transactions: Transaction[]) => void
+  userId: DataOwnerId,
+  callback: (transactions: Transaction[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const txRef = ref(database, `users/${userId}/transactions`);
 
@@ -1462,11 +1570,11 @@ export function subscribeToAllTransactions(
     }));
     transactions.sort((a, b) => b.date - a.date);
     callback(transactions);
-  });
+  }, onError);
 }
 
 export function subscribeToMonthlyBalance(
-  userId: number,
+  userId: DataOwnerId,
   month: string,
   callback: (data: MonthData | null) => void
 ): Unsubscribe {
@@ -1483,7 +1591,7 @@ export function subscribeToMonthlyBalance(
 // ====== Settings ======
 
 export function subscribeToSettings(
-  userId: number,
+  userId: DataOwnerId,
   callback: (settings: UserSettings | null) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
@@ -1497,25 +1605,29 @@ export function subscribeToSettings(
   }, onError);
 }
 
-export async function getUserSettings(userId: number): Promise<UserSettings> {
+export async function getUserSettings(userId: DataOwnerId): Promise<UserSettings> {
   const settingsRef = ref(database, `users/${userId}/settings`);
   const snapshot = await get(settingsRef);
   return snapshot.exists() ? snapshot.val() : { currency: 'EUR' };
 }
 
+export async function deleteSmartGoal(userId: DataOwnerId, goalId: string): Promise<void> {
+  await runTransaction(ref(database, `users/${userId}/settings/smartGoals`), (current: SmartGoal[] | null) => {
+    if (!current) return null;
+    return Object.values(current).filter((goal) => goal && goal.id !== goalId);
+  });
+}
+
 export async function updateUserSettings(
-  userId: number,
+  userId: DataOwnerId,
   settings: Partial<UserSettings>
 ): Promise<void> {
   const settingsRef = ref(database, `users/${userId}/settings`);
-  const snapshot = await get(settingsRef);
-  let current = {};
-  if (snapshot.exists()) current = snapshot.val();
-  await set(settingsRef, { ...current, ...settings });
+  await update(settingsRef, settings);
 }
 
 export function subscribeToUserSettings(
-  userId: number,
+  userId: DataOwnerId,
   callback: (settings: UserSettings) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
@@ -1531,7 +1643,7 @@ export function subscribeToUserSettings(
 
 // ====== All Transactions ======
 
-export async function getAllTransactions(userId: number): Promise<Transaction[]> {
+export async function getAllTransactions(userId: DataOwnerId): Promise<Transaction[]> {
   const txRef = ref(database, `users/${userId}/transactions`);
   const snapshot = await get(txRef);
 
@@ -1549,7 +1661,7 @@ export async function getAllTransactions(userId: number): Promise<Transaction[]>
 // ====== Subscriptions (Auto-charges) ======
 
 export async function addSubscription(
-  userId: number,
+  userId: DataOwnerId,
   subscription: Omit<Subscription, 'id'>
 ): Promise<string> {
   const subRef = ref(database, `users/${userId}/subscriptions`);
@@ -1559,7 +1671,7 @@ export async function addSubscription(
 }
 
 export async function updateSubscription(
-  userId: number,
+  userId: DataOwnerId,
   subId: string,
   data: Partial<Omit<Subscription, 'id'>>
 ): Promise<void> {
@@ -1569,7 +1681,7 @@ export async function updateSubscription(
 }
 
 export async function deleteSubscription(
-  userId: number,
+  userId: DataOwnerId,
   subId: string
 ): Promise<void> {
   const subRef = ref(database, `users/${userId}/subscriptions/${subId}`);
@@ -1577,7 +1689,7 @@ export async function deleteSubscription(
 }
 
 export function subscribeToSubscriptions(
-  userId: number,
+  userId: DataOwnerId,
   callback: (subscriptions: Subscription[]) => void
 ): Unsubscribe {
   const subRef = ref(database, `users/${userId}/subscriptions`);
@@ -1599,7 +1711,7 @@ export function subscribeToSubscriptions(
 // ====== Vendor Usage Tracking ======
 
 export async function incrementVendorUsage(
-  userId: number,
+  userId: DataOwnerId,
   vendorId: string
 ): Promise<void> {
   const settingsRef = ref(database, `users/${userId}/settings`);

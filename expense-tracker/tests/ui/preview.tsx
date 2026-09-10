@@ -1,0 +1,17 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { HomePage } from '../../src/pages/HomePage';
+import { AuthContext } from '../../src/context/auth-context';
+import { FamilyBudgetContext } from '../../src/context/family-budget-context';
+import '../../src/index.css';
+import '../../src/App.css';
+import '../../src/components/modals/Modals.css';
+import '../../src/minimal.css';
+localStorage.setItem('nbu_rates_v2', JSON.stringify({EUR:1,USD:1.12,UAH:49.5}));
+localStorage.setItem('nbu_rates_time_v2', String(Date.now()));
+document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'light';
+document.documentElement.style.setProperty('--tg-vh', '100dvh');
+const space = {id:'personal',type:'personal',role:'owner',name:'Особистий бюджет'};
+const auth = { user: {id:123,first_name:'Олексій'}, isAuthenticated:true,isLoading:false,error:null,token:null,logout:()=>{} };
+const family = {dataOwnerId:'123',isFamily:false,activeSpace:space,spaces:[space],families:[],activeFamily:null,isLoading:false,pendingInviteCode:'',clearPendingInvite:()=>{},setActiveSpaceId:()=>{}};
+createRoot(document.getElementById('root')!).render(<AuthContext.Provider value={auth}><FamilyBudgetContext.Provider value={family}><HomePage /></FamilyBudgetContext.Provider></AuthContext.Provider>);

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
+import { useFamilyBudget } from '../../context/useFamilyBudget';
 import { CURRENCY_SYMBOLS } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { subscribeToSettings, updateUserSettings, incrementVendorUsage, type UserSettings, type CustomVendor, type Wallet } from '../../services/database';
@@ -75,6 +76,7 @@ const DEFAULT_VENDORS: Vendor[] = [
 
 export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWalletId }: QuickSpendModalProps) => {
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
   const { categories } = useCategories();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
@@ -103,15 +105,15 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultW
 
   // Load usage counts + custom vendors from settings
   useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeToSettings(user.id, (settings: UserSettings | null) => {
+    if (!user || !dataOwnerId) return;
+    const unsub = subscribeToSettings(dataOwnerId, (settings: UserSettings | null) => {
       setUsageCounts(settings?.vendorUsageCounts || {});
       setCustomVendors(settings?.customVendors || []);
     });
     return () => {
       if (typeof unsub === 'function') unsub();
     };
-  }, [user]);
+  }, [user, dataOwnerId]);
 
   // Merge default + custom vendors, sort by usage frequency
   const allVendors = useMemo((): Vendor[] => {
@@ -145,7 +147,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultW
 
     if (numAmount > 0 && vendorName && selectedWallet) {
       if (user && selectedVendor && !selectedVendor.isCustom) {
-        incrementVendorUsage(user.id, selectedVendor.id);
+        incrementVendorUsage(dataOwnerId, selectedVendor.id);
       }
       onSpend(numAmount, category, vendorName, selectedWallet.id!, transactionDate);
     }
@@ -160,7 +162,7 @@ export const QuickSpendModal = ({ onClose, onSpend, isLoading, wallets, defaultW
       category: newVendorCategory,
     };
     const updated = [...customVendors, newVendor];
-    await updateUserSettings(user.id, { customVendors: updated });
+    await updateUserSettings(dataOwnerId, { customVendors: updated });
     setNewVendorName('');
     setNewVendorIcon('🛒');
     setNewVendorCategory('other');

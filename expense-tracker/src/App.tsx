@@ -1,16 +1,27 @@
-import { useState, useEffect, useMemo } from 'react'
-import { HomePage } from './pages/HomePage'
-import { TelegramOnlyScreen } from './components/auth/TelegramOnlyScreen'
-import { OnboardingWizard } from './components/OnboardingWizard'
-import { WalletSetupScreen } from './components/WalletSetupScreen'
+import { lazy, Suspense, useState, useEffect, useMemo } from 'react'
 import { DeviceSessionScreen } from './components/DeviceSessionScreen'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider } from './context/AuthContext'
+import { useAuth } from './context/useAuth'
+import { FamilyBudgetProvider } from './context/FamilyBudgetContext'
 import { useAutoUpdate } from './hooks/useAutoUpdate'
 import { useSingleDeviceSession } from './hooks/useSingleDeviceSession'
 import { getUserSettings, getReceiptShare, getSharedReceipt, getWallets, addWallet, updateUserSettings, isValidShareCode, type ReceiptShare } from './services/database'
-import { SharedReceiptView } from './components/SharedReceiptView'
 import './App.css'
 import './components/auth/TelegramOnlyScreen.css'
+
+const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
+const TelegramOnlyScreen = lazy(() => import('./components/auth/TelegramOnlyScreen').then((module) => ({ default: module.TelegramOnlyScreen })))
+const OnboardingWizard = lazy(() => import('./components/OnboardingWizard').then((module) => ({ default: module.OnboardingWizard })))
+const WalletSetupScreen = lazy(() => import('./components/WalletSetupScreen').then((module) => ({ default: module.WalletSetupScreen })))
+const SharedReceiptView = lazy(() => import('./components/SharedReceiptView').then((module) => ({ default: module.SharedReceiptView })))
+
+const AppLoading = () => (
+  <div className="phone-frame">
+    <div style={{ margin: 'auto', color: 'var(--text-secondary)', fontSize: '15px', fontWeight: 500 }}>
+      Завантаження...
+    </div>
+  </div>
+)
 
 function AppContent() {
   const { user, isLoading: authLoading, error: authError } = useAuth();
@@ -223,16 +234,16 @@ function AppContent() {
 
   // Show onboarding if not completed
   if (user && onboardingDone === false) {
-    return <OnboardingWizard onComplete={handleOnboardingComplete} />;
+    return <Suspense fallback={<AppLoading />}><OnboardingWizard onComplete={handleOnboardingComplete} /></Suspense>;
   }
 
   // Show wallet setup if onboarding done but no wallets yet
   if (user && onboardingDone === true && walletReady === false) {
-    return <WalletSetupScreen onComplete={handleWalletCreated} />;
+    return <Suspense fallback={<AppLoading />}><WalletSetupScreen onComplete={handleWalletCreated} /></Suspense>;
   }
 
   return (
-    <>
+    <Suspense fallback={<AppLoading />}>
       <HomePage />
       {activeShare && (
         <SharedReceiptView share={activeShare} onClose={() => setActiveShare(null)} />
@@ -263,7 +274,7 @@ function AppContent() {
           </div>
         </div>
       )}
-    </>
+    </Suspense>
   );
 }
 
@@ -290,7 +301,7 @@ function App() {
   }, []);
 
   if (!isTelegramWebApp) {
-    return <TelegramOnlyScreen />;
+    return <Suspense fallback={<AppLoading />}><TelegramOnlyScreen /></Suspense>;
   }
 
   // Expand the Telegram WebApp to maximum height
@@ -305,7 +316,9 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppContent />
+      <FamilyBudgetProvider>
+        <AppContent />
+      </FamilyBudgetProvider>
     </AuthProvider>
   )
 }

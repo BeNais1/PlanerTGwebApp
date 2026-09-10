@@ -1,3 +1,6 @@
+import { ReceiptScanner } from '../ReceiptScanner';
+import { TagInput } from '../TagInput';
+import { normalizeTags } from '../../domain/planning';
 import { useState } from 'react';
 import { CURRENCY_SYMBOLS } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
@@ -9,7 +12,7 @@ import './Modals.css';
 
 interface SpendModalProps {
   onClose: () => void;
-  onSpend: (amount: number, category: string, description: string, walletId: string, date: number) => void;
+  onSpend: (amount: number, category: string, description: string, walletId: string, date: number, tags?: string[]) => void;
   isLoading?: boolean;
   wallets: Wallet[];
   defaultWalletId?: string | null;
@@ -18,6 +21,10 @@ interface SpendModalProps {
 export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWalletId }: SpendModalProps) => {
   const { categories } = useCategories();
   const [amount, setAmount] = useState('');
+  const [tags, setTags] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanNotice, setScanNotice] = useState('');
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(() => Date.now());
@@ -38,8 +45,8 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
 
   const handleSubmit = () => {
     const numAmount = getKeypadNumericValue(amount);
-    if (numAmount > 0 && selectedWallet && selectedCategory) {
-      onSpend(numAmount, selectedCategory, description, selectedWallet.id!, transactionDate);
+    if (!scanning && !isLoading && numAmount > 0 && selectedWallet && selectedCategory) {
+      onSpend(numAmount, selectedCategory, description, selectedWallet.id!, transactionDate, normalizeTags(tags));
     }
   };
 
@@ -50,20 +57,36 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
           <section className="transaction-compose-details">
             <div className="modal-header transaction-compose-header">
               <div>
-                <span className="transaction-compose-kicker">Нова операція</span>
                 <h2 className="modal-title">Витрата</h2>
-                <p className="transaction-compose-description">Зафіксуйте покупку та оберіть її категорію.</p>
               </div>
               <button type="button" className="modal-close" onClick={handleClose} aria-label="Закрити">
                 ✕
               </button>
             </div>
 
+            <ReceiptScanner onBusyChange={setScanning} onRecognized={draft => {
+              setDetailsOpen(true);
+              setAmount(draft.amount ? String(draft.amount) : '');
+              setDescription(draft.description);
+              if (draft.date) setTransactionDate(draft.date);
+              const matchingWallet = wallets.find(wallet => wallet.currency === draft.currency);
+              if (matchingWallet?.id) setSelectedWalletId(matchingWallet.id);
+              setScanNotice(`${draft.amount ? 'Перевірте суму, дату та категорію.' : 'Суму не знайдено — введіть її вручну.'}${draft.currency && !matchingWallet ? ` Валюта чека: ${draft.currency}. Оберіть відповідний гаманець.` : ''}`);
+            }} />
+            {scanNotice && <p role="status" className="field-hint">{scanNotice}</p>}
             <div className="transaction-compose-field">
               <span className="transaction-compose-field-label">Гаманець</span>
               <WalletButton wallet={selectedWallet} onClick={() => setWalletPickerOpen(true)} placeholder="Оберіть гаманець" />
             </div>
 
+            <label className="transaction-compose-field">
+              <span className="transaction-compose-field-label">Категорія</span>
+              <select className="modal-input" aria-label="Категорія" value={selectedCategory} onChange={event => setCategory(event.target.value)}>
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
+              </select>
+            </label>
+            <details className="minimal-disclosure" open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)}><summary>Деталі{tags ? ` · ${normalizeTags(tags).length} тегів` : ''}</summary>
+            <TagInput value={tags} onChange={setTags} />
             <label className="transaction-compose-field">
               <span className="transaction-compose-field-label">Коментар</span>
               <input
@@ -79,22 +102,8 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
               <TransactionDateField value={transactionDate} onChange={setTransactionDate} />
             </div>
 
-            <div className="transaction-compose-field transaction-compose-category-field">
-              <span className="transaction-compose-field-label">Категорія</span>
-              <div className="transaction-compose-categories">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    className={`transaction-compose-category ${selectedCategory === cat.id ? 'active' : ''}`}
-                    onClick={() => setCategory(cat.id)}
-                  >
-                    <span>{cat.icon}</span>
-                    <span>{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+            </details>
+
           </section>
 
           <section className="transaction-compose-entry" aria-label="Сума витрати">
@@ -108,7 +117,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
               currencySymbol={currencySymbol}
               onSubmit={handleSubmit}
               submitLabel="Витратити"
-              isLoading={isLoading}
+              isLoading={isLoading || scanning}
             />
           </section>
         </div>

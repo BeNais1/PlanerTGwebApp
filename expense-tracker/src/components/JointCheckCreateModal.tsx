@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import { useCurrency, type Currency } from "../hooks/useCurrency";
 import { NumericKeypad, getKeypadNumericValue } from "./NumericKeypad";
 import { QrScannerSheet } from "./QrScannerSheet";

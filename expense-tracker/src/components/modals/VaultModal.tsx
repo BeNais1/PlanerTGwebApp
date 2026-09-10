@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 import { ADMIN_TELEGRAM_ID } from '../../services/database';
 import {
   activateVaultDemo,

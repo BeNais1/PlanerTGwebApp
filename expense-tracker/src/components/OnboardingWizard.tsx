@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import {
   updateUserSettings,
   type OnboardingData,

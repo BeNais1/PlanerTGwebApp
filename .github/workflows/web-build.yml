@@ -1,0 +1,53 @@
+name: Build expense tracker web app
+
+on:
+  push:
+    paths:
+      - 'expense-tracker/**'
+      - '.github/workflows/web-build.yml'
+  pull_request:
+    paths:
+      - 'expense-tracker/**'
+      - '.github/workflows/web-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: Test and build web app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: expense-tracker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: expense-tracker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check
+        run: npx tsc -b
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Upload production bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: expense-tracker-web-${{ github.sha }}
+          path: expense-tracker/dist
+          if-no-files-found: error
+          retention-days: 14

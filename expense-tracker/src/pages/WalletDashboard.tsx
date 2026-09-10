@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { useCurrency, type Currency } from '../hooks/useCurrency';
 import { useCategories } from '../hooks/useCategories';
 import {
@@ -32,10 +32,8 @@ const WalletDashboard: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   // Get month name
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
   const monthDate = new Date(currentMonth);
-  const monthName = monthNames[monthDate.getMonth()] + ' ' + monthDate.getFullYear();
+  const monthName = monthDate.toLocaleDateString('uk-UA', { month: 'long', year: 'numeric' });
 
   // Load data from Firebase
   useEffect(() => {
@@ -113,7 +111,7 @@ const WalletDashboard: React.FC = () => {
       setIsSpendOpen(false);
     } catch (error) {
       console.error('Failed to add spend transaction:', error);
-      alert('Error adding expense');
+      alert('Не вдалося додати витрату.');
     } finally {
       setIsSaving(false);
     }
@@ -130,7 +128,7 @@ const WalletDashboard: React.FC = () => {
       setIsAddOpen(false);
     } catch (error) {
       console.error('Failed to add income transaction:', error);
-      alert('Error adding income');
+      alert('Не вдалося додати дохід.');
     } finally {
       setIsSaving(false);
     }
@@ -144,7 +142,7 @@ const WalletDashboard: React.FC = () => {
       setSelectedTx(null);
     } catch (error) {
       console.error('Failed to delete transaction:', error);
-      alert('Error deleting transaction');
+      alert('Не вдалося видалити операцію.');
     } finally {
       setIsSaving(false);
     }
@@ -158,7 +156,7 @@ const WalletDashboard: React.FC = () => {
       setSelectedTx(null);
     } catch (error) {
       console.error('Failed to update transaction:', error);
-      alert('Error updating transaction');
+      alert('Не вдалося оновити операцію.');
     } finally {
       setIsSaving(false);
     }
@@ -181,7 +179,7 @@ const WalletDashboard: React.FC = () => {
           </div>
           <div className="rounded-full px-2.5 py-2.5 bg-transparent flex items-center justify-center gap-2.5 opacity-50">
             <span className="text-base font-medium text-white text-center">
-              Capital: {formatValue(monthData?.initialBalance || 0)}
+              Капітал: {formatValue(monthData?.initialBalance || 0)}
             </span>
           </div>
         </div>
@@ -209,7 +207,7 @@ const WalletDashboard: React.FC = () => {
                   <path d="M6 1v13M1 6h10" />
                 </svg>
               </div>
-              <span className="text-base font-medium text-white text-center">Spend</span>
+              <span className="text-base font-medium text-white text-center">Витрата</span>
             </button>
 
             {/* Add button */}
@@ -231,7 +229,7 @@ const WalletDashboard: React.FC = () => {
                   <path d="M6 1v13M1 6h10" />
                 </svg>
               </div>
-              <span className="text-base font-medium text-white text-center">Add</span>
+              <span className="text-base font-medium text-white text-center">Дохід</span>
             </button>
           </div>
 
@@ -239,7 +237,7 @@ const WalletDashboard: React.FC = () => {
           <div className="w-[366px] bg-[#2C2C2E] rounded-[24px] p-4 gap-3.5 flex flex-col">
             {/* History header */}
             <div className="w-[332px] flex justify-between items-center">
-              <span className="text-base font-medium text-white">Today</span>
+              <span className="text-base font-medium text-white">Сьогодні</span>
               <span className="text-base font-medium text-white">&gt;</span>
             </div>
 
@@ -247,7 +245,7 @@ const WalletDashboard: React.FC = () => {
             <div className="space-y-3">
               {todaysTransactions.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: '#999', fontSize: '13px' }}>
-                  No transactions today
+                  Сьогодні ще немає операцій
                 </div>
               ) : (
                 todaysTransactions.map((transaction) => (
@@ -264,10 +262,10 @@ const WalletDashboard: React.FC = () => {
                     {/* Payment details */}
                     <div className="flex-1 flex flex-col gap-1">
                       <span className="text-base font-medium text-white">
-                        {transaction.type === 'income' ? 'Income' : CATEGORY_NAMES[transaction.category] || 'Expense'}
+                        {transaction.type === 'income' ? 'Дохід' : CATEGORY_NAMES[transaction.category] || 'Витрата'}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {new Date(transaction.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(transaction.date).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 

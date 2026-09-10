@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import {
   getOrCreateTemporaryUserCode,
   getUserQrPayload,

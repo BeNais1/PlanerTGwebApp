@@ -14,6 +14,8 @@ export interface TelegramWebApp {
   version: string;
   ready: () => void;
   expand: () => void;
+  requestFullscreen?: () => void;
+  enableClosingConfirmation?: () => void;
   isExpanded?: boolean;
   initDataUnsafe: {
     user?: TelegramUser;
@@ -22,8 +24,16 @@ export interface TelegramWebApp {
   initData: string;
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
+  openTelegramLink?: (url: string) => void;
   viewportStableHeight?: number;
+  safeAreaInset?: { top?: number; bottom?: number; left?: number; right?: number };
+  contentSafeAreaInset?: { top?: number; bottom?: number; left?: number; right?: number };
   onEvent?: (event: string, callback: () => void) => void;
+  offEvent?: (event: string, callback: () => void) => void;
+  showConfirm?: (message: string, callback: (confirmed: boolean) => void) => void;
+  HapticFeedback?: {
+    notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
+  };
   openInvoice?: (
     url: string,
     callback?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void

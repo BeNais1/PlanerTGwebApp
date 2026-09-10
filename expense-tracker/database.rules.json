@@ -5,14 +5,52 @@
     "users": {
       ".read": "auth != null && auth.token.admin === true",
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true || root.child('family_data_access').child($uid).child(auth.uid).exists())",
         ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        "wallets": {
+          ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true || root.child('family_data_access').child($uid).child(auth.uid).val() === 'owner' || root.child('family_data_access').child($uid).child(auth.uid).val() === 'admin')"
+        },
+        "settings": {
+          ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true || root.child('family_data_access').child($uid).child(auth.uid).val() === 'owner' || root.child('family_data_access').child($uid).child(auth.uid).val() === 'admin')",
+          "smartGoals": {
+            ".write": "auth != null && root.child('family_data_access').child($uid).child(auth.uid).exists()"
+          },
+          "debts": {
+            ".write": "auth != null && root.child('family_data_access').child($uid).child(auth.uid).exists()"
+          }
+        },
+        "months": {
+          ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true || root.child('family_data_access').child($uid).child(auth.uid).val() === 'owner' || root.child('family_data_access').child($uid).child(auth.uid).val() === 'admin')"
+        },
+        "subscriptions": {
+          ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true || root.child('family_data_access').child($uid).child(auth.uid).exists())"
+        },
         "transactions": {
           "$txId": {
-            ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true || (data.child('jointCheckId').exists() && root.child('joint_checks').child(data.child('jointCheckId').val()).child('participants').child(auth.uid).exists()))"
+            ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
           }
         }
       }
+    },
+    "family_spaces": {
+      "$familyId": {
+        ".read": "auth != null && (auth.token.admin === true || data.child('members').child(auth.uid).exists())",
+        ".write": false
+      }
+    },
+    "user_family_spaces": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.admin === true)",
+        ".write": false
+      }
+    },
+    "family_data_access": {
+      ".read": false,
+      ".write": false
+    },
+    "family_invites": {
+      ".read": false,
+      ".write": false
     },
     "user_shares": {
       "$uid": {
@@ -55,7 +93,8 @@
     "joint_checks": {
       "$jointCheckId": {
         ".read": "auth != null && (auth.token.admin === true || data.child('participants').child(auth.uid).exists())",
-        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('creatorId').val() === auth.uid && newData.child('participants').child(auth.uid).exists()) || (data.exists() && data.child('participants').child(auth.uid).exists()))"
+        ".write": "auth != null && (auth.token.admin === true || (!data.exists() && newData.child('id').val() === $jointCheckId && newData.child('creatorId').val() === auth.uid && newData.child('participants').child(auth.uid).exists()) || (data.exists() && data.child('creatorId').val() === auth.uid && newData.child('id').val() === data.child('id').val() && newData.child('creatorId').val() === data.child('creatorId').val() && newData.child('totalAmount').val() === data.child('totalAmount').val() && newData.child('remainingAmount').val() === data.child('remainingAmount').val() && newData.child('currency').val() === data.child('currency').val() && newData.child('title').val() === data.child('title').val() && newData.child('createdAt').val() === data.child('createdAt').val() && newData.child('updatedAt').val() === data.child('updatedAt').val() && newData.child('isClosed').val() === data.child('isClosed').val() && newData.child('participants').val() === data.child('participants').val() && newData.child('payments').val() === data.child('payments').val()))",
+        ".validate": "newData.hasChildren(['id', 'creatorId', 'totalAmount', 'remainingAmount', 'currency', 'title', 'createdAt', 'updatedAt', 'isClosed', 'participants']) && newData.child('totalAmount').isNumber() && newData.child('totalAmount').val() > 0 && newData.child('remainingAmount').isNumber() && newData.child('remainingAmount').val() >= 0 && newData.child('remainingAmount').val() <= newData.child('totalAmount').val()"
       }
     },
     "vault_payments": {

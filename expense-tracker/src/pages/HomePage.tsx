@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo, useRef, type PointerEvent, type TouchEvent, type WheelEvent } from "react";
+import { PaydayCard } from '../components/PaydayCard';
+import { ReconcileSheet } from '../components/ReconcileSheet';
+import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback, type PointerEvent, type TouchEvent, type WheelEvent } from "react";
 import { ArrowDown } from "../components/icons/ArrowDown";
 import { ArrowTop } from "../components/icons/ArrowTop";
 import { SettingsIcon } from "../components/icons/SettingsIcon";
@@ -10,7 +12,8 @@ import { SvgRepoIcon } from "../components/icons/SvgRepoIcon";
 import { PaymentIcon } from "../components/PaymentIcon";
 import { useTelegramPlatform } from "../hooks/useTelegramPlatform";
 import { useKeyboardSafe } from "../hooks/useKeyboardSafe";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
+import { useFamilyBudget } from "../context/useFamilyBudget";
 import { useCurrency, type Currency, CURRENCY_SYMBOLS } from "../hooks/useCurrency";
 import { useCategories } from "../hooks/useCategories";
 import { useWallets } from "../hooks/useWallets";
@@ -20,6 +23,7 @@ import {
   addTransaction,
   updateTransaction,
   deleteTransaction,
+  restoreDeletedTransaction,
   addTransfer,
   subscribeToUserSettings,
   updateUserSettings,
@@ -28,31 +32,39 @@ import {
   type UserSettings
 } from "../services/database";
 
-import { SpendModal } from "../components/modals/SpendModal";
-import { AddModal } from "../components/modals/AddModal";
-import { SettingsModal } from "../components/modals/SettingsModal";
-import { HistoryModal } from "../components/modals/HistoryModal";
-import { TransferModal } from "../components/modals/TransferModal";
-import { TransactionDetailModal } from "../components/modals/TransactionDetailModal";
-import { VaultModal } from "../components/modals/VaultModal";
+import { ConfirmDeleteDialog } from "../components/ConfirmDeleteDialog";
 import { AnimatedNumber } from "../components/AnimatedNumber";
-import { AnalyticsView } from "../components/AnalyticsView";
 import { NumericKeypad, getKeypadNumericValue } from "../components/NumericKeypad";
-import { SavedReceiptsView } from "../components/SavedReceiptsView";
-import { SharedReceiptView } from "../components/SharedReceiptView";
-import { FinancialHubView } from "../components/FinancialHubView";
-import { JointCheckCreateModal } from "../components/JointCheckCreateModal";
-import { JointCheckDetailModal } from "../components/JointCheckDetailModal";
-import { UserQrSheet } from "../components/UserQrSheet";
 import { walletColor } from "../components/WalletPicker";
+import { UndoToast, type UndoToastAction } from "../components/UndoToast";
 import type { ReceiptShare } from "../services/database";
 import "../components/JointCheck.css";
+
+const SpendModal = lazy(() => import("../components/modals/SpendModal").then((module) => ({ default: module.SpendModal })));
+const AddModal = lazy(() => import("../components/modals/AddModal").then((module) => ({ default: module.AddModal })));
+const SettingsModal = lazy(() => import("../components/modals/SettingsModal").then((module) => ({ default: module.SettingsModal })));
+const HistoryModal = lazy(() => import("../components/modals/HistoryModal").then((module) => ({ default: module.HistoryModal })));
+const TransferModal = lazy(() => import("../components/modals/TransferModal").then((module) => ({ default: module.TransferModal })));
+const TransactionDetailModal = lazy(() => import("../components/modals/TransactionDetailModal").then((module) => ({ default: module.TransactionDetailModal })));
+const VaultModal = lazy(() => import("../components/modals/VaultModal").then((module) => ({ default: module.VaultModal })));
+const AnalyticsView = lazy(() => import("../components/AnalyticsView").then((module) => ({ default: module.AnalyticsView })));
+const SavedReceiptsView = lazy(() => import("../components/SavedReceiptsView").then((module) => ({ default: module.SavedReceiptsView })));
+const SharedReceiptView = lazy(() => import("../components/SharedReceiptView").then((module) => ({ default: module.SharedReceiptView })));
+const FinancialHubView = lazy(() => import("../components/FinancialHubView").then((module) => ({ default: module.FinancialHubView })));
+const JointCheckCreateModal = lazy(() => import("../components/JointCheckCreateModal").then((module) => ({ default: module.JointCheckCreateModal })));
+const JointCheckDetailModal = lazy(() => import("../components/JointCheckDetailModal").then((module) => ({ default: module.JointCheckDetailModal })));
+const UserQrSheet = lazy(() => import("../components/UserQrSheet").then((module) => ({ default: module.UserQrSheet })));
+const FamilyBudgetSheet = lazy(() => import("../components/FamilyBudgetSheet").then((module) => ({ default: module.FamilyBudgetSheet })));
 
 export const HomePage = () => {
   const [activeNav, setActiveNav] = useState(0);
   const { safeAreaInsets } = useTelegramPlatform();
   useKeyboardSafe();
   const { user } = useAuth();
+  const { activeSpace, dataOwnerId, isFamily, pendingInviteCode } = useFamilyBudget();
+  const canManageFamily = !isFamily || activeSpace.role === 'owner' || activeSpace.role === 'admin';
+  const authorId = String(user?.id || '');
+  const authorName = user?.first_name || user?.username || 'Участник';
   const isAdmin = user?.id === ADMIN_TELEGRAM_ID;
   const { currency: mainCurrency, mainWalletId, formatValue, convertToMain } = useCurrency();
   const currSym = (CURRENCY_SYMBOLS as Record<string, string>)[mainCurrency] ?? mainCurrency;
@@ -85,6 +97,11 @@ export const HomePage = () => {
   const [isJointCheckOpen, setIsJointCheckOpen] = useState(false);
   const [jointCheckId, setJointCheckId] = useState<string | null>(null);
   const [isUserQrOpen, setIsUserQrOpen] = useState(false);
+  const [isFamilyBudgetOpen, setIsFamilyBudgetOpen] = useState(Boolean(pendingInviteCode));
+  const [undoQueue, setUndoQueue] = useState<UndoToastAction[]>([]);
+  const dismissCurrentUndo = useCallback(() => {
+    setUndoQueue((queue) => queue.slice(1));
+  }, []);
 
   // Pull-to-reveal QR
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
@@ -103,7 +120,7 @@ export const HomePage = () => {
   const [newWalletCurrency, setNewWalletCurrency] = useState<Currency>('UAH');
   const [newWalletBalance, setNewWalletBalance] = useState('');
   const [menuWalletId, setMenuWalletId] = useState<string | null>(null);
-  const [menuStep, setMenuStep] = useState<'main' | 'rename' | 'delete'>('main');
+  const [menuStep, setMenuStep] = useState<'main' | 'rename' | 'delete' | 'reconcile'>('main');
   const [editingName, setEditingName] = useState('');
 
   const navItems = [
@@ -119,7 +136,7 @@ export const HomePage = () => {
   }, [safeAreaInsets]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !dataOwnerId) return;
     let isSubscribed = true;
     setIsDataLoaded(false);
     const timeoutId = window.setTimeout(() => {
@@ -128,7 +145,7 @@ export const HomePage = () => {
       setIsDataLoaded(true);
     }, 8000);
 
-    const unsubTx = subscribeToTransactions(user.id, currentMonth, (txs) => {
+    const unsubTx = subscribeToTransactions(dataOwnerId, currentMonth, (txs) => {
       if (isSubscribed) {
         window.clearTimeout(timeoutId);
         setTransactions(txs);
@@ -143,7 +160,7 @@ export const HomePage = () => {
       }
     });
 
-    const unsubSettings = subscribeToUserSettings(user.id, (settings: UserSettings) => {
+    const unsubSettings = subscribeToUserSettings(dataOwnerId, (settings: UserSettings) => {
       if (isSubscribed) {
         setBudgetLimit(settings.budgetLimit || 0);
         setBudgetLimitStartDate(settings.budgetLimitStartDate);
@@ -158,7 +175,11 @@ export const HomePage = () => {
       unsubTx();
       unsubSettings();
     };
-  }, [user, currentMonth]);
+  }, [user, dataOwnerId, currentMonth]);
+
+  useEffect(() => {
+    if (pendingInviteCode) setIsFamilyBudgetOpen(true);
+  }, [pendingInviteCode]);
 
   // Compute walletBalances from wallets for backward-compat components (HistoryModal etc.)
   const walletBalances: Record<string, number> = useMemo(() => {
@@ -273,7 +294,7 @@ export const HomePage = () => {
 
     return transactions
       .filter(t => {
-        if (t.excludeFromBalance) return false;
+        if (t.excludeFromBalance || t.isReconciliation) return false;
         if (t.type !== 'expense') return false;
         if (t.date < periodStart) return false;
         if (budgetLimitStartDate && t.date < budgetLimitStartDate) return false;
@@ -282,17 +303,28 @@ export const HomePage = () => {
       .reduce((acc, t) => acc + convertToMain(t.amount, (t.currency || mainCurrency) as Currency), 0);
   }, [transactions, mainCurrency, convertToMain, budgetLimitStartDate, budgetLimitPeriod]);
 
-  const handleSpend = async (amount: number, category: string, description: string, walletId: string, date: number) => {
+  const handleSpend = async (amount: number, category: string, description: string, walletId: string, date: number, tags: string[] = []) => {
     if (!user) return;
     setIsSaving(true);
     try {
       const wallet = wallets.find(w => w.id === walletId);
-      await addTransaction(user.id, {
-        type: 'expense', amount, category, description,
+      const transactionId = await addTransaction(dataOwnerId, {
+        type: 'expense', amount, category, description, tags,
         date, month: getCurrentMonth(date),
         currency: wallet?.currency || mainCurrency,
         walletId,
+        authorId,
+        authorName,
+        createdAt: Date.now(),
       });
+      setUndoQueue((queue) => [...queue, {
+        id: `add-${transactionId}`,
+        message: 'Операцію додано',
+        undoLabel: 'Скасувати операцію',
+        undo: async () => {
+          await deleteTransaction(dataOwnerId, transactionId);
+        },
+      }]);
       setIsSpendOpen(false);
     } catch (error) {
       console.error('Failed to add spend transaction:', error);
@@ -307,12 +339,23 @@ export const HomePage = () => {
     setIsSaving(true);
     try {
       const wallet = wallets.find(w => w.id === walletId);
-      await addTransaction(user.id, {
+      const transactionId = await addTransaction(dataOwnerId, {
         type: 'income', amount, category: 'income', description,
         date, month: getCurrentMonth(date),
         currency: wallet?.currency || mainCurrency,
         walletId,
+        authorId,
+        authorName,
+        createdAt: Date.now(),
       });
+      setUndoQueue((queue) => [...queue, {
+        id: `add-${transactionId}`,
+        message: 'Операцію додано',
+        undoLabel: 'Скасувати операцію',
+        undo: async () => {
+          await deleteTransaction(dataOwnerId, transactionId);
+        },
+      }]);
       setIsAddOpen(false);
     } catch (error) {
       console.error('Failed to add income transaction:', error);
@@ -324,7 +367,7 @@ export const HomePage = () => {
 
   const handleTransfer = async (fromWalletId: string, toWalletId: string, amount: number, convertedAmount: number, description: string) => {
     if (!user) return;
-    await addTransfer(user.id, { fromWalletId, toWalletId, amount, convertedAmount, description, date: Date.now() });
+    await addTransfer(dataOwnerId, { fromWalletId, toWalletId, amount, convertedAmount, description, date: Date.now(), authorId, authorName });
   };
 
   const handleActionSelect = (openAction: () => void) => {
@@ -332,12 +375,22 @@ export const HomePage = () => {
     openAction();
   };
 
-  const handleDeleteTransaction = async (id: string) => {
+  const handleDeleteTransaction = async (transaction: Transaction) => {
     if (!user) return;
+    if (!transaction.id) return;
     setIsTxActionLoading(true);
     try {
-      await deleteTransaction(user.id, id);
-      setSelectedTx(null);
+      const deletedSnapshot = await deleteTransaction(dataOwnerId, transaction.id);
+      if (deletedSnapshot) {
+        setUndoQueue((queue) => [...queue, {
+          id: `delete-${transaction.id}-${Date.now()}`,
+          message: 'Операцію видалено',
+          undoLabel: 'Скасувати видалення',
+          undo: async () => {
+            await restoreDeletedTransaction(dataOwnerId, deletedSnapshot);
+          },
+        }]);
+      }
     } catch (error) {
       console.error('Failed to delete transaction:', error);
       alert('Помилка при видаленні транзакції. Спробуйте ще раз.');
@@ -350,7 +403,7 @@ export const HomePage = () => {
     if (!user) return;
     setIsTxActionLoading(true);
     try {
-      await updateTransaction(user.id, id, data);
+      await updateTransaction(dataOwnerId, id, { ...data, updatedAt: Date.now() });
       setSelectedTx(prev => prev && prev.id === id ? { ...prev, ...data } : prev);
     } catch (error) {
       console.error('Failed to update transaction:', error);
@@ -364,7 +417,7 @@ export const HomePage = () => {
     if (!user) return;
     const num = getKeypadNumericValue(limitInput);
     if (num > 0) {
-      await updateUserSettings(user.id, {
+      await updateUserSettings(dataOwnerId, {
         budgetLimit: num,
         budgetLimitPeriod: limitPeriodInput,
         budgetLimitIncludePrior: limitIncludePriorInput,
@@ -406,7 +459,7 @@ export const HomePage = () => {
 
   const handleMainWalletChange = async () => {
     if (!user || !menuWallet?.id) return;
-    await updateUserSettings(user.id, {
+    await updateUserSettings(dataOwnerId, {
       currency: menuWallet.currency,
       mainWalletId: menuWallet.id,
     });
@@ -416,14 +469,8 @@ export const HomePage = () => {
 
   const handleWalletDelete = async () => {
     if (!menuWalletId) return;
-    const replacementWallet = wallets.find(wallet => wallet.id !== menuWalletId);
+    if (!canManageFamily) throw new Error('Wallet deletion is not allowed');
     await removeWallet(menuWalletId);
-    if (menuWalletId === selectedMainWalletId && replacementWallet?.id && user) {
-      await updateUserSettings(user.id, {
-        currency: replacementWallet.currency,
-        mainWalletId: replacementWallet.id,
-      });
-    }
     setMenuWalletId(null);
     setMenuStep('main');
   };
@@ -457,6 +504,11 @@ export const HomePage = () => {
   const todayDateStr = new Date().toLocaleDateString();
   const todaysTransactions = transactions.filter(t => new Date(t.date).toLocaleDateString() === todayDateStr);
   const menuWallet = wallets.find(w => w.id === menuWalletId) ?? null;
+  const walletSlidesCount = displayedWallets.length + (canManageFamily ? 1 : 0);
+  const selectedTxCanEdit = !isFamily
+    || activeSpace.role === 'owner'
+    || activeSpace.role === 'admin'
+    || selectedTx?.authorId === authorId;
 
   if (!isDataLoaded || !walletsLoaded) {
     return (
@@ -475,31 +527,40 @@ export const HomePage = () => {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Modals */}
-      {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
-      {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
-      {isAdmin && isVaultOpen && <VaultModal onClose={handleCloseVault} />}
-      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} walletBalances={walletBalances} />}
-      {isTransferOpen && wallets.length >= 2 && (
-        <TransferModal
-          onClose={() => setIsTransferOpen(false)}
-          onTransfer={handleTransfer}
-          wallets={wallets}
-        />
-      )}
-      {isJointCheckOpen && <JointCheckCreateModal onClose={() => setIsJointCheckOpen(false)} walletBalances={walletBalances} />}
-      {selectedTx && (
-        <TransactionDetailModal
-          transaction={selectedTx}
-          onClose={() => setSelectedTx(null)}
-          onDelete={handleDeleteTransaction}
-          onUpdate={handleUpdateTransaction}
-          isLoading={isTxActionLoading}
-        />
-      )}
-      {jointCheckId && <JointCheckDetailModal jointCheckId={jointCheckId} onClose={() => setJointCheckId(null)} />}
-      {isUserQrOpen && <UserQrSheet onClose={() => setIsUserQrOpen(false)} />}
+      <Suspense fallback={null}>
+        {isSpendOpen && <SpendModal onClose={() => setIsSpendOpen(false)} onSpend={handleSpend} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
+        {isAddOpen && <AddModal onClose={() => setIsAddOpen(false)} onAdd={handleAdd} isLoading={isSaving} wallets={wallets} defaultWalletId={defaultWalletId} />}
+        {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} walletBalances={walletBalances} />}
+        {isAdmin && isVaultOpen && <VaultModal onClose={handleCloseVault} />}
+        {isHistoryOpen && (
+          <HistoryModal
+            onClose={() => setIsHistoryOpen(false)}
+            onDeleteTransaction={handleDeleteTransaction}
+            walletBalances={walletBalances}
+          />
+        )}
+        {isTransferOpen && wallets.length >= 2 && (
+          <TransferModal
+            onClose={() => setIsTransferOpen(false)}
+            onTransfer={handleTransfer}
+            wallets={wallets}
+          />
+        )}
+        {isJointCheckOpen && <JointCheckCreateModal onClose={() => setIsJointCheckOpen(false)} walletBalances={walletBalances} />}
+        {selectedTx && (
+          <TransactionDetailModal
+            transaction={selectedTx}
+            onClose={() => setSelectedTx(null)}
+            onDelete={() => handleDeleteTransaction(selectedTx)}
+            onUpdate={handleUpdateTransaction}
+            isLoading={isTxActionLoading}
+            canEdit={selectedTxCanEdit}
+          />
+        )}
+        {jointCheckId && <JointCheckDetailModal jointCheckId={jointCheckId} onClose={() => setJointCheckId(null)} />}
+        {isUserQrOpen && <UserQrSheet onClose={() => setIsUserQrOpen(false)} />}
+        {isFamilyBudgetOpen && <FamilyBudgetSheet onClose={() => setIsFamilyBudgetOpen(false)} />}
+      </Suspense>
 
       {pullQrDistance > 12 && (
         <div className="pull-qr-indicator" style={{ opacity: Math.min(1, pullQrDistance / 72) }}>
@@ -555,7 +616,7 @@ export const HomePage = () => {
                 style={{ background: 'var(--card-bg-2)', color: 'var(--danger)', marginTop: '-8px' }}
                 onClick={async () => {
                   if (user) {
-                    await updateUserSettings(user.id, { budgetLimit: 0 });
+                    await updateUserSettings(dataOwnerId, { budgetLimit: 0 });
                     setShowLimitModal(false);
                   }
                 }}
@@ -575,27 +636,34 @@ export const HomePage = () => {
         }}
       >
         {/* Full-screen views */}
-        <AnalyticsView walletBalances={walletBalances} mainCurrency={mainCurrency} isActive={activeNav === 3} />
-        <FinancialHubView isActive={activeNav === 1} walletBalances={walletBalances} onOpenReceipt={(share) => setViewingShare(share)} onOpenTransaction={handleOpenTransaction} />
-        <SavedReceiptsView isActive={activeNav === 2} onOpenReceipt={(share) => setViewingShare(share)} />
-        {viewingShare && <SharedReceiptView share={viewingShare} onClose={() => setViewingShare(null)} />}
+        <Suspense fallback={<div className="analytics-empty">Завантаження...</div>}>
+          {activeNav === 3 && <AnalyticsView walletBalances={walletBalances} mainCurrency={mainCurrency} isActive />}
+          {activeNav === 1 && <FinancialHubView isActive walletBalances={walletBalances} onOpenReceipt={(share) => setViewingShare(share)} onOpenTransaction={handleOpenTransaction} />}
+          {activeNav === 2 && <SavedReceiptsView isActive onOpenReceipt={(share) => setViewingShare(share)} />}
+          {viewingShare && <SharedReceiptView share={viewingShare} onClose={() => setViewingShare(null)} />}
+        </Suspense>
 
         <main className="home-dashboard" style={{ display: (activeNav === 3 || activeNav === 1 || activeNav === 2) ? 'none' : undefined }}>
           {/* Header */}
           <div className="header">
-            <span className="month-label">{monthName}</span>
+            <button type="button" className="budget-space-switcher" onClick={() => setIsFamilyBudgetOpen(true)}>
+              <span className="budget-space-switcher-avatar">{isFamily ? activeSpace.name.slice(0, 1).toUpperCase() : 'Я'}</span>
+              <span><strong>{activeSpace.name}</strong><small>{monthName}</small></span>
+              <span>⌄</span>
+            </button>
             <div className="header-actions">
               {isAdmin && (
                 <button type="button" className="vault-entry-btn" onClick={() => setIsVaultOpen(true)}>
                   Підписка Vault
                 </button>
               )}
-              <div className="settings-btn" onClick={() => setIsSettingsOpen(true)}>
+              <div className="settings-btn" onClick={() => canManageFamily ? setIsSettingsOpen(true) : setIsFamilyBudgetOpen(true)}>
                 <SettingsIcon />
               </div>
             </div>
           </div>
 
+          <PaydayCard key={dataOwnerId} wallets={wallets} />
           {/* Wallet Cards Carousel */}
           <div className="wallet-cards-section">
             <div
@@ -622,13 +690,13 @@ export const HomePage = () => {
                       <div className="wallet-card-deco" style={{ width: 90, height: 90, right: 50, bottom: -36, background: 'rgba(255,255,255,0.05)' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative' }}>
                         <span style={{ fontSize: '14px', fontWeight: 650, opacity: 0.85 }}>{wallet.name}</span>
-                        <button
+                        {canManageFamily && <button
                           onClick={(e) => { e.stopPropagation(); setMenuWalletId(wallet.id!); setMenuStep('main'); setEditingName(wallet.name); }}
                           aria-label="Відкрити меню гаманця"
                           style={{ background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: '8px', padding: '4px 7px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
                           <SvgRepoIcon name="dots" className="wallet-card-menu-icon" />
-                        </button>
+                        </button>}
                       </div>
                       <div style={{ position: 'relative' }}>
                         <div style={{ fontSize: '34px', fontWeight: 800, letterSpacing: '-1px', lineHeight: 1.1 }}>
@@ -644,7 +712,7 @@ export const HomePage = () => {
               })}
 
               {/* "+" card */}
-              <div className="wallet-card-slide">
+              {canManageFamily && <div className="wallet-card-slide">
                 <button
                   onClick={() => setIsAddingWallet(true)}
                   style={{
@@ -657,7 +725,7 @@ export const HomePage = () => {
                   <span style={{ fontSize: '32px', lineHeight: 1 }}>+</span>
                   <span style={{ fontSize: '13px', fontWeight: 600 }}>Додати гаманець</span>
                 </button>
-              </div>
+              </div>}
             </div>
 
             <div className="wallet-card-controls">
@@ -674,7 +742,7 @@ export const HomePage = () => {
                 type="button"
                 className="wallet-card-control next"
                 onClick={() => scrollToWallet(activeWallet + 1)}
-                disabled={activeWallet === displayedWallets.length}
+                disabled={activeWallet === walletSlidesCount - 1}
                 aria-label="Наступний гаманець"
               >
                 ›
@@ -683,13 +751,13 @@ export const HomePage = () => {
 
             {/* Dots */}
             <div className="wallet-dots">
-              {Array.from({ length: displayedWallets.length + 1 }).map((_, i) => (
+              {Array.from({ length: walletSlidesCount }).map((_, i) => (
                 <div key={i} className={`wallet-dot ${activeWallet === i ? 'active' : ''}`} style={{ width: activeWallet === i ? 18 : 6 }} />
               ))}
             </div>
 
             {/* Add wallet form */}
-            {isAddingWallet && (
+            {canManageFamily && isAddingWallet && (
               <div style={{ padding: '10px 16px 0' }}>
                 <div style={{ background: 'var(--card-bg)', borderRadius: '18px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Новий гаманець</span>
@@ -733,7 +801,7 @@ export const HomePage = () => {
                   <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     Ліміт {budgetLimitPeriod === 'day' ? 'на день' : budgetLimitPeriod === 'week' ? 'на тиждень' : 'на місяць'}
                   </span>
-                  <button onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                  <button disabled={!canManageFamily} onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', padding: 0, display: canManageFamily ? undefined : 'none' }}>
                     Змінити
                   </button>
                 </div>
@@ -748,17 +816,18 @@ export const HomePage = () => {
             </div>
           ) : (
             <div className="budget-section" style={{ padding: '4px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+              <button disabled={!canManageFamily} onClick={() => setShowLimitModal(true)} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: canManageFamily ? undefined : 'none' }}>
                 + Встановити ліміт
               </button>
             </div>
           )}
 
           {/* Wallet menu overlay */}
-          {menuWalletId && (
+          {menuWalletId && menuStep !== 'delete' && menuStep !== 'reconcile' && (
             <div className="modal-overlay" style={{ zIndex: 200, alignItems: 'flex-end', padding: '16px' }} onClick={() => { setMenuWalletId(null); setMenuStep('main'); }}>
               <div style={{ width: '100%', background: 'var(--card-bg)', borderRadius: '20px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }} onClick={e => e.stopPropagation()}>
                 {menuStep === 'main' && (<>
+                  <button className="quiet-action" onClick={() => setMenuStep('reconcile')}>Звірити баланс</button>
                   <button onClick={() => setMenuStep('rename')} style={{ padding: '14px 16px', border: 'none', borderRadius: '14px', background: 'none', color: 'var(--text-primary)', fontSize: '15px', fontWeight: 500, cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-text)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <SvgRepoIcon name="rename" /> Перейменувати
                   </button>
@@ -786,17 +855,19 @@ export const HomePage = () => {
                     </div>
                   </div>
                 )}
-                {menuStep === 'delete' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px' }}>
-                    <span style={{ fontSize: '14px', color: 'var(--text-secondary)', textAlign: 'center', padding: '8px 0' }}>Видалити гаманець <strong>{menuWallet?.name}</strong>?</span>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setMenuStep('main')} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: '12px', background: 'var(--card-bg-2)', color: 'var(--text-secondary)', fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-text)' }}>Скасувати</button>
-                      <button onClick={handleWalletDelete} style={{ flex: 1, padding: '11px', border: 'none', borderRadius: '12px', background: 'var(--danger)', color: 'white', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-text)' }}>Видалити</button>
-                    </div>
-                  </div>
-                )}
+
               </div>
             </div>
+          )}
+
+          {menuWallet && menuStep === 'reconcile' && <ReconcileSheet wallet={menuWallet} onClose={() => { setMenuWalletId(null); setMenuStep('main'); }} />}
+          {menuWalletId && menuStep === 'delete' && (
+            <ConfirmDeleteDialog
+              title={`Видалити картку «${menuWallet?.name || ''}»?`}
+              description="Картку та її баланс буде видалено з цього бюджету. Історія операцій збережеться. Інші картки залишаться."
+              onConfirm={handleWalletDelete}
+              onClose={() => { setMenuWalletId(null); setMenuStep('main'); }}
+            />
           )}
 
           {/* Bottom Card */}
@@ -823,7 +894,10 @@ export const HomePage = () => {
                           <span className="payment-name">
                             {item.type === 'income' ? 'Дохід' : item.type === 'transfer' ? 'Переказ' : CATEGORY_NAMES[item.category] || 'Витрата'}
                           </span>
-                          <span className="payment-category">{item.description || new Date(item.date).toLocaleDateString()}</span>
+                          <span className="payment-category">
+                            {item.description || new Date(item.date).toLocaleDateString()}
+                            {isFamily && item.authorName ? ` · ${item.authorName}` : ''}
+                          </span>
                         </div>
                         <span className={`payment-amount ${item.type === 'expense' ? 'expense' : 'income'}`} style={{ color: item.type === 'income' ? 'var(--accent)' : 'var(--text-primary)' }}>
                           {item.type === 'expense' ? '-' : '+'}{item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {txSym}
@@ -871,7 +945,7 @@ export const HomePage = () => {
               <SvgRepoIcon name="transfer" />
               <span>Переказ</span>
             </button>
-            <button type="button" className="action-menu-item" role="menuitem" onClick={() => handleActionSelect(() => setIsJointCheckOpen(true))}>
+            <button type="button" className="action-menu-item" role="menuitem" disabled={isFamily} style={{ display: isFamily ? 'none' : undefined }} onClick={() => handleActionSelect(() => setIsJointCheckOpen(true))}>
               <JointCheckIcon />
               <span>Спільні</span>
             </button>
@@ -909,6 +983,13 @@ export const HomePage = () => {
             <SvgRepoIcon name="plus" />
           </button>
         </nav>
+        {undoQueue[0] && (
+          <UndoToast
+            key={undoQueue[0].id}
+            action={undoQueue[0]}
+            onDone={dismissCurrentUndo}
+          />
+        )}
       </div>
     </div>
   );

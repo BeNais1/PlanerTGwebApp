@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
+import { useFamilyBudget } from '../../context/useFamilyBudget';
 import { useCurrency, type Currency } from '../../hooks/useCurrency';
 import { useCategories } from '../../hooks/useCategories';
 import { updateUserSettings, subscribeToUserSettings, deleteUserAccount, ADMIN_TELEGRAM_ID, type UserSettings } from '../../services/database';
@@ -17,6 +18,7 @@ interface SettingsModalProps {
 
 export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) => {
   const { user } = useAuth();
+  const { dataOwnerId, isFamily } = useFamilyBudget();
   const isAdmin = user?.id === ADMIN_TELEGRAM_ID;
   const { currency, CURRENCY_SYMBOLS, EXCHANGE_RATES, formatValue } = useCurrency();
   const { categories, addCategory, removeCategory, restoreCategory, reorderCategories, hiddenCategoryIds, defaultCategories } = useCategories();
@@ -38,25 +40,23 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
   const [newCatColor, setNewCatColor] = useState('#007AFF');
 
   // Category drag-and-drop
-  const [orderedCategories, setOrderedCategories] = useState(categories);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const catListRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<{ dIdx: number; hIdx: number } | null>(null);
   const orderedCatRef = useRef(categories);
-  useEffect(() => { orderedCatRef.current = orderedCategories; }, [orderedCategories]);
-  useEffect(() => { if (draggingIdx === null) setOrderedCategories(categories); }, [categories, draggingIdx]);
+  useEffect(() => { orderedCatRef.current = categories; }, [categories]);
 
   // Load budget limit
   useEffect(() => {
-    if (!user) return;
-    const unsub = subscribeToUserSettings(user.id, (settings: UserSettings) => {
+    if (!user || !dataOwnerId) return;
+    const unsub = subscribeToUserSettings(dataOwnerId, (settings: UserSettings) => {
       setBudgetLimit(settings.budgetLimit || 0);
       setBudgetLimitPeriod(settings.budgetLimitPeriod || 'month');
       setLimitPeriodInput(settings.budgetLimitPeriod || 'month');
     });
     return () => unsub();
-  }, [user]);
+  }, [user, dataOwnerId]);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -81,19 +81,19 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     if (!user) return;
     const num = getKeypadNumericValue(limitInput);
     if (num > 0) {
-      await updateUserSettings(user.id, { 
+      await updateUserSettings(dataOwnerId, {
         budgetLimit: num,
         budgetLimitPeriod: limitPeriodInput,
         budgetLimitIncludePrior: limitIncludePriorInput,
         budgetLimitStartDate: limitIncludePriorInput ? null : Date.now()
-      } as any);
+      });
       setLimitInput('');
     }
   };
 
   const handleRemoveLimit = async () => {
     if (!user) return;
-    await updateUserSettings(user.id, { budgetLimit: 0 });
+    await updateUserSettings(dataOwnerId, { budgetLimit: 0 });
   };
 
   const totalEur = Object.entries(walletBalances).reduce((acc, [cur, amt]) => {
@@ -111,18 +111,18 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
 
     // Update Telegram header colors
     try {
-      const tg = (window as any).Telegram?.WebApp;
+      const tg = window.Telegram?.WebApp;
       if (tg) {
         const headerColor = newTheme === 'light' ? '#F2F2F7' : '#000000';
         const bgColor = newTheme === 'light' ? '#F2F2F7' : '#000000';
         if (tg.setHeaderColor) tg.setHeaderColor(headerColor);
         if (tg.setBackgroundColor) tg.setBackgroundColor(bgColor);
       }
-    } catch (e) { /* ignore */ }
+    } catch { /* Telegram theme sync is best-effort. */ }
 
     // Save to Firebase
     if (user) {
-      await updateUserSettings(user.id, { theme: newTheme });
+      await updateUserSettings(dataOwnerId, { theme: newTheme });
     }
   };
 
@@ -130,7 +130,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
     if (!user) return;
     const message = 'Ви впевнені, що хочете видалити свій акаунт та всі дані? Це неможливо буде скасувати.';
     try {
-      const tg = (window as any).Telegram?.WebApp;
+      const tg = window.Telegram?.WebApp;
       if (tg && tg.showConfirm) {
         tg.showConfirm(message, async (confirmed: boolean) => {
           if (confirmed) {
@@ -195,7 +195,6 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
       const arr = [...orderedCatRef.current];
       const [item] = arr.splice(ds.dIdx, 1);
       arr.splice(ds.hIdx, 0, item);
-      setOrderedCategories(arr);
       reorderCategories(arr.map(c => c.id));
     };
 
@@ -342,7 +341,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
               Активні категорії
             </span>
             <div ref={catListRef} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {orderedCategories.map((cat, i) => {
+              {categories.map((cat, i) => {
                 const isDraggingThis = draggingIdx === i;
                 const showLineAbove = hoverIdx === i && draggingIdx !== null && hoverIdx !== draggingIdx && hoverIdx < draggingIdx!;
                 const showLineBelow = hoverIdx === i && draggingIdx !== null && hoverIdx !== draggingIdx && hoverIdx > draggingIdx!;
@@ -525,7 +524,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
               </div>
             </div>
 
-            <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--card-bg-3)', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+            {!isFamily && <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--card-bg-3)', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center' }}>
                 Якщо ви хочете почати з нуля, ви можете видалити всі свої дані та налаштування.
               </span>
@@ -546,7 +545,7 @@ export const SettingsModal = ({ onClose, walletBalances }: SettingsModalProps) =
               >
                 Видалити акаунт
               </button>
-            </div>
+            </div>}
           </div>
         )}
       </div>

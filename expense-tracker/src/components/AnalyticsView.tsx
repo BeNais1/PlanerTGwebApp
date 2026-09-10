@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
-import { useAuth } from "../context/AuthContext";
-import { getAllTransactions, onTransactionsChanged, type Transaction, subscribeToAllTransactions } from "../services/database";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useAuth } from "../context/useAuth";
+import { useFamilyBudget } from "../context/useFamilyBudget";
+import { type Transaction, subscribeToAllTransactions } from "../services/database";
 import { type Currency, useCurrency } from "../hooks/useCurrency";
 import { useCategories } from "../hooks/useCategories";
 import "./AnalyticsView.css";
@@ -40,9 +41,12 @@ function startOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-function getRangeBounds(range: DateRange): { start: number; end: number; previousStart: number; previousEnd: number } {
-  const now = new Date();
-  const end = Date.now();
+function getRangeBounds(
+  range: DateRange,
+  nowTimestamp = Date.now()
+): { start: number; end: number; previousStart: number; previousEnd: number } {
+  const now = new Date(nowTimestamp);
+  const end = nowTimestamp;
 
   if (range === "week") {
     const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
@@ -82,6 +86,7 @@ function daysInRange(start: number, end: number): number {
 
 export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: AnalyticsViewProps) => {
   const { user } = useAuth();
+  const { dataOwnerId } = useFamilyBudget();
   const { formatValue, CURRENCY_SYMBOLS, convertToMain } = useCurrency();
   const {
     colors: CATEGORY_COLORS,
@@ -95,67 +100,57 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
   const [activeTab, setActiveTab] = useState<AnalyticsTab>("overview");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [rangeNow, setRangeNow] = useState(() => Date.now());
+  const [isLoading, setIsLoading] = useState(() => Boolean(user));
 
   useEffect(() => {
-    if (!user) {
-      setAllTransactions([]);
-      setIsLoading(false);
-      return;
-    }
+    if (!user || !dataOwnerId) return;
 
     let isSubscribed = true;
-    const refreshTransactions = async () => {
-      try {
-        const transactions = await getAllTransactions(user.id);
-        if (isSubscribed) setAllTransactions(transactions);
-      } catch (error) {
-        console.error("Failed to refresh analytics transactions:", error);
-      } finally {
-        if (isSubscribed) setIsLoading(false);
-      }
-    };
-
-    setIsLoading(true);
-    const unsubscribeRealtime = subscribeToAllTransactions(user.id, (transactions) => {
+    const unsubscribeRealtime = subscribeToAllTransactions(dataOwnerId, (transactions) => {
       if (!isSubscribed) return;
       setAllTransactions(transactions);
+      setRangeNow(Date.now());
       setIsLoading(false);
-    });
-
-    const unsubscribeChanged = onTransactionsChanged(user.id, () => {
-      void refreshTransactions();
+    }, (error) => {
+      if (!isSubscribed) return;
+      console.error("Analytics transaction subscription failed:", error);
+      setIsLoading(false);
     });
 
     return () => {
       isSubscribed = false;
       unsubscribeRealtime();
-      unsubscribeChanged();
     };
-  }, [user]);
+  }, [user, dataOwnerId]);
 
-  const range = useMemo(() => getRangeBounds(dateRange), [dateRange]);
+  // Advance the period end with every realtime snapshot so newly created
+  // transactions cannot fall beyond a range frozen at component mount time.
+  const range = useMemo(() => getRangeBounds(dateRange, rangeNow), [dateRange, rangeNow]);
 
   const availableCurrencies = useMemo(() => {
     const fromTransactions = allTransactions.map((tx) => tx.currency || "EUR");
     return Array.from(new Set([...Object.keys(walletBalances), ...fromTransactions])) as Currency[];
   }, [allTransactions, walletBalances]);
 
-  const amountForView = (tx: Transaction) => {
+  const amountForView = useCallback((tx: Transaction) => {
     if (selectedCurrency === "ALL") return convertToMain(tx.amount, (tx.currency || "EUR") as Currency);
     return tx.amount;
-  };
+  }, [convertToMain, selectedCurrency]);
 
-  const inCurrency = (tx: Transaction) => selectedCurrency === "ALL" || (tx.currency || "EUR") === selectedCurrency;
+  const inCurrency = useCallback(
+    (tx: Transaction) => selectedCurrency === "ALL" || (tx.currency || "EUR") === selectedCurrency,
+    [selectedCurrency]
+  );
 
   const periodTransactions = useMemo(() => (
-    allTransactions.filter((tx) => !tx.excludeFromBalance && tx.date >= range.start && tx.date <= range.end && inCurrency(tx))
-  ), [allTransactions, range, selectedCurrency]);
+    allTransactions.filter((tx) => !tx.excludeFromBalance && !tx.isReconciliation && tx.date >= range.start && tx.date <= range.end && inCurrency(tx))
+  ), [allTransactions, inCurrency, range]);
 
   const previousTransactions = useMemo(() => {
     if (dateRange === "all") return [];
-    return allTransactions.filter((tx) => !tx.excludeFromBalance && tx.date >= range.previousStart && tx.date <= range.previousEnd && inCurrency(tx));
-  }, [allTransactions, dateRange, range, selectedCurrency]);
+    return allTransactions.filter((tx) => !tx.excludeFromBalance && !tx.isReconciliation && tx.date >= range.previousStart && tx.date <= range.previousEnd && inCurrency(tx));
+  }, [allTransactions, dateRange, inCurrency, range]);
 
   const visibleTransactions = useMemo(() => (
     periodTransactions.filter((tx) => {
@@ -190,7 +185,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
         ? (((income - expenses) - (previousIncome - previousExpenses)) / Math.abs(previousIncome - previousExpenses)) * 100
         : 0,
     };
-  }, [periodTransactions, previousTransactions, range, selectedCurrency]);
+  }, [amountForView, periodTransactions, previousTransactions, range]);
 
   const categoryRows = useMemo(() => {
     const rows = new Map<string, { category: string; amount: number; count: number }>();
@@ -206,7 +201,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
       });
 
     return Array.from(rows.values()).sort((a, b) => b.amount - a.amount);
-  }, [periodTransactions, selectedCurrency, txType]);
+  }, [amountForView, periodTransactions, txType]);
 
   const totalCategoryAmount = categoryRows.reduce((acc, row) => acc + row.amount, 0);
   const topCategory = categoryRows[0];
@@ -231,7 +226,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
     });
 
     return Array.from(rows.values()).sort((a, b) => a.date - b.date);
-  }, [dateRange, selectedCurrency, visibleTransactions]);
+  }, [amountForView, dateRange, visibleTransactions]);
 
   const trendMax = Math.max(1, ...trendRows.map((row) => Math.max(row.expense, row.income)));
 
@@ -279,7 +274,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
       detail: "середні витрати за день",
     });
     return items;
-  }, [CATEGORY_NAMES, dateRange, mainCurrency, selectedCurrency, topCategory, totalCategoryAmount, totals]);
+  }, [CATEGORY_NAMES, dateRange, formatValue, mainCurrency, selectedCurrency, topCategory, totalCategoryAmount, totals]);
 
   if (!isActive) return null;
 
@@ -288,7 +283,7 @@ export const AnalyticsView = ({ walletBalances, mainCurrency, isActive }: Analyt
       <div className="analytics-header">
         <div>
           <h2>Аналітика</h2>
-          <p>Огляд витрат, доходів і звичок</p>
+          
         </div>
         <select
           className="analytics-currency-select"
