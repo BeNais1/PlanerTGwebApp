@@ -42,7 +42,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: planer
-        INFOPLIST_FILE: Planer/Info.plist
+        INFOPLIST_FILE: Info.plist
         CODE_SIGN_ENTITLEMENTS: Planer/Planer.entitlements
         GENERATE_INFOPLIST_FILE: NO
         OTHER_LDFLAGS:
