@@ -1,7 +1,15 @@
 name: Build iOS IPA
 
 on:
+  push:
+    paths:
+      - '.github/workflows/ios-build.yml'
   workflow_dispatch:
+    inputs:
+      ios_ref:
+        description: 'iOS branch or commit to build'
+        required: false
+        default: 'codex/ios-liquid-glass-ipa'
 
 permissions:
   contents: read
@@ -12,13 +20,13 @@ jobs:
     runs-on: macos-26
     defaults:
       run:
-        working-directory: expense-tracker-ios
+        working-directory: expense-tracker/ios/Planer
 
     env:
-      PROJECT_PATH: ExpenseTrackerSwiftUI.xcodeproj
-      SCHEME: ExpenseTrackerSwiftUI
+      PROJECT_PATH: Planer.xcodeproj
+      SCHEME: Planer
       CONFIGURATION: Release
-      BUNDLE_ID: planer
+      BUNDLE_ID: com.boris.planer
       APP_MARKETING_VERSION: 1.1.0
       BUILD_DIR: build
       DERIVED_DATA_PATH: build/DerivedData
@@ -27,7 +35,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ios_ref || 'codex/ios-liquid-glass-ipa' }}
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
@@ -67,22 +77,22 @@ jobs:
           rm -rf "$EXPORT_PATH"
           mkdir -p "$EXPORT_PATH/Payload"
           cp -R "$APP_PATH" "$EXPORT_PATH/Payload/"
-          (cd "$EXPORT_PATH" && zip -qry ExpenseTrackerSwiftUI.ipa Payload)
+          (cd "$EXPORT_PATH" && zip -qry Planer.ipa Payload)
 
       - name: Upload IPA
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: ExpenseTrackerSwiftUI-IPA
-          path: expense-tracker-ios/build/export/ExpenseTrackerSwiftUI.ipa
+          name: Planer-IPA
+          path: expense-tracker/ios/Planer/build/export/Planer.ipa
           retention-days: 30
 
       - name: Upload build diagnostics
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: ExpenseTrackerSwiftUI-build-diagnostics
+          name: Planer-build-diagnostics
           path: |
-            expense-tracker-ios/build/*.xcresult
-            expense-tracker-ios/build/*.log
+            expense-tracker/ios/Planer/build/*.xcresult
+            expense-tracker/ios/Planer/build/*.log
           retention-days: 7
           if-no-files-found: ignore
