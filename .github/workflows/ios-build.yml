@@ -9,7 +9,7 @@ on:
       ios_ref:
         description: 'iOS branch or commit to build'
         required: false
-        default: 'codex/ios-liquid-glass-ipa'
+        default: 'claude/stoic-jemison-1acf60'
 
 permissions:
   contents: read
@@ -20,13 +20,13 @@ jobs:
     runs-on: macos-26
     defaults:
       run:
-        working-directory: expense-tracker/ios/Planer
+        working-directory: expense-tracker-ios
 
     env:
-      PROJECT_PATH: Planer.xcodeproj
-      SCHEME: Planer
+      PROJECT_PATH: ExpenseTrackerSwiftUI.xcodeproj
+      SCHEME: ExpenseTrackerSwiftUI
       CONFIGURATION: Release
-      BUNDLE_ID: com.boris.planer
+      BUNDLE_ID: planer
       APP_MARKETING_VERSION: 1.1.0
       BUILD_DIR: build
       DERIVED_DATA_PATH: build/DerivedData
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ios_ref || 'codex/ios-liquid-glass-ipa' }}
+          ref: ${{ inputs.ios_ref || 'claude/stoic-jemison-1acf60' }}
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
@@ -77,22 +77,22 @@ jobs:
           rm -rf "$EXPORT_PATH"
           mkdir -p "$EXPORT_PATH/Payload"
           cp -R "$APP_PATH" "$EXPORT_PATH/Payload/"
-          (cd "$EXPORT_PATH" && zip -qry Planer.ipa Payload)
+          (cd "$EXPORT_PATH" && zip -qry ExpenseTrackerSwiftUI.ipa Payload)
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Planer-IPA
-          path: expense-tracker/ios/Planer/build/export/Planer.ipa
+          name: ExpenseTrackerSwiftUI-IPA
+          path: expense-tracker-ios/build/export/ExpenseTrackerSwiftUI.ipa
           retention-days: 30
 
       - name: Upload build diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: Planer-build-diagnostics
+          name: ExpenseTrackerSwiftUI-build-diagnostics
           path: |
-            expense-tracker/ios/Planer/build/*.xcresult
-            expense-tracker/ios/Planer/build/*.log
+            expense-tracker-ios/build/*.xcresult
+            expense-tracker-ios/build/*.log
           retention-days: 7
           if-no-files-found: ignore
