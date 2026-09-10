@@ -38,7 +38,8 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Run tests
-        run: npm test
+        # Keep the runner deterministic for Firebase mocks and browser-oriented packages.
+        run: npm test -- --maxWorkers=1 --minWorkers=1
 
       - name: Type check
         run: npx tsc -b
