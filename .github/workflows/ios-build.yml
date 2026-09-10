@@ -9,7 +9,7 @@ on:
       ios_ref:
         description: 'iOS branch or commit to build'
         required: false
-        default: 'codex/ios-liquid-glass-ipa'
+        default: 'codex/live-activity-repair'
 
 permissions:
   contents: read
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ios_ref || 'codex/ios-liquid-glass-ipa' }}
+          ref: ${{ inputs.ios_ref || 'codex/live-activity-repair' }}
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
