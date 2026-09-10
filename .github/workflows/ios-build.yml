@@ -1,4 +1,5 @@
 name: Build iOS IPA
+# Builds the Planer iOS project from the selected iOS branch.
 
 on:
   push:
