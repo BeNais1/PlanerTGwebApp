@@ -49,7 +49,7 @@ jobs:
       - name: Generate Xcode project with Swift packages
         run: |
           brew install xcodegen
-          xcodegen generate --spec project.yml --project Planer.xcodeproj
+          xcodegen generate --spec project.yml
 
       - name: Build app without signing
         run: |
