@@ -12,6 +12,9 @@ struct TransactionEditorView: View {
     @State private var selectedCategoryID = "built-in-food"
     @State private var categoryEditorRequest: CategoryEditorRequest?
     @State private var note = ""
+    @State private var tagsText = ""
+    @State private var receiptDraft: ReceiptDraft?
+    @State private var detailsExpanded = false
     @State private var date = Date.now
 
     var body: some View {
@@ -19,6 +22,25 @@ struct TransactionEditorView: View {
             AtmosphericBackground()
 
             Form {
+                if kind == .expense {
+                    ReceiptPhotoInput { draft in
+                        receiptDraft = draft
+                        if let amount = draft.amount { amountText = String(format: "%.2f", amount) }
+                        note = draft.merchant
+                        if let parsedDate = draft.date { date = parsedDate }
+                        if let currency = draft.currency, let wallet = store.wallets.first(where: { $0.currency == currency }) { walletID = wallet.id }
+                        detailsExpanded = true
+                    }
+                    if let receiptDraft {
+                        Section {
+                            Text("Перевірте суму, дату та категорію").font(.subheadline)
+                            if let currency = receiptDraft.currency, currency != selectedCurrency {
+                                Text("Валюта чека: \(currency.rawValue). Оберіть відповідну картку.").foregroundStyle(.orange)
+                            }
+                            DisclosureGroup("Текст чека") { Text(receiptDraft.text).font(.caption).textSelection(.enabled) }
+                        }
+                    }
+                }
                 Section {
                     AnimatedCurrencyAmountField(text: $amountText, currency: selectedCurrency)
                 }
@@ -43,53 +65,25 @@ struct TransactionEditorView: View {
 
                 if kind != .transfer {
                     Section("Категорія") {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+                        Picker("Категорія", selection: $selectedCategoryID) {
                             ForEach(availableCategories) { item in
-                                Button {
-                                    withAnimation(.snappy) { selectedCategoryID = item.id }
-                                } label: {
-                                    VStack(spacing: 7) {
-                                        Image(systemName: item.systemImage)
-                                            .font(.headline)
-                                        Text(item.title)
-                                            .font(.caption.weight(.semibold))
-                                            .lineLimit(1)
-                                    }
-                                    .foregroundStyle(selectedCategoryID == item.id ? .white : item.tint)
-                                    .frame(maxWidth: .infinity, minHeight: 66)
-                                    .background(
-                                        selectedCategoryID == item.id ? item.tint : item.tint.opacity(0.13),
-                                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(item.title)
-                                .accessibilityAddTraits(selectedCategoryID == item.id ? .isSelected : [])
+                                Label(item.title, systemImage: item.systemImage).tag(item.id)
                             }
-
-                            Button {
-                                categoryEditorRequest = CategoryEditorRequest(kind: kind)
-                            } label: {
-                                VStack(spacing: 7) {
-                                    Image(systemName: "plus")
-                                        .font(.headline)
-                                    Text("Створити")
-                                        .font(.caption.weight(.semibold))
-                                }
-                                .foregroundStyle(PlanerTheme.accent)
-                                .frame(maxWidth: .infinity, minHeight: 66)
-                                .background(PlanerTheme.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
-                            }
-                            .buttonStyle(.plain)
                         }
-                        .padding(.vertical, 4)
+                        Button("Нова категорія", systemImage: "plus") {
+                            categoryEditorRequest = CategoryEditorRequest(kind: kind)
+                        }
                     }
                 }
 
-                Section("Деталі") {
-                    TextField("Коментар", text: $note)
-                    DatePicker("Дата", selection: $date, displayedComponents: [.date])
-                    DatePicker("Час", selection: $date, displayedComponents: [.hourAndMinute])
+                Section {
+                    DisclosureGroup("Деталі", isExpanded: $detailsExpanded) {
+                        TextField("Коментар", text: $note)
+                        if kind == .expense {
+                            TextField("Теги через кому", text: $tagsText).textInputAutocapitalization(.never)
+                        }
+                        DatePicker("Дата", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -144,7 +138,7 @@ struct TransactionEditorView: View {
     }
 
     private var canSave: Bool {
-        guard let amount = parsedAmount, amount > 0, walletID != nil else { return false }
+        guard let amount = parsedAmount, amount.isFinite, amount > 0, store.allowsEditing, walletID != nil else { return false }
         return kind != .transfer || destinationWalletID != nil
     }
 
@@ -158,8 +152,12 @@ struct TransactionEditorView: View {
             category: selectedCategory?.builtIn ?? (kind == .income ? .salary : .other),
             customCategoryID: selectedCategory?.customID,
             note: note,
-            date: date
+            date: date,
+            tags: kind == .expense ? Planning.tags(tagsText) : []
         )
+        if receiptDraft != nil, let transaction = store.transactions.last, transaction.walletID == walletID {
+            _ = store.createReceipt(for: transaction, merchant: note)
+        }
         dismiss()
     }
 }

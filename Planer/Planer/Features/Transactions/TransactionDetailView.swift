@@ -8,6 +8,8 @@ struct TransactionDetailView: View {
 
     @State private var receiptTransaction: FinanceTransaction?
     @State private var selectedReceipt: ReceiptSummary?
+    @State private var deleting = false
+    @State private var tagsText = ""
 
     var body: some View {
         List {
@@ -28,6 +30,18 @@ struct TransactionDetailView: View {
             }
 
             Section("Деталі") {
+                if transaction.kind == .expense {
+                    TextField("Теги через кому", text: $tagsText).textInputAutocapitalization(.never)
+                        .disabled(!store.allowsEditing)
+                    Button("Зберегти теги") { store.updateTags(transactionID: transaction.id, text: tagsText) }
+                        .disabled(!store.allowsEditing)
+                }
+                if let tags = transaction.tags, !tags.isEmpty {
+                    LabeledContent("Теги", value: tags.map { "#" + $0 }.joined(separator: " "))
+                }
+                if transaction.isReconciliation == true {
+                    Text("Звірка балансу · не враховується у статистиці").font(.caption).foregroundStyle(.secondary)
+                }
                 LabeledContent("Тип", value: transaction.kind.title)
                 LabeledContent("Категорія", value: category.title)
                 LabeledContent("Дата", value: transaction.date.formatted(date: .long, time: .omitted))
@@ -60,12 +74,16 @@ struct TransactionDetailView: View {
 
             Section {
                 Button("Видалити операцію", role: .destructive) {
-                    store.deleteTransaction(transaction)
-                    dismiss()
+                    deleting = true
                 }
+                .disabled(!store.allowsEditing || store.wallet(id: transaction.walletID) == nil)
             }
         }
         .navigationTitle("Операція")
+        .onAppear { tagsText = (store.transactions.first { $0.id == transaction.id }?.tags ?? []).joined(separator: ", ") }
+        .confirmationDialog("Видалити операцію?", isPresented: $deleting, titleVisibility: .visible) {
+            Button("Видалити", role: .destructive) { store.deleteTransaction(transaction); dismiss() }
+        } message: { Text("Зміна балансу цієї операції буде скасована.") }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("Готово") { dismiss() } }

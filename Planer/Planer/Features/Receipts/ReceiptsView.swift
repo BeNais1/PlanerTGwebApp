@@ -3,6 +3,7 @@ import SwiftUI
 struct ReceiptsView: View {
     @Environment(FinanceStore.self) private var store
     @Environment(FirebaseSyncStore.self) private var syncStore
+    @Environment(AppRouter.self) private var router
     @State private var selectedReceipt: ReceiptSummary?
 
     var body: some View {
@@ -30,13 +31,19 @@ struct ReceiptsView: View {
                         }
                     }
 
-                    syncNotice
+                    DisclosureGroup("Синхронізація") { syncNotice }.font(.subheadline)
                 }
                 .padding(18)
             }
             .scrollIndicators(.hidden)
         }
         .navigationTitle("Чеки")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { router.presentedSheet = .newTransaction(.expense) } label: { Image(systemName: "camera") }
+                    .accessibilityLabel("Розпізнати чек").disabled(!store.allowsEditing)
+            }
+        }
         .sheet(item: $selectedReceipt) { receipt in
             NavigationStack { ReceiptDetailView(receipt: receipt) }
         }

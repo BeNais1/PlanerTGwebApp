@@ -5,6 +5,8 @@ struct DashboardView: View {
     @Environment(AppRouter.self) private var router
     @Environment(FamilyAccountStore.self) private var familyStore
 
+    @State private var selectedWallet: Wallet?
+
     var body: some View {
         ZStack {
             AtmosphericBackground()
@@ -13,6 +15,7 @@ struct DashboardView: View {
                 VStack(spacing: 18) {
                     header
                     walletCarousel
+                    PaydayCard().padding(.horizontal, 18)
                     budgetCard
                     transactionSection
                 }
@@ -20,6 +23,7 @@ struct DashboardView: View {
             }
             .scrollIndicators(.hidden)
         }
+        .sheet(item: $selectedWallet) { wallet in NavigationStack { WalletActionsView(wallet: wallet) } }
         .navigationBarHidden(true)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             GlassActionCluster(
@@ -82,7 +86,7 @@ struct DashboardView: View {
 
     private var walletCarousel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if store.wallets.count > 1 {
+            if !store.wallets.isEmpty {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Загальний баланс")
@@ -100,7 +104,9 @@ struct DashboardView: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 14) {
                     ForEach(store.wallets) { wallet in
-                        WalletCardView(wallet: wallet)
+                        Button { selectedWallet = wallet } label: { WalletCardView(wallet: wallet) }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Звірка балансу та керування карткою")
                             .containerRelativeFrame(.horizontal, count: 1, spacing: 14)
                     }
 
@@ -212,16 +218,6 @@ struct WalletCardView: View {
         ZStack(alignment: .topTrailing) {
             PlanerTheme.walletGradient(wallet.palette)
 
-            Circle()
-                .fill(.white.opacity(0.11))
-                .frame(width: 170, height: 170)
-                .offset(x: 54, y: -64)
-
-            Circle()
-                .fill(.white.opacity(0.07))
-                .frame(width: 100, height: 100)
-                .offset(x: -28, y: 114)
-
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text(wallet.name)
@@ -236,7 +232,7 @@ struct WalletCardView: View {
                 Spacer()
 
                 Text(wallet.currency.formatted(wallet.balance))
-                    .font(.system(size: 31, weight: .bold, design: .rounded))
+                    .font(.system(size: 31, weight: .semibold))
                     .minimumScaleFactor(0.72)
                     .lineLimit(1)
                     .contentTransition(.numericText())
@@ -250,7 +246,7 @@ struct WalletCardView: View {
         }
         .frame(height: 176)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: .black.opacity(0.20), radius: 18, y: 10)
+        .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(wallet.name), \(wallet.currency.formatted(wallet.balance))")
     }
@@ -272,6 +268,9 @@ struct TransactionRowView: View {
                 Text(transaction.note.isEmpty ? category.title : transaction.note)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
+                if let tags = transaction.tags, !tags.isEmpty {
+                    Text(tags.map { "#" + $0 }.joined(separator: " ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
                 Text(transactionMetadata)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -328,5 +327,6 @@ struct TransactionRowView: View {
     NavigationStack { DashboardView() }
         .environment(FinanceStore.previewStore())
         .environment(AppRouter())
+        .environment(FamilyAccountStore.preview())
         .preferredColorScheme(.dark)
 }

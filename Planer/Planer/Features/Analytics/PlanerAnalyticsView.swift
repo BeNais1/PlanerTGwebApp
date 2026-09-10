@@ -114,7 +114,7 @@ struct PlanerAnalyticsView: View {
     }
 
     private var filteredTransactions: [FinanceTransaction] {
-        store.transactions
+        store.transactions.filter { $0.isReconciliation != true }
             .filter { transaction in
                 matchesPeriod(transaction.date)
                     && filters.operation.includes(transaction)

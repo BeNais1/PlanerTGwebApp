@@ -162,6 +162,8 @@ struct FinanceTransaction: Identifiable, Codable, Hashable {
     var authorName: String?
     var customCategoryID: UUID?
     var sourceDebtID: UUID?
+    var tags: [String]? = nil
+    var isReconciliation: Bool? = nil
 
     init(
         id: UUID = UUID(),
@@ -415,6 +417,7 @@ struct PlanerSnapshot: Codable, Equatable {
     var mainCurrency: Currency
     var prefersDarkAppearance: Bool
     var activeSpaceName: String
+    var payday: PaydaySettings? = nil
 
     private enum CodingKeys: String, CodingKey {
         case wallets
@@ -428,6 +431,7 @@ struct PlanerSnapshot: Codable, Equatable {
         case mainCurrency
         case prefersDarkAppearance
         case activeSpaceName
+        case payday
     }
 
     init(
@@ -472,6 +476,7 @@ struct PlanerSnapshot: Codable, Equatable {
         mainCurrency = try container.decodeIfPresent(Currency.self, forKey: .mainCurrency) ?? .UAH
         prefersDarkAppearance = try container.decodeIfPresent(Bool.self, forKey: .prefersDarkAppearance) ?? false
         activeSpaceName = try container.decodeIfPresent(String.self, forKey: .activeSpaceName) ?? "Особистий бюджет"
+        payday = try container.decodeIfPresent(PaydaySettings.self, forKey: .payday)
     }
 
     static let empty = PlanerSnapshot(

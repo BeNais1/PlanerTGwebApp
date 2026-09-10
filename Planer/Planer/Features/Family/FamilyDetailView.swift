@@ -9,6 +9,9 @@ struct FamilyDetailView: View {
     @State private var memberToRemove: FamilyMember?
     @State private var memberToConfigure: FamilyMember?
     @State private var showLeaveConfirmation = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
+    @Environment(\.dismiss) private var dismiss
 
     private var family: FamilySummary? {
         familyStore.families.first { $0.id == familyID }
@@ -90,7 +93,13 @@ struct FamilyDetailView: View {
                         }
                     }
 
-                    if family.ownerID != familyStore.currentUserID {
+                    if family.ownerID == familyStore.currentUserID {
+                        Section {
+                            Button("Видалити сімейний акаунт", role: .destructive) { showDeleteConfirmation = true }
+                                .disabled(isDeleting)
+                            if isDeleting { ProgressView() }
+                        }
+                    } else {
                         Section {
                             Button("Вийти із сім’ї", role: .destructive) {
                                 showLeaveConfirmation = true
@@ -106,6 +115,16 @@ struct FamilyDetailView: View {
                     }
                 }
                 .navigationTitle(family.name)
+                .confirmationDialog("Видалити сім’ю \(family.name)?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                    Button("Видалити для всіх", role: .destructive) {
+                        Task {
+                            isDeleting = true
+                            defer { isDeleting = false }
+                            do { try await familyStore.deleteFamily(family); dismiss() }
+                            catch { errorMessage = FamilyAccountError.userFacingMessage(for: error) }
+                        }
+                    }
+                } message: { Text("Спільний бюджет буде видалено для всіх учасників. Особисті акаунти залишаться.") }
                 .navigationBarTitleDisplayMode(.inline)
                 .sheet(item: $invite) { invite in
                     NavigationStack { FamilyInviteView(invite: invite) }

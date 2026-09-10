@@ -49,7 +49,8 @@ struct FinanceHubView: View {
             .scrollIndicators(.hidden)
         }
         .navigationTitle("Фінанси")
-        .searchable(text: $searchText, prompt: "Сума, опис або категорія")
+        .searchable(text: $searchText, prompt: "Опис, сума або #тег")
+        .onChange(of: searchText) { _, value in if !value.isEmpty { section = .search } }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if section != .search {
@@ -183,11 +184,24 @@ struct FinanceHubView: View {
         let rows = store.recentTransactions.filter { transaction in
             query.isEmpty
                 || transaction.note.lowercased().contains(query)
+                || (transaction.tags ?? []).contains { $0.contains(query.trimmingCharacters(in: CharacterSet(charactersIn: "#"))) }
                 || store.categoryPresentation(for: transaction).title.lowercased().contains(query)
                 || transaction.currency.formatted(transaction.amount).lowercased().contains(query)
         }
 
         return VStack(spacing: 0) {
+            let tags = Array(Set(store.transactions.flatMap { $0.tags ?? [] })).sorted()
+            if !tags.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack {
+                        Button("Усі") { searchText = "" }
+                        ForEach(tags, id: \.self) { tag in
+                            Button("#" + tag) { searchText = "#" + tag }
+                                .buttonStyle(.bordered)
+                        }
+                    }.padding(12)
+                }.scrollIndicators(.hidden)
+            }
             if rows.isEmpty {
                 ContentUnavailableView.search(text: searchText)
                     .frame(minHeight: 280)
@@ -229,6 +243,8 @@ struct FinanceHubView: View {
 
 private struct GoalCard: View {
     @Environment(AppRouter.self) private var router
+    @Environment(FinanceStore.self) private var store
+    @State private var deleting = false
     let goal: SavingsGoal
 
     var body: some View {
@@ -248,6 +264,10 @@ private struct GoalCard: View {
                 Text("\(Int(progress * 100))%")
                     .font(.subheadline.bold())
                     .foregroundStyle(PlanerTheme.accent)
+                Menu {
+                    Button("Видалити ціль", role: .destructive) { deleting = true }
+                } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }
+                    .disabled(!store.allowsEditing)
             }
 
             ProgressView(value: progress)
@@ -265,11 +285,14 @@ private struct GoalCard: View {
                 }
                 .controlSize(.small)
                 .planerProminentButton()
-                .disabled(progress >= 1)
+                .disabled(progress >= 1 || !store.allowsEditing)
             }
         }
         .padding(16)
         .contentCard()
+        .confirmationDialog("Видалити ціль \(goal.title)?", isPresented: $deleting, titleVisibility: .visible) {
+            Button("Видалити", role: .destructive) { store.deleteGoal(id: goal.id) }
+        } message: { Text("Прогрес цілі буде видалено. Баланси карток не зміняться.") }
     }
 }
 

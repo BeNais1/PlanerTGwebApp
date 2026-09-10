@@ -35,9 +35,16 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Планування") {
+                NavigationLink("До зарплати") { PaydayEditor() }
+                NavigationLink("Картки та баланс") {
+                    List(store.wallets) { wallet in
+                        NavigationLink(wallet.name) { WalletActionsView(wallet: wallet) }
+                    }.navigationTitle("Картки")
+                }
+            }
             Section("Дані") {
                 LabeledContent("Простір", value: familyStore.activeSpace.title)
-                LabeledContent("Сховище", value: "Firebase + локальний кеш")
                 Label(syncStore.status.title, systemImage: syncStatusIcon)
                     .foregroundStyle(syncStatusColor)
 
@@ -57,9 +64,6 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                Text("Створюйте спільний бюджет і додавайте учасників через посилання або QR-код.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("Сповіщення") {
@@ -71,12 +75,10 @@ struct SettingsView: View {
                             .foregroundStyle(notificationStatusColor)
                     }
                 }
-                Text("Ліміти, термінові кредитні платежі, борги, регулярні операції, цілі, прогнози, підсумки та сімейний бюджет.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
-            Section("Dynamic Island і екран блокування") {
+            Section {
+                DisclosureGroup("Live Activity") {
                 Label(liveActivityManager.status.title, systemImage: liveActivityManager.status.systemImage)
                     .foregroundStyle(liveActivityStatusColor)
 
@@ -118,6 +120,7 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(liveActivityManager.status == .starting)
+                }
             }
 
             Section("Обліковий запис Google") {
@@ -138,9 +141,6 @@ struct SettingsView: View {
                 Button("Видалити всі дані", role: .destructive) {
                     showClearConfirmation = true
                 }
-                Text("Гаманці, операції, цілі, борги та кредити буде видалено з пристрою і Firebase. Після очищення знову відкриється знайомство із застосунком.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("Про застосунок") {
@@ -151,7 +151,6 @@ struct SettingsView: View {
                 }
                 LabeledContent("Версія", value: appVersion)
                 LabeledContent("Мінімальна iOS", value: "17.0")
-                LabeledContent("Liquid Glass", value: "iOS 26+")
             }
         }
         .navigationTitle("Налаштування")

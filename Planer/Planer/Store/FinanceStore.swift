@@ -21,6 +21,7 @@ final class FinanceStore {
     var mainCurrency: Currency
     var prefersDarkAppearance: Bool
     var activeSpaceName: String
+    var payday: PaydaySettings?
     private(set) var allowsEditing = true
 
     init(
@@ -55,6 +56,7 @@ final class FinanceStore {
         mainCurrency = initial.mainCurrency
         prefersDarkAppearance = initial.prefersDarkAppearance
         activeSpaceName = initial.activeSpaceName
+        payday = initial.payday
     }
 
     var totalBalanceInMainCurrency: Double {
@@ -70,25 +72,25 @@ final class FinanceStore {
 
     var monthlyExpenses: Double {
         currentMonthTransactions
-            .filter { $0.kind == .expense }
+            .filter { $0.isReconciliation != true && $0.kind == .expense }
             .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
     }
 
     var monthlyIncome: Double {
         currentMonthTransactions
-            .filter { $0.kind == .income }
+            .filter { $0.isReconciliation != true && $0.kind == .income }
             .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
     }
 
     var todayExpenses: Double {
         transactions
-            .filter { $0.kind == .expense && Calendar.current.isDateInToday($0.date) }
+            .filter { $0.isReconciliation != true && $0.kind == .expense && Calendar.current.isDateInToday($0.date) }
             .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
     }
 
     var todayIncome: Double {
         transactions
-            .filter { $0.kind == .income && Calendar.current.isDateInToday($0.date) }
+            .filter { $0.isReconciliation != true && $0.kind == .income && Calendar.current.isDateInToday($0.date) }
             .reduce(0) { $0 + converted($1.amount, from: $1.currency, to: mainCurrency) }
     }
 
@@ -200,9 +202,10 @@ final class FinanceStore {
         category: TransactionCategory,
         customCategoryID: UUID? = nil,
         note: String,
-        date: Date = .now
+        date: Date = .now,
+        tags: [String] = []
     ) {
-        guard allowsEditing, amount > 0,
+        guard allowsEditing, amount.isFinite, amount > 0,
               let sourceIndex = wallets.firstIndex(where: { $0.id == walletID }) else { return }
 
         let sourceCurrency = wallets[sourceIndex].currency
@@ -237,10 +240,12 @@ final class FinanceStore {
                 customCategoryID: kind == .transfer ? nil : customCategoryID
             )
         )
+        transactions[transactions.count - 1].tags = Planning.tags(tags.joined(separator: ","))
         persist()
     }
 
-    func deleteTransaction(_ transaction: FinanceTransaction) {
+    func deleteTransaction(_ proposed: FinanceTransaction) {
+        guard let transaction = transactions.first(where: { $0.id == proposed.id }) else { return }
         guard allowsEditing,
               let sourceIndex = wallets.firstIndex(where: { $0.id == transaction.walletID }) else { return }
 
@@ -498,7 +503,7 @@ final class FinanceStore {
     }
 
     var snapshot: PlanerSnapshot {
-        PlanerSnapshot(
+        var result = PlanerSnapshot(
             wallets: wallets,
             transactions: transactions,
             goals: goals,
@@ -511,6 +516,8 @@ final class FinanceStore {
             prefersDarkAppearance: prefersDarkAppearance,
             activeSpaceName: activeSpaceName
         )
+        result.payday = payday
+        return result
     }
 
     func setChangeHandler(_ handler: ((PlanerSnapshot) -> Void)?) {
@@ -555,7 +562,63 @@ final class FinanceStore {
         mainCurrency = snapshot.mainCurrency
         prefersDarkAppearance = snapshot.prefersDarkAppearance
         activeSpaceName = snapshot.activeSpaceName
+        payday = snapshot.payday
         persist(notifyChange: notifyChange)
+    }
+
+    func updateTags(transactionID: UUID, text: String) {
+        guard allowsEditing, let index = transactions.firstIndex(where: { $0.id == transactionID }), transactions[index].kind == .expense else { return }
+        transactions[index].tags = Planning.tags(text)
+        persist()
+    }
+
+    func setPayday(_ settings: PaydaySettings?) {
+        guard allowsEditing else { return }
+        if let settings {
+            guard settings.reserve.isFinite, settings.reserve >= 0, !settings.walletIDs.isEmpty else { return }
+        }
+        payday = settings
+        persist()
+    }
+
+    func paydayAvailable(_ settings: PaydaySettings) -> Double {
+        let balance = wallets.filter { settings.walletIDs.contains($0.id) }.reduce(0) {
+            $0 + converted($1.balance, from: $1.currency, to: mainCurrency)
+        }
+        return max(0, balance - settings.reserve)
+    }
+
+    @discardableResult
+    func reconcile(walletID: UUID, actualBalance: Double) -> Bool {
+        guard allowsEditing, actualBalance.isFinite,
+              let index = wallets.firstIndex(where: { $0.id == walletID }) else { return false }
+        let difference = actualBalance - wallets[index].balance
+        guard difference.isFinite else { return false }
+        if abs(difference) < 0.005 { return true }
+        var adjustment = FinanceTransaction(kind: difference > 0 ? .income : .expense,
+            amount: abs(difference), currency: wallets[index].currency, category: .other,
+            note: "Звірка балансу", walletID: walletID, authorName: transactionAuthorName)
+        adjustment.isReconciliation = true
+        transactions.append(adjustment)
+        wallets[index].balance = actualBalance
+        persist()
+        return true
+    }
+
+    func deleteGoal(id: UUID) {
+        guard allowsEditing else { return }
+        goals.removeAll { $0.id == id }
+        persist()
+    }
+
+    func deleteWallet(id: UUID) {
+        guard allowsEditing, wallets.contains(where: { $0.id == id }) else { return }
+        // Historical operations remain searchable. No other wallet's balance changes.
+        wallets.removeAll { $0.id == id }
+        for index in credits.indices where credits[index].walletID == id { credits[index].walletID = nil }
+        payday?.walletIDs.removeAll { $0 == id }
+        if payday?.walletIDs.isEmpty == true { payday = nil }
+        persist()
     }
 
     func clearAllData() {
@@ -581,7 +644,7 @@ final class FinanceStore {
 
     func categoryTotals(for transactions: [FinanceTransaction]) -> [CategoryTotal] {
         let totals = Dictionary(
-            grouping: transactions.filter { $0.kind == .expense },
+            grouping: transactions.filter { $0.isReconciliation != true && $0.kind == .expense },
             by: { categoryPresentation(for: $0) }
         )
             .mapValues { rows in

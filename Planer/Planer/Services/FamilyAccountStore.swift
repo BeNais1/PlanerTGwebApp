@@ -286,6 +286,20 @@ final class FamilyAccountStore {
         return joinedFamily
     }
 
+    func deleteFamily(_ family: FamilySummary) async throws {
+        guard family.ownerID == user.id else { throw FamilyAccountError.ownerPermissionRequired }
+        // Re-read membership before the atomic removal. Firebase rules enforce ownership.
+        let root = Database.database().reference()
+        guard let data = try await readValue(from: root.child("families").child(family.id)) as? [String: Any],
+              data["ownerId"] as? String == user.id else { throw FamilyAccountError.ownerPermissionRequired }
+        let members = data["members"] as? [String: Any] ?? [:]
+        var updates: [String: Any] = ["families/\(family.id)": NSNull()]
+        for id in members.keys { updates["user_families/\(id)/\(family.id)"] = NSNull() }
+        try await updateValues(updates)
+        families.removeAll { $0.id == family.id }
+        if activeSpace.familyID == family.id { selectPersonalSpace() }
+    }
+
     func leaveFamily(_ family: FamilySummary) async throws {
         guard family.ownerID != user.id else { throw FamilyAccountError.ownerCannotLeave }
         try await updateValues([
