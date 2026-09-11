@@ -56,6 +56,17 @@ function AppContent() {
         return;
       }
 
+      // HTTPS remains a useful fallback, while installed iOS clients are
+      // handed off to the native digital receipt through Planer's URL scheme.
+      const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const handoffKey = `planer-receipt-handoff:${shareCode}`;
+      if (isAppleMobile && sessionStorage.getItem(handoffKey) !== 'done') {
+        sessionStorage.setItem(handoffKey, 'done');
+        window.setTimeout(() => {
+          window.location.href = `planer://receipt/${encodeURIComponent(shareCode)}`;
+        }, 120);
+      }
+
       setCheckingReceipt(true);
       // Try new system first, then fall back to legacy
       getReceiptShare(shareCode).then(async (share) => {
