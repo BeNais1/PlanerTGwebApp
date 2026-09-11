@@ -190,6 +190,11 @@ export const HomePage = () => {
     return map;
   }, [wallets]);
 
+  const totalBalance = useMemo(
+    () => wallets.reduce((sum, wallet) => sum + convertToMain(wallet.balance || 0, wallet.currency as Currency), 0),
+    [wallets, convertToMain],
+  );
+
   const selectedMainWalletId = useMemo(() => {
     const savedWallet = wallets.find(w => w.id === mainWalletId);
     if (savedWallet) return savedWallet.id ?? null;
@@ -579,7 +584,7 @@ export const HomePage = () => {
           <div className="modal-content" style={{ gap: '16px' }}>
             <div className="modal-header">
               <h2 className="modal-title">Місячний ліміт</h2>
-              <div className="modal-close" onClick={() => setShowLimitModal(false)}>✕</div>
+              <button type="button" className="modal-close" onClick={() => setShowLimitModal(false)} aria-label="Закрити">✕</button>
             </div>
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginTop: '-8px' }}>
               Скільки ви хочете максимально витратити цього місяця?
@@ -657,11 +662,19 @@ export const HomePage = () => {
                   Підписка Vault
                 </button>
               )}
-              <div className="settings-btn" onClick={() => canManageFamily ? setIsSettingsOpen(true) : setIsFamilyBudgetOpen(true)}>
+              <button type="button" className="settings-btn" onClick={() => canManageFamily ? setIsSettingsOpen(true) : setIsFamilyBudgetOpen(true)} aria-label="Налаштування">
                 <SettingsIcon />
-              </div>
+              </button>
             </div>
           </div>
+
+          <section className="balance-hero" aria-label="Загальний баланс">
+            <span>Загальний баланс</span>
+            <strong className={totalBalance < 0 ? 'is-negative' : ''}>
+              <AnimatedNumber value={totalBalance} formatter={(value) => formatValue(value, mainCurrency)} />
+            </strong>
+            <small>{wallets.length === 1 ? '1 гаманець' : `${wallets.length} ${wallets.length > 1 && wallets.length < 5 ? 'гаманці' : 'гаманців'}`} · {mainCurrency}</small>
+          </section>
 
           <PaydayCard key={dataOwnerId} wallets={wallets} />
           {/* Wallet Cards Carousel */}
@@ -933,6 +946,10 @@ export const HomePage = () => {
         )}
         {isActionMenuOpen && (
           <div className="action-menu" role="menu" aria-label="Нова операція">
+            <button type="button" className="action-menu-item action-menu-receipt" role="menuitem" onClick={() => handleActionSelect(() => setIsSpendOpen(true))}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5.5 10 3h4l1.5 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h3.5Z"/><circle cx="12" cy="12.5" r="3.5"/></svg>
+              <span>Чек з фото</span>
+            </button>
             <button type="button" className="action-menu-item" role="menuitem" onClick={() => handleActionSelect(() => setIsSpendOpen(true))}>
               <ArrowTop className="!relative !w-5 !h-5" />
               <span>Витрата</span>

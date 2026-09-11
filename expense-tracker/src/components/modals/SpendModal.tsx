@@ -37,6 +37,8 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
     ? ((CURRENCY_SYMBOLS as Record<string, string>)[selectedWallet.currency] ?? selectedWallet.currency)
     : '₴';
   const selectedCategory = category || categories[0]?.id || '';
+  const tagCount = normalizeTags(tags).length;
+  const tagCountLabel = tagCount === 1 ? 'тег' : tagCount > 1 && tagCount < 5 ? 'теги' : 'тегів';
 
   const handleClose = () => {
     setIsClosing(true);
@@ -68,6 +70,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
               setDetailsOpen(true);
               setAmount(draft.amount ? String(draft.amount) : '');
               setDescription(draft.description);
+              if (draft.category && categories.some(item => item.id === draft.category)) setCategory(draft.category);
               if (draft.date) setTransactionDate(draft.date);
               const matchingWallet = wallets.find(wallet => wallet.currency === draft.currency);
               if (matchingWallet?.id) setSelectedWalletId(matchingWallet.id);
@@ -85,7 +88,7 @@ export const SpendModal = ({ onClose, onSpend, isLoading, wallets, defaultWallet
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
               </select>
             </label>
-            <details className="minimal-disclosure" open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)}><summary>Деталі{tags ? ` · ${normalizeTags(tags).length} тегів` : ''}</summary>
+            <details className="minimal-disclosure" open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)}><summary>Деталі{tagCount ? ` · ${tagCount} ${tagCountLabel}` : ''}</summary>
             <TagInput value={tags} onChange={setTags} />
             <label className="transaction-compose-field">
               <span className="transaction-compose-field-label">Коментар</span>

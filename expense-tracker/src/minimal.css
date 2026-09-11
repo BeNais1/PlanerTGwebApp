@@ -120,3 +120,53 @@ body .header, body .wallet-cards-section, body .bottom-card, body .bottom-nav, b
   body .home-dashboard .payment-list { overflow-y: visible; }
   body .home-dashboard .payment-history { margin: 0; }
 }
+
+/* 2026 dashboard hierarchy: one financial headline, quiet secondary controls. */
+body .balance-hero { margin: 10px 16px 0; padding: 4px 2px 10px; display: flex; flex-direction: column; align-items: flex-start; }
+body .balance-hero > span { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+body .balance-hero > strong { margin-top: 2px; color: var(--text-primary); font: 650 clamp(32px, 9vw, 44px)/1.08 var(--font-display); letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+body .balance-hero > strong.is-negative { color: var(--danger); }
+body .balance-hero > small { margin-top: 7px; color: var(--text-tertiary); font-size: 12px; }
+body .payday-card { padding: 6px 12px; border: 1px solid color-mix(in srgb, var(--card-bg-3) 65%, transparent); }
+body .payday-summary strong { font-size: 18px; }
+body .wallet-card { height: 150px; padding: 18px 20px; }
+body .wallet-card-slide > button { height: 150px !important; border-width: 1px !important; border-style: solid !important; }
+body .wallet-dots { margin-top: 8px; }
+body .vault-entry-btn { animation: none; background: var(--card-bg); border-color: var(--card-bg-3); box-shadow: none; }
+body .vault-entry-btn::before { display: none; }
+body .settings-btn { border: 0; padding: 0; color: var(--text-primary); }
+
+body .receipt-scanner { display: grid; gap: 12px; padding: 14px; border: 0; border-radius: 16px; background: var(--card-bg-2); }
+body .receipt-scanner-head { display: flex; align-items: center; gap: 11px; min-width: 0; }
+body .receipt-scanner-head > span:last-child { display: flex; min-width: 0; flex-direction: column; }
+body .receipt-scanner-head strong { color: var(--text-primary); font-size: 14px; font-weight: 600; }
+body .receipt-scanner-head small { color: var(--text-secondary); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body .receipt-scanner-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; border-radius: 11px; color: var(--accent); background: var(--accent-dim); }
+body .receipt-scanner-icon svg, body .action-menu-receipt svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+body .receipt-scanner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body .receipt-scanner-actions label { min-height: 40px; padding: 8px 12px; }
+body .receipt-scanner.is-busy .receipt-scanner-actions { display: none; }
+body .receipt-scanner progress { height: 4px; border: 0; border-radius: 4px; }
+body .receipt-scanner details { margin: 0; }
+
+body .tag-editor-control { min-height: 46px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 12px; background: var(--card-bg-2); cursor: text; }
+body .tag-editor-control button, body .tag-suggestions button { border: 0; font: 500 12px var(--font-text); cursor: pointer; }
+body .tag-editor-control button { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 5px 8px; border-radius: 8px; color: var(--accent); background: var(--accent-dim); }
+body .tag-editor-control button span { color: var(--text-secondary); font-size: 15px; line-height: 1; }
+body .tag-editor-control input { flex: 1 1 90px; min-width: 80px; height: 32px; border: 0; outline: 0; background: transparent; color: var(--text-primary); font-size: 14px; }
+body .tag-editor-control input::placeholder { color: var(--text-tertiary); }
+body .tag-suggestions { display: flex; gap: 6px; padding-top: 7px; overflow-x: auto; scrollbar-width: none; }
+body .tag-suggestions::-webkit-scrollbar { display: none; }
+body .tag-suggestions button { flex: 0 0 auto; min-height: 32px; padding: 5px 9px; border-radius: 8px; color: var(--text-secondary); background: transparent; }
+body .action-menu-receipt { color: var(--accent); background: var(--accent-dim); }
+
+@media (min-width: 900px) {
+  body .home-dashboard { grid-template-rows: auto auto auto auto minmax(0, 1fr); }
+  body .home-dashboard .balance-hero { grid-column: 1; grid-row: 2; margin: 0; padding: 4px 0 0; }
+  body .home-dashboard .payday-card { grid-column: 1; grid-row: 3; margin: 0; }
+  body .home-dashboard .wallet-cards-section { grid-column: 1; grid-row: 4; }
+  body .home-dashboard .wallet-card { height: 164px; padding: 21px 22px; }
+  body .home-dashboard .wallet-card-control { top: 82px; }
+  body .home-dashboard .budget-section { grid-column: 1; grid-row: 5; }
+  body .home-dashboard .bottom-card { grid-column: 2; grid-row: 2 / 6; }
+}

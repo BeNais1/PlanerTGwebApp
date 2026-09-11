@@ -45,4 +45,10 @@ describe('receipt parsing', () => {
     expect(parseReceipt('Milk 3.50\nBread 2.00').amount).toBeUndefined();
     expect(parseReceipt('TOTAL 3.50\n31.02.2026').date).toBeUndefined();
   });
+  it('supports whole totals, short dates and category hints', () => {
+    const result = parseReceipt('ТОВ СІЛЬПО-ФУД\nСільпо\n9.9.26\nДО СПЛАТИ 420 грн');
+    expect(result.amount).toBe(420);
+    expect(result.category).toBe('food');
+    expect(new Date(result.date!).getFullYear()).toBe(2026);
+  });
 });
